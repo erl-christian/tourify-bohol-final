@@ -1,0 +1,502 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { IoSearchOutline, IoFilterOutline, IoReloadOutline } from 'react-icons/io5';
+import AdminLayout from '../../components/AdminLayout';
+import '../../styles/AdminDashboard.css';
+import { fetchAllEstablishments } from '../../services/btoApi';
+import {
+  fetchBtoFeedback,
+  fetchFeedbackDetails,
+  fetchLatestFeedbackSummary,
+  generateFeedbackSummary,
+} from '../../services/feedbackApi';
+
+const stripMarkdown = text => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+
+const parseAiSummary = text => {
+  if (!text) return null;
+
+  const summaryMatch = text.match(/Summary:\s*([\s\S]*?)(?:\n\s*Actions:|$)/i);
+  const actionsMatch = text.match(/Actions:\s*([\s\S]*?)(?:\n\s*JSON:|$)/i);
+  const jsonMatch = text.match(/JSON:\s*([\s\S]*)$/i);
+
+  const summary = stripMarkdown(summaryMatch?.[1] ?? text);
+
+  const actions = actionsMatch
+    ? actionsMatch[1]
+        .split('\n')
+        .map(line => line.replace(/^-/, '').trim())
+        .filter(Boolean)
+        .map(line => {
+          const clean = stripMarkdown(line);
+          const tokens = clean.split(/\s+/);
+          const actor = tokens.shift() ?? '';
+          return { actor, text: tokens.join(' ') };
+        })
+    : [];
+
+  let structured = null;
+  if (jsonMatch?.[1]) {
+    try {
+      structured = JSON.parse(jsonMatch[1]);
+    } catch {
+      structured = null;
+    }
+  }
+
+  return { summary, actions, structured };
+};
+
+const sortOptions = [
+  { value: 'newest', label: 'Most recent' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'rating_desc', label: 'Highest rating' },
+  { value: 'rating_asc', label: 'Lowest rating' },
+];
+
+const ratingLabels = {
+  1: '1 star',
+  2: '2 stars',
+  3: '3 stars',
+  4: '4 stars',
+  5: '5 stars',
+};
+
+const getEstablishmentId = est =>
+  est?.businessEstablishment_id ??
+  est?.business_establishment_id ??
+  est?.business_establishmentId ??
+  est?.id ??
+  '';
+
+function BtoFeedback() {
+  const [establishments, setEstablishments] = useState([]);
+  const [loadingEstablishments, setLoadingEstablishments] = useState(true);
+  const [estError, setEstError] = useState('');
+  const [selectedEst, setSelectedEst] = useState('');
+
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackSort, setFeedbackSort] = useState('newest');
+  const [feedbackSearch, setFeedbackSearch] = useState('');
+
+  const [feedbackState, setFeedbackState] = useState({
+    loading: false,
+    items: [],
+    summary: null,
+    distribution: {},
+    total: 0,
+    pages: 1,
+  });
+
+  const [summaryState, setSummaryState] = useState({
+    loading: false,
+    latest: null,
+    parsedSummary: null,
+  });
+
+  const loadEstablishments = useCallback(async () => {
+    try {
+      setLoadingEstablishments(true);
+      const { data } = await fetchAllEstablishments({ limit: 200 });
+      const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+      setEstablishments(items);
+      if (!items.length) {
+        setEstError('No establishments registered yet.');
+      } else {
+        const first = getEstablishmentId(items[0]);
+        if (first) setSelectedEst(first);
+        setEstError('');
+      }
+    } catch (err) {
+      console.error('[BTO Feedback] load establishments failed', err);
+      setEstError('Unable to load establishments right now.');
+    } finally {
+      setLoadingEstablishments(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEstablishments();
+  }, [loadEstablishments]);
+
+  useEffect(() => {
+    if (!selectedEst && establishments.length) {
+      const first = getEstablishmentId(establishments[0]);
+      if (first) setSelectedEst(first);
+    }
+  }, [establishments, selectedEst]);
+
+  const loadFeedback = useCallback(async () => {
+    if (!selectedEst) return;
+    setFeedbackState(prev => ({ ...prev, loading: true }));
+    try {
+      const { data } = await fetchBtoFeedback(selectedEst, {
+        page: feedbackPage,
+        sort: feedbackSort,
+        pageSize: 10,
+      });
+      const baseItems = Array.isArray(data?.items) ? data.items : [];
+      const itemsWithReplies = await Promise.all(
+        baseItems.map(async item => {
+          try {
+            const detail = await fetchFeedbackDetails(item.feedback_id);
+            return { ...item, replies: detail.data?.replies ?? [] };
+          } catch {
+            return { ...item, replies: [] };
+          }
+        })
+      );
+      setFeedbackState({
+        loading: false,
+        items: itemsWithReplies,
+        summary: data?.summary ?? null,
+        distribution: data?.distribution ?? {},
+        total: data?.total ?? itemsWithReplies.length,
+        pages: data?.pages ?? 1,
+      });
+    } catch (err) {
+      console.error('[BTO Feedback] load feedback failed', err);
+      setFeedbackState(prev => ({ ...prev, loading: false }));
+    }
+  }, [selectedEst, feedbackPage, feedbackSort]);
+
+  const loadSummary = useCallback(async () => {
+    if (!selectedEst) return;
+    try {
+      setSummaryState(prev => ({ ...prev, loading: true }));
+      const latest = await fetchLatestFeedbackSummary(selectedEst).catch(() => null);
+      setSummaryState({
+        loading: false,
+        latest: latest?.data ?? null,
+        parsedSummary: parseAiSummary(latest?.data?.ai_summary),
+      });
+    } catch (err) {
+      console.error('[BTO Feedback] load summary failed', err);
+      setSummaryState(prev => ({ ...prev, loading: false }));
+    }
+  }, [selectedEst]);
+
+  useEffect(() => {
+    if (selectedEst) {
+      loadFeedback();
+      loadSummary();
+    }
+  }, [selectedEst, loadFeedback, loadSummary]);
+
+  const handleGenerateSummary = async () => {
+    if (!selectedEst) return;
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - 30);
+    try {
+      setSummaryState(prev => ({ ...prev, loading: true }));
+      await generateFeedbackSummary(selectedEst, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+      await loadSummary();
+    } catch (err) {
+      console.error('[BTO Feedback] summary generation failed', err);
+      alert('Unable to generate summary. Please try again later.');
+      setSummaryState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const feedbackSummaryCards = useMemo(() => {
+    if (!feedbackState.summary) return [];
+    return [
+      {
+        label: 'Average rating',
+        value:
+          feedbackState.summary.average_rating != null
+            ? Number(feedbackState.summary.average_rating).toFixed(2)
+            : '—',
+        helper: `${feedbackState.summary.total_reviews ?? feedbackState.total ?? 0} reviews`,
+      },
+      {
+        label: 'Written reviews',
+        value: feedbackState.summary.with_text ?? 0,
+        helper: 'With comments',
+      },
+      {
+        label: 'No-comment ratings',
+        value: feedbackState.summary.no_text ?? 0,
+        helper: 'Quick ratings',
+      },
+    ];
+  }, [feedbackState.summary, feedbackState.total]);
+
+  const ratingDistribution = useMemo(
+    () => ({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, ...(feedbackState.distribution ?? {}) }),
+    [feedbackState.distribution]
+  );
+
+  const filteredItems = useMemo(
+    () =>
+      feedbackState.items.filter(item =>
+        feedbackSearch
+          ? (item.review_text ?? '').toLowerCase().includes(feedbackSearch.toLowerCase())
+          : true
+      ),
+    [feedbackState.items, feedbackSearch]
+  );
+
+  return (
+    <AdminLayout
+      title="Feedback Oversight"
+      subtitle="Inspect province-wide reviews and ensure LGUs stay responsive."
+    >
+      <section className="lgu-feedback-page">
+        <header className="lgu-feedback-hero">
+          <div>
+            <p className="eyebrow">Moderation</p>
+            <h1>Feedback library</h1>
+            <p className="muted">
+              Browse any establishment’s review history, read LGU/owner responses, and coordinate
+              follow-ups. BTO remains read-only for formal replies.
+            </p>
+          </div>
+          <div className="owner-hero-filters">
+            <label>
+              Establishment
+              <select
+                value={selectedEst}
+                onChange={event => {
+                  setSelectedEst(event.target.value);
+                  setFeedbackPage(1);
+                }}
+                disabled={loadingEstablishments || !establishments.length}
+              >
+                {establishments.map(est => {
+                  const id = getEstablishmentId(est);
+                  return (
+                    <option key={id} value={id}>
+                      {est.name ?? est.establishment_name ?? id}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <label>
+              Sort
+              <select
+                value={feedbackSort}
+                onChange={event => {
+                  setFeedbackSort(event.target.value);
+                  setFeedbackPage(1);
+                }}
+              >
+                {sortOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </header>
+
+        {estError ? (
+          <p className="error-text">{estError}</p>
+        ) : (
+          <>
+            <section className="lgu-summary-grid">
+              {feedbackSummaryCards.map(card => (
+                <article key={card.label} className="lgu-summary-card">
+                  <p className="summary-label">{card.label}</p>
+                  <p className="summary-value">{card.value}</p>
+                  <p className="summary-helper">{card.helper}</p>
+                </article>
+              ))}
+
+              <article className="lgu-summary-card wide">
+                <div className="owner-summary-header">
+                  <p className="summary-label">Rating breakdown</p>
+                  <button type="button" onClick={loadFeedback} disabled={feedbackState.loading}>
+                    <IoReloadOutline /> Refresh
+                  </button>
+                </div>
+                <div className="distribution-list">
+                  {[5, 4, 3, 2, 1].map(star => (
+                    <div key={star} className="distribution-row">
+                      <span>{star}★</span>
+                      <div className="distribution-bar">
+                        <div
+                          style={{
+                            width: feedbackState.total
+                              ? `${(ratingDistribution[star] / feedbackState.total) * 100}%`
+                              : '0%',
+                          }}
+                        />
+                      </div>
+                      <span>{ratingDistribution[star]}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="lgu-summary-card wide">
+                <p className="summary-label">Latest AI summary</p>
+                {summaryState.parsedSummary ? (
+                  <>
+                    {summaryState.latest ? (
+                      <p className="summary-helper">
+                        {new Date(summaryState.latest.time_range_start).toLocaleDateString()} –{' '}
+                        {new Date(summaryState.latest.time_range_end).toLocaleDateString()}
+                      </p>
+                    ) : null}
+                    <p className="lgu-summary-text">{summaryState.parsedSummary.summary}</p>
+                    {summaryState.parsedSummary.actions.length ? (
+                      <ul className="lgu-summary-actions">
+                        {summaryState.parsedSummary.actions.map(action => (
+                          <li key={`${action.actor}-${action.text}`}>
+                            <strong>{action.actor}</strong> {action.text}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="summary-helper">No generated summary yet.</p>
+                )}
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={handleGenerateSummary}
+                  disabled={summaryState.loading}
+                >
+                  {summaryState.loading ? 'Generating…' : 'Generate last 30 days'}
+                </button>
+              </article>
+            </section>
+
+            <section className="lgu-reviews-panel">
+              <div className="lgu-reviews-header">
+                <div>
+                  <h2>Reviews</h2>
+                  <p className="muted">
+                    Showing {filteredItems.length} of {feedbackState.total} entries
+                  </p>
+                </div>
+                <div className="lgu-reviews-controls">
+                  <div className="filter-input">
+                    <IoSearchOutline />
+                    <input
+                      placeholder="Search comment…"
+                      value={feedbackSearch}
+                      onChange={event => setFeedbackSearch(event.target.value)}
+                    />
+                  </div>
+                  <button type="button" className="ghost-btn">
+                    <IoFilterOutline /> Filter
+                  </button>
+                </div>
+              </div>
+
+              <div className="lgu-reviews-table">
+                <div className="lgu-table-head">
+                  <span>Review</span>
+                  <span>Rating</span>
+                  <span>Date</span>
+                  <span>Replies</span>
+                  <span>Action</span>
+                </div>
+
+                {feedbackState.loading && !feedbackState.items.length ? (
+                  <div className="empty-card">Loading feedback…</div>
+                ) : filteredItems.length ? (
+                  filteredItems.map(item => (
+                    <article key={item.feedback_id} className="lgu-table-row">
+                      <div className="lgu-review-info">
+                        <p className="review-text">
+                          {item.review_text?.length ? item.review_text : 'No written review provided.'}
+                        </p>
+                        <p className="review-meta">
+                          by {item.tourist_name ?? 'Verified traveler'} · Profile ID:{' '}
+                          {item.tourist_profile_id ?? '—'}
+                        </p>
+                      </div>
+
+                      <div className="lgu-review-rating">
+                        <span className="status-chip status-success">
+                          {Number(item.rating).toFixed(1)} ★
+                        </span>
+                        <p>{ratingLabels[item.rating] ?? ''}</p>
+                      </div>
+
+                      <div className="lgu-review-meta">
+                        <p>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</p>
+                        <p className="muted">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : ''}</p>
+                      </div>
+
+                      <div className="lgu-review-replies">
+                        {item.replies?.length ? (
+                          <p>{item.replies.length} reply{item.replies.length > 1 ? 'ies' : ''}</p>
+                        ) : (
+                          <p className="muted">Awaiting response</p>
+                        )}
+                      </div>
+
+                      <div className="lgu-review-actions">
+                        <details>
+                          <summary>View thread</summary>
+                          <div className="owner-card-thread">
+                            {item.replies?.length ? (
+                              item.replies.map(reply => (
+                                <article key={reply._id ?? reply.response_id} className="owner-thread-reply">
+                                  <header>
+                                    <strong>
+                                      {reply.business_establishment_profile_id
+                                        ? 'Owner response'
+                                        : 'LGU response'}
+                                    </strong>
+                                    <span>
+                                      {reply.createdAt ? new Date(reply.createdAt).toLocaleString() : ''}
+                                    </span>
+                                  </header>
+                                  <p>{reply.response_text}</p>
+                                </article>
+                              ))
+                            ) : (
+                              <div className="reply-placeholder">No replies recorded yet.</div>
+                            )}
+                          </div>
+                          <p className="muted small">
+                            BTO moderators have read-only access. Coordinate with the LGU or owner for follow-up.
+                          </p>
+                        </details>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-card">No feedback matches the current filters.</div>
+                )}
+              </div>
+
+              <div className="feedback-pagination">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackPage(prev => Math.max(1, prev - 1))}
+                  disabled={feedbackPage === 1}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {feedbackPage} of {feedbackState.pages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackPage(prev => Math.min(feedbackState.pages, prev + 1))}
+                  disabled={feedbackPage >= feedbackState.pages}
+                >
+                  Next
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+      </section>
+    </AdminLayout>
+  );
+}
+
+export default BtoFeedback;

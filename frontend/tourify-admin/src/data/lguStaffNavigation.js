@@ -1,0 +1,25 @@
+import {
+  FaHome,
+  FaClipboardCheck,
+  FaLeaf,
+  FaCommentDots,
+  FaChartBar,
+} from 'react-icons/fa';
+
+export const lguStaffNavSections = [
+  {
+    title: 'Overview',
+    items: [
+      { id: 'overview', label: 'Overview', icon: FaHome, path: '/lgu-staff/dashboard' },
+    ],
+  },
+  {
+    title: 'Tasks',
+    items: [
+      { id: 'approvals', label: 'Validate Submissions', icon: FaClipboardCheck, path: '/lgu-staff/approvals' },
+      { id: 'activities', label: 'Tourism Activity Log', icon: FaLeaf, path: '/lgu-staff/activities' },
+      { id: 'feedback', label: 'Feedback & Comments', icon: FaCommentDots, path: '/lgu-staff/feedback' },
+      { id: 'reports', label: 'Quick Reports', icon: FaChartBar, path: '/lgu-staff/reports' },
+    ],
+  },
+];
