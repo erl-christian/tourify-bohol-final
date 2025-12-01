@@ -1,31 +1,51 @@
 import 'dotenv/config';
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-const apiKey = process.env.SENDGRID_API_KEY;
-if (apiKey) sgMail.setApiKey(apiKey);
+const createTransporter = () => {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) return null;
+
+  const port = Number(process.env.SMTP_PORT || 465);
+  const secure =
+    process.env.SMTP_SECURE !== undefined
+      ? process.env.SMTP_SECURE === 'false'
+      : port === 587; // Gmail: 465=true, 587=false
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
+  });
+};
 
 export async function sendMail({ to, subject, html }) {
-  if (!apiKey) {
-    console.warn('Skipping email send: missing SENDGRID_API_KEY');
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn('Skipping email send: missing SMTP_USER/SMTP_PASS');
     return;
   }
   try {
-    const resp = await sgMail.send({
+    const info = await transporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
       to,
-      from: process.env.MAIL_FROM || 'no-reply@tourify.com',
       subject,
       html,
     });
-    const msgId = resp?.[0]?.headers?.['x-message-id'];
-    console.log('[mail] sent', { to, messageId: msgId });
-    return resp;
+    console.log('[mail] sent', { to, messageId: info?.messageId });
+    return info;
   } catch (err) {
     console.error('[mail] failed', {
       to,
       subject,
       message: err?.message,
       code: err?.code,
-      response: err?.response?.body,
+      command: err?.command,
+      response: err?.response,
     });
     throw err;
   }
