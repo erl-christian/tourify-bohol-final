@@ -42,7 +42,7 @@ const __dirname = path.resolve()
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://tourify-g7wc.onrender.com",
+  "https://tourify-bohol-final.onrender.com",
 ];
 
 app.use(
