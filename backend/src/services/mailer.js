@@ -9,8 +9,8 @@ const createTransporter = () => {
   const port = Number(process.env.SMTP_PORT || 465);
   const secure =
     process.env.SMTP_SECURE !== undefined
-      ? process.env.SMTP_SECURE === 'true'
-      : port === 465; // Gmail: 465=true, 587=false
+      ? process.env.SMTP_SECURE === 'false'
+      : port === 587; // Gmail: 465=true, 587=false
 
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
