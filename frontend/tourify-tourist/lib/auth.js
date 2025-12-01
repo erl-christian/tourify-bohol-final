@@ -4,7 +4,7 @@ export const login = payload =>
   client.post('/accounts/login', payload)
     .then(res => res.data)
     .catch(err => {
-      console.log('login error', err?.message, err?.response?.status, err?.response?.data);
+      console.log('login error', err?.message, err?.code, err?.response?.status, err?.response?.data, err?.config?.url);
       alert(`Login failed: ${err?.message || 'unknown'}`);
       throw err;
     });
