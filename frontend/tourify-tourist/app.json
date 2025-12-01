@@ -1,8 +1,8 @@
 {
   "expo": {
-    "scheme": "tourifybohol",
     "name": "tourify-tourist",
     "slug": "tourify-tourist",
+    "scheme": "tourifybohol",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,22 +13,25 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "android": {
+      "package": "com.tourify.tourist",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Tourify needs your location to plot nearby attractions and itineraries."
       }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "permissions": [
-          "ACCESS_FINE_LOCATION",
-          "ACCESS_COARSE_LOCATION"
-        ]
-      },
-      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,8 +40,13 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-barcode-scanner",
       "expo-video"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "912fc9c0-fe63-4a9c-821d-f0f3783b8b86"
+      }
+    }
   }
 }

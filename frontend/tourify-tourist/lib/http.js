@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+const baseURL =
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
+  'https://tourify-bohol-final.onrender.com/api'; // fallback for release builds
+
 const client = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL,
   timeout: 10000,
 });
 

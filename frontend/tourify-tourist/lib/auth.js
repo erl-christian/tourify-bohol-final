@@ -1,8 +1,13 @@
 import client from './http';
 
-export const login = payload => 
-    client.post('/accounts/login', payload).then(res => res.data);
-
+export const login = payload =>
+  client.post('/accounts/login', payload)
+    .then(res => res.data)
+    .catch(err => {
+      console.log('login error', err?.message, err?.response?.status, err?.response?.data);
+      alert(`Login failed: ${err?.message || 'unknown'}`);
+      throw err;
+    });
 export const register = payload => 
     client.post('/accounts/register', payload).then(res => res.data);
 
