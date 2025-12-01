@@ -6,8 +6,13 @@ const baseURL =
 
 const client = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 20000,
 });
+
+// console.log('API base', baseURL);
+// client.get('/health')
+//   .then(r => console.log('health ok', r.data))
+//   .catch(err => console.log('health err', err?.message, err?.response?.status));
 
 client.interceptors.response.use(
   r => r,

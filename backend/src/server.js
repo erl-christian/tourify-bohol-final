@@ -79,6 +79,17 @@ app.use('/api/admin/analytics', analyticsRoutes);
 app.use('/api/lgu/analytics', lguAnalyticsRoutes);
 app.use('/api/owner/analytics', ownerAnalyticsRoutes);
 
+//db health
+app.get("/api/health", (req, res) => {
+  const states = ["disconnected", "connected", "connecting", "disconnecting"];
+  res.json({
+    server: true,
+    dbState: states[mongoose.connection.readyState],
+    ok: mongoose.connection.readyState === 1
+  });
+});
+
+
 if(process.env.NODE_ENV === "production"){
   const distPath = path.join(__dirname, '..', 'frontend', 'tourify-admin', 'dist');
 
@@ -89,15 +100,6 @@ if(process.env.NODE_ENV === "production"){
   });
 }
 
-//db health
-app.get("/api/health", (req, res) => {
-  const states = ["disconnected", "connected", "connecting", "disconnecting"];
-  res.json({
-    server: true,
-    dbState: states[mongoose.connection.readyState],
-    ok: mongoose.connection.readyState === 1
-  });
-});
 
 
 // simple error handler
