@@ -6,7 +6,7 @@ const baseURL =
 
 const client = axios.create({
   baseURL,
-  timeout: 20000,
+  timeout: 50000,
 });
 
 // console.log('API base', baseURL);
