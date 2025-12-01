@@ -1,4 +1,4 @@
-dotenv.config();
+
 
 //dependencies
 import express from "express"
@@ -7,6 +7,9 @@ import cors from "cors"
 import morgan from "morgan";
 import mongoose from "mongoose";
 import path from "path"
+
+
+dotenv.config();
 
 //database
 import { connectDB } from "./config/database.js";
