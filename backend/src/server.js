@@ -31,16 +31,27 @@ import lguAnalyticsRoutes from './routes/lguRoutes/analyticsRoutes.js';
 import ownerAnalyticsRoutes from './routes/ownerRoutes/analyticsRoutes.js';
 
 
-
 const app = express()
 const PORT = process.env.PORT || 5001
+const __dirname = path.resolve()
 
 //middleware
-app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000"], // dev
-  credentials: true
-}))
-app.use(morgan("dev"));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://tourify-g7wc.onrender.com",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+}
 app.use(express.json());
 
 //qr
@@ -65,7 +76,15 @@ app.use('/api/admin/analytics', analyticsRoutes);
 app.use('/api/lgu/analytics', lguAnalyticsRoutes);
 app.use('/api/owner/analytics', ownerAnalyticsRoutes);
 
+if(process.env.NODE_ENV === "production"){
+  const distPath = path.join(__dirname, '..', 'frontend', 'tourify-admin', 'dist');
 
+  app.use(express.static(distPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 //db health
 app.get("/api/health", (req, res) => {
