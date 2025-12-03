@@ -31,6 +31,8 @@ import { mediaUpload } from "../../services/mediaUpload.js";
 import {
   lguReplyFeedback,
   ownerReplyFeedback,
+  btoReplyFeedback, 
+  btoModerateFeedback
 } from "../../controllers/adminControllers/feedbackModerationController.js";
 import { getFeedbackDetails, listFeedbackForEstablishment} from "../../controllers/publicControllers/publicFeedbackController.js";
 import {
@@ -59,6 +61,7 @@ router.get("/lgu/establishments", auth, requireRoles("lgu_admin", "lgu_staff"), 
 router.get("/lgu/establishments/pending", auth, requireRoles("lgu_admin", "lgu_staff"), listPendingEstablishment);
 router.get("/lgu/establishments/:estId", auth, requireRoles("lgu_admin", "lgu_staff"), getEstablishmentDetails);
 router.get("/lgu/establishments/:estId/approvals", auth, requireRoles("lgu_admin", "lgu_staff"), listApprovalHistory);
+router.get('/bto/establishments/:estId', auth, requireRoles('bto_admin'), getEstablishmentDetails);
 router.post("/lgu/establishments/:estId/endorse", auth, requireRoles("lgu_staff"), endorseEstablishmentToAdmin);
 
 router.patch("/establishments/:estId", auth, requireRoles("business_establishment"), ownerUpdatePendingEstablishment);
@@ -90,7 +93,7 @@ router.delete(
 router.post("/establishments/feedback/:feedbackId/reply", auth, requireRoles("business_establishment"), ownerReplyFeedback);
 router.post("/lgu/feedback/:feedbackId/reply", auth, requireRoles("lgu_admin", "lgu_staff"), lguReplyFeedback);
 
-router.get("/feedback/:feedbackId", auth, requireRoles("business_establishment", "lgu_admin", "lgu_staff"), getFeedbackDetails);
+// router.get("/feedback/:feedbackId", auth, requireRoles("business_establishment", "lgu_admin", "lgu_staff"), getFeedbackDetails);
 
 router.post("/lgu/establishments/:estId/feedback-summary", auth, requireRoles("lgu_admin", "bto_admin", "lgu_staff"), generateFeedbackSummary);
 router.get("/lgu/establishments/:estId/feedback-summary/latest", auth, requireRoles("lgu_admin", "bto_admin", "lgu_staff"), getLatestFeedbackSummary);
@@ -152,5 +155,8 @@ router.patch(
   requireRoles('bto_admin'),
   updateLguAdmin,
 );
+
+router.post("/bto/feedback/:feedbackId/reply", auth, requireRoles("bto_admin"), btoReplyFeedback);
+router.patch("/bto/feedback/:feedbackId/moderate", auth, requireRoles("bto_admin"), btoModerateFeedback);
 
 export default router;

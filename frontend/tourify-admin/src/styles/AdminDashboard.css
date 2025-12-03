@@ -766,16 +766,112 @@
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 16px;
 }
+
+.detail-pair {
+  padding: 10px 12px;
+  border: 1px solid #e7e9ed;
+  border-radius: 10px;
+  background: #f9fafc;
+}
+
+.detail-block {
+  padding: 12px 14px;
+  border: 1px solid #e7e9ed;
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.detail-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #5b6475;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+
+.detail-value {
+  margin: 0;
+  font-size: 15px;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.detail-value.strong {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.detail-value.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  color: #374151;
+}
+
+.detail-value.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
 .detail-full {
   grid-column: 1 / -1;
 }
+
 .action-buttons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-warning {
+  background: var(--accent-review);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: var(--accent-danger);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .media-modal-upload {

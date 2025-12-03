@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import '../../styles/AdminDashboard.css';
-import { fetchAllEstablishments } from '../../services/btoApi';
+import { fetchAllEstablishments, fetchEstablishmentDetails } from '../../services/btoApi';
 
 const statusToneMap = {
   verified: 'success',
@@ -19,24 +19,36 @@ function Establishments() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
 
+  const [detailModal, setDetailModal] = useState({
+    open: false,
+    loading: false,
+    error: '',
+    data: null,
+  });
+
   const loadEstablishments = useCallback(
     async (searchTerm) => {
       try {
         setLoading(true);
-      const term = searchTerm ?? query;
-      const params = term ? { q: term } : undefined;
-      const { data } = await fetchAllEstablishments(params);
-      const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-      setEstablishments(items);
-      setError('');
-    } catch (err) {
-      console.error('Failed to load establishments', err);
-      setError('Unable to load establishments right now.');
-    } finally {
-      setLoading(false);
-    }
-  },
-  [query]);
+        const term = searchTerm ?? query;
+        const params = term ? { q: term } : undefined;
+        const { data } = await fetchAllEstablishments(params);
+        const items = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+          ? data
+          : [];
+        setEstablishments(items);
+        setError('');
+      } catch (err) {
+        console.error('Failed to load establishments', err);
+        setError('Unable to load establishments right now.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [query],
+  );
 
   useEffect(() => {
     loadEstablishments();
@@ -46,6 +58,31 @@ function Establishments() {
 
   const resolveTone = (status) =>
     statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
+
+  const openDetailModal = async (est) => {
+    const estId = est.businessEstablishment_id || est.id;
+    if (!estId) return;
+    setDetailModal({ open: true, loading: true, error: '', data: null });
+    try {
+      const { data } = await fetchEstablishmentDetails(estId);
+      setDetailModal({
+        open: true,
+        loading: false,
+        error: '',
+        data: data?.establishment || data,
+      });
+    } catch (err) {
+      setDetailModal({
+        open: true,
+        loading: false,
+        error: err.response?.data?.message || 'Unable to load establishment details.',
+        data: null,
+      });
+    }
+  };
+
+  const closeDetailModal = () =>
+    setDetailModal({ open: false, loading: false, error: '', data: null });
 
   return (
     <AdminLayout
@@ -70,6 +107,7 @@ function Establishments() {
             <span>Category</span>
             <span>Status</span>
             <span>Last Update</span>
+            <span>Actions</span>
           </div>
 
           <ul className="table-body">
@@ -106,12 +144,110 @@ function Establishments() {
                   <div className="muted">
                     {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—'}
                   </div>
+                  <div className="table-actions">
+                    <button
+                      type="button"
+                      className="table-action-button"
+                      onClick={() => openDetailModal(item)}
+                    >
+                      View
+                    </button>
+                  </div>
                 </li>
               ))
             )}
           </ul>
         </div>
       </section>
+
+      {detailModal.open && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Establishment Details</h3>
+                <p>Review the submitted information for this listing.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={closeDetailModal}
+                disabled={detailModal.loading}
+              >
+                ×
+              </button>
+            </header>
+            {detailModal.loading ? (
+              <div className="modal-content">
+                <div className="muted">Loading details…</div>
+              </div>
+            ) : detailModal.error ? (
+              <div className="modal-content">
+                <div className="modal-error">{detailModal.error}</div>
+              </div>
+            ) : (
+              <div className="modal-content">
+                <div className="detail-grid">
+                  <div className="detail-pair">
+                    <p className="detail-label">Name</p>
+                    <p className="detail-value strong">{detailModal.data?.name || '—'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Establishment ID</p>
+                    <p className="detail-value mono">
+                      {detailModal.data?.businessEstablishment_id ||
+                        detailModal.data?.id ||
+                        '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Municipality</p>
+                    <p className="detail-value">
+                      {detailModal.data?.municipality_id ||
+                        detailModal.data?.municipality ||
+                        '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Category</p>
+                    <p className="detail-value">
+                      {detailModal.data?.type || detailModal.data?.category || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Status</p>
+                    <p className="detail-value chip">{detailModal.data?.status || '—'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-value">
+                      {detailModal.data?.updatedAt
+                        ? new Date(detailModal.data.updatedAt).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Address</p>
+                  <p className="detail-value">{detailModal.data?.address || '—'}</p>
+                </div>
+                <div className="detail-block">
+                  <p className="detail-label">Description</p>
+                  <p className="detail-value">{detailModal.data?.description || '—'}</p>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="primary-cta" onClick={closeDetailModal}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

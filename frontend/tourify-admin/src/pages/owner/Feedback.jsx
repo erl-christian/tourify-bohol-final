@@ -498,7 +498,13 @@ function OwnerFeedback() {
                             <header>
                               <strong>
                                 <IoChatbubbleEllipsesOutline />{' '}
-                                {reply.business_establishment_profile_id ? 'Owner response' : 'LGU response'}
+                                <strong>
+                                  {reply.bto_account_id
+                                    ? 'BTO response'
+                                    : reply.business_establishment_profile_id
+                                    ? 'Owner response'
+                                    : 'LGU response'}
+                                </strong>
                               </strong>
                               <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleString() : ''}</span>
                             </header>

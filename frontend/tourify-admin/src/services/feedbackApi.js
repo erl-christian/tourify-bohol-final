@@ -31,3 +31,10 @@ export const fetchFeedbackStats = estId =>
 export const fetchBtoFeedback = (estId, params) =>
   http.get(`/admin/bto/establishments/${estId}/feedback`, { params });
 
+export const btoReplyToFeedback = (feedbackId, payload) =>
+  http.post(`/admin/bto/feedback/${feedbackId}/reply`, payload);
+
+export const btoModerateFeedback = (feedbackId, payload) =>
+  http.patch(`/admin/bto/feedback/${feedbackId}/moderate`, payload);
+
+

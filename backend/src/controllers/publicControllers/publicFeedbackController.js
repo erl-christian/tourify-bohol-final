@@ -1,7 +1,7 @@
 import Feedback from "../../models/feedback/Feedback.js";
 import FeedbackResponse from "../../models/feedback/FeedbackResponse.js";
 import MediaFeedback from "../../models/Media/MediaFeedback.js";
-import Media from "../../models/Media/Media.js"
+import Media from "../../models/Media/Media.js";
 
 export const listFeedbackForEstablishment = async (req, res, next) => {
   try {
@@ -14,9 +14,16 @@ export const listFeedbackForEstablishment = async (req, res, next) => {
       sort = "newest"     // newest | oldest | rating_desc | rating_asc
     } = req.query;
 
-    const filter = { business_establishment_id: estId };
-    if (min_rating) filter.rating = { $gte: Number(min_rating) };
-    if (has_text === "true") filter.review_text = { $exists: true, $ne: "" };
+    const role = req.user?.role;
+    const isBto = role === 'bto_admin';
+
+    const baseMatch = { business_establishment_id: estId };
+    if (!isBto) {
+      baseMatch.deleted_at = { $in: [null, undefined] };
+      baseMatch.is_hidden = { $ne: true };
+    }
+    if (min_rating) baseMatch.rating = { $gte: Number(min_rating) };
+    if (has_text === "true") baseMatch.review_text = { $exists: true, $ne: "" };
 
     const sortMap = {
       newest:      { createdAt: -1 },
@@ -30,10 +37,10 @@ export const listFeedbackForEstablishment = async (req, res, next) => {
     const limit = Math.max(1, +pageSize);
 
     const [items, total, summaryAgg, buckets] = await Promise.all([
-      Feedback.find(filter).sort(sortSpec).skip(skip).limit(limit).lean(),
-      Feedback.countDocuments(filter),
+      Feedback.find(baseMatch).sort(sortSpec).skip(skip).limit(limit).lean(),
+      Feedback.countDocuments(baseMatch),
       Feedback.aggregate([
-        { $match: { business_establishment_id: estId } },
+        { $match: baseMatch },
         {
           $group: {
             _id: null,
@@ -58,7 +65,7 @@ export const listFeedbackForEstablishment = async (req, res, next) => {
       ]),
       // optional: star distribution 1..5
       Feedback.aggregate([
-        { $match: { business_establishment_id: estId } },
+        { $match: baseMatch },
         { $group: { _id: "$rating", count: { $sum: 1 } } }
       ])
     ]);
@@ -131,10 +138,17 @@ export const listFeedbackForEstablishment = async (req, res, next) => {
 export const getFeedbackDetails = async (req, res, next) => {
   try {
     const { feedbackId } = req.params;
+    const role = req.user?.role;
+    const isBto = role === 'bto_admin';
+
     const fb = await Feedback.findOne({ feedback_id: feedbackId }).lean();
     if (!fb) return res.status(404).json({ message: "Feedback not found" });
 
-    // include replies (LGU or Owner)
+    if (!isBto && (fb.deleted_at || fb.is_hidden)) {
+      return res.status(404).json({ message: "Feedback not found" });
+    }
+
+    // include replies (LGU, Owner, BTO)
     const replies = await FeedbackResponse.find({ feedback_id: feedbackId })
       .sort({ createdAt: 1 })
       .lean();

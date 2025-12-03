@@ -458,7 +458,9 @@ function LguFeedback() {
                                 <article key={reply._id ?? reply.response_id} className="owner-thread-reply">
                                   <header>
                                     <strong>
-                                      {reply.business_establishment_profile_id
+                                      {reply.bto_account_id
+                                        ? 'BTO response'
+                                        : reply.business_establishment_profile_id
                                         ? 'Owner response'
                                         : 'LGU response'}
                                     </strong>

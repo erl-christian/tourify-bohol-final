@@ -23,3 +23,6 @@ export const updateLguAdminStatus = (accountId, isActive) =>
 
 export const updateLguAdmin = (accountId, payload) =>
   http.patch(`/admin/bto/lgu-admins/${accountId}`, payload);
+
+export const fetchEstablishmentDetails = (estId) =>
+  http.get(`/admin/bto/establishments/${estId}`);

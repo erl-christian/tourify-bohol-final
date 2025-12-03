@@ -21,6 +21,7 @@ const feedbackResponseSchema = new mongoose.Schema({
   // responder (either LGU admin staff profile OR business owner profile)
   admin_staff_profile_id:             { type: String },
   business_establishment_profile_id:  { type: String },
+  bto_account_id:                     { type: String }, 
 
   response_text: { type: String, required: true, trim: true }
 }, { timestamps: true });
@@ -34,7 +35,8 @@ feedbackResponseSchema.pre("validate", async function(next){
 feedbackResponseSchema.pre("validate", function(next){
   const owners = [
     !!this.admin_staff_profile_id,
-    !!this.business_establishment_profile_id
+    !!this.business_establishment_profile_id,
+    !!this.bto_account_id,
   ].filter(Boolean).length;
   if (owners !== 1) return next(new Error("FeedbackResponse must have exactly one responder type"));
   next();

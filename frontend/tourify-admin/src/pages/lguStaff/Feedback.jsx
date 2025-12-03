@@ -558,7 +558,13 @@ function LguStaffFeedback() {
                             <ul>
                                 {threadModal.data.replies.map(reply => (
                                 <li key={reply._id}>
-                                    <strong>{reply.actor || reply.source || 'LGU Staff'}</strong>
+                                    <strong>
+                                        {reply.bto_account_id
+                                            ? 'BTO response'
+                                            : reply.business_establishment_profile_id
+                                            ? 'Owner response'
+                                            : 'LGU response'}
+                                    </strong>
                                     <span>{new Date(reply.createdAt).toLocaleString()}</span>
                                     <p>{reply.message}</p>
                                 </li>

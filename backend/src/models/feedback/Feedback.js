@@ -22,6 +22,12 @@ const feedbackSchema = new mongoose.Schema({
 
   rating:      { type: Number, min: 1, max: 5, required: true },
   review_text: { type: String, trim: true },
+  is_hidden: { type: Boolean, default: false },
+  is_flagged: { type: Boolean, default: false },
+  flagged_reason: { type: String, trim: true },
+  deleted_at: { type: Date, default: null },
+  moderated_by: { type: String, trim: true },        // account_id of moderator
+  moderated_note: { type: String, trim: true },      // reason/notes
 }, { timestamps: true });
 
 feedbackSchema.pre("validate", async function(next){

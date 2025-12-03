@@ -51,3 +51,66 @@ export const ownerReplyFeedback = async (req, res, next) => {
     res.status(201).json({ message: "Reply posted", reply: resp });
   } catch (e) { next(e); }
 };
+
+// POST /api/admin/bto/feedback/:feedbackId/reply
+export const btoReplyFeedback = async (req, res, next) => {
+  try {
+    const accountId = req.user?.account_id;
+    if (!accountId) { res.status(401); throw new Error("Unauthorized"); }
+
+    const { feedbackId } = req.params;
+    const fb = await Feedback.findOne({ feedback_id: feedbackId });
+    if (!fb) { res.status(404); throw new Error("Feedback not found"); }
+
+    const { response_text } = req.body;
+    if (!response_text) { res.status(400); throw new Error("response_text is required"); }
+
+    const resp = await FeedbackResponse.create({
+      feedback_id: feedbackId,
+      bto_account_id: accountId,
+      response_text,
+    });
+
+    res.status(201).json({ message: "Reply posted", reply: resp });
+  } catch (e) { next(e); }
+};
+
+// PATCH /api/admin/bto/feedback/:feedbackId/moderate
+// body: { action: "hide"|"unhide"|"flag"|"delete", reason?: string }
+export const btoModerateFeedback = async (req, res, next) => {
+  try {
+    const accountId = req.user?.account_id;
+    if (!accountId) { res.status(401); throw new Error("Unauthorized"); }
+
+    const { feedbackId } = req.params;
+    const { action, reason = "" } = req.body;
+    if (!["hide", "unhide", "flag", "delete"].includes(action)) {
+      res.status(400); throw new Error("Invalid action");
+    }
+
+    const fb = await Feedback.findOne({ feedback_id: feedbackId });
+    if (!fb) { res.status(404); throw new Error("Feedback not found"); }
+
+    if (action === "hide") {
+      fb.is_hidden = true;
+      fb.moderated_note = reason;
+      fb.moderated_by = accountId;
+    } else if (action === "unhide") {
+      fb.is_hidden = false;
+      fb.moderated_note = reason;
+      fb.moderated_by = accountId;
+    } else if (action === "flag") {
+      fb.is_flagged = true;
+      fb.flagged_reason = reason;
+      fb.moderated_by = accountId;
+    } else if (action === "delete") {
+      fb.deleted_at = new Date();
+      fb.moderated_note = reason;
+      fb.moderated_by = accountId;
+    }
+
+    await fb.save();
+    res.json({ message: "Feedback updated", feedback: fb });
+  } catch (e) { next(e); }
+};
+
