@@ -19,7 +19,8 @@ import {
   listMunicipalFeedbackForEstablishment,
   listOwnerFeedbackForEstablishment,
   updateLguAdminStatus,
-  updateLguManagedAccountStatus
+  updateLguManagedAccountStatus,
+  updateLguAdmin
 } from "../../controllers/adminControllers/adminStaffProfileController.js";
 import {
   listEstablishmentMedia,
@@ -143,6 +144,13 @@ router.patch(
   auth,
   requireRoles('lgu_admin'),
   updateLguManagedAccountStatus,
+);
+
+router.patch(
+  '/bto/lgu-admins/:accountId',
+  auth,
+  requireRoles('bto_admin'),
+  updateLguAdmin,
 );
 
 export default router;

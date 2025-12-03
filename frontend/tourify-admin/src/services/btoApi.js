@@ -20,3 +20,6 @@ export const createMunicipality = (payload) =>
 
 export const updateLguAdminStatus = (accountId, isActive) =>
   http.patch(`/admin/bto/lgu-admins/${accountId}/status`, { is_active: isActive });
+
+export const updateLguAdmin = (accountId, payload) =>
+  http.patch(`/admin/bto/lgu-admins/${accountId}`, payload);

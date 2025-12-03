@@ -692,6 +692,72 @@ export const updateLguAdminStatus = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const updateLguAdmin = async (req, res, next) => {
+  try {
+    const { accountId } = req.params;
+    const { email, full_name, municipality_id } = req.body;
+
+    if (!email && !full_name && !municipality_id) {
+      res.status(400);
+      throw new Error('At least one field (email, full_name, municipality_id) is required.');
+    }
+
+    const account = await Account.findOne({ account_id: accountId, role: 'lgu_admin' });
+    if (!account) {
+      res.status(404);
+      throw new Error('LGU admin not found');
+    }
+
+    if (email && email !== account.email) {
+      const duplicate = await Account.findOne({ email, account_id: { $ne: accountId } });
+      if (duplicate) {
+        res.status(409);
+        throw new Error('Email already in use');
+      }
+      account.email = email;
+    }
+
+    const profile = await AdminStaffProfile.findOne({
+      account_id: accountId,
+      position: 'LGU Admin',
+    });
+    if (!profile) {
+      res.status(404);
+      throw new Error('LGU admin profile not found');
+    }
+
+    if (municipality_id) {
+      const muni = await Municipality.findOne({ municipality_id });
+      if (!muni) {
+        res.status(404);
+        throw new Error('Municipality not found');
+      }
+      profile.municipality_id = municipality_id;
+    }
+
+    if (full_name) {
+      profile.full_name = full_name;
+    }
+
+    await account.save();
+    await profile.save();
+
+    res.json({
+      message: 'LGU admin updated.',
+      account: {
+        account_id: account.account_id,
+        email: account.email,
+        role: account.role,
+        is_active: account.is_active,
+      },
+      profile,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 //'/lgu/establishments/:estId/endorse
 export const endorseEstablishmentToAdmin = async (req, res, next) => {
   try {

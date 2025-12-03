@@ -6,6 +6,7 @@ import {
   createLguAdmin,
   fetchMunicipalities,
   updateLguAdminStatus,
+  updateLguAdmin,
 } from '../../services/btoApi';
 
 const accountTabs = [
@@ -41,6 +42,15 @@ function Accounts() {
     status: 'success',
     message: '',
   });
+
+  const [editModal, setEditModal] = useState({
+    open: false,
+    target: null,
+    form: { fullName: '', email: '', municipalityId: '' },
+    saving: false,
+    error: '',
+  });
+
 
   const [statusModal, setStatusModal] = useState({
     open: false,
@@ -95,6 +105,7 @@ function Accounts() {
           id: account.account_id,
           name: profile?.full_name ?? account.email,
           email: account.email,
+          municipalityId: profile?.municipality_id ?? '',
           municipality: profile?.municipality_id ?? 'Not assigned',
           roleId: account.role,
           role:
@@ -107,7 +118,7 @@ function Accounts() {
           isActive,
           lastSeen: account.updatedAt
             ? new Date(account.updatedAt).toLocaleString()
-            : '—',
+            : '�?"',
         };
       }),
     [staff],
@@ -241,6 +252,63 @@ function Accounts() {
     }
   };
 
+    const openEditModal = (account) => {
+    setEditModal({
+      open: true,
+      target: account,
+      form: {
+        fullName: account.name || '',
+        email: account.email || '',
+        municipalityId: account.municipalityId || '',
+      },
+      saving: false,
+      error: '',
+    });
+  };
+
+  const closeEditModal = () =>
+    setEditModal({
+      open: false,
+      target: null,
+      form: { fullName: '', email: '', municipalityId: '' },
+      saving: false,
+      error: '',
+    });
+
+  const handleEditChange = (event) => {
+    const { name, value } = event.target;
+    setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
+  };
+
+  const handleUpdateAccount = async (event) => {
+    event.preventDefault();
+    if (!editModal.target) return;
+    setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
+    try {
+      await updateLguAdmin(editModal.target.id, {
+        email: editModal.form.email,
+        full_name: editModal.form.fullName,
+        municipality_id: editModal.form.municipalityId,
+      });
+      setFeedbackModal({
+        open: true,
+        status: 'success',
+        message: `LGU admin ${editModal.form.fullName} has been updated.`,
+      });
+      closeEditModal();
+      await loadData();
+    } catch (error) {
+      setEditModal((prev) => ({
+        ...prev,
+        saving: false,
+        error:
+          error.response?.data?.message ||
+          'Unable to update account. Please try again.',
+      }));
+    }
+  };
+
+
   return (
     <AdminLayout
       title="LGU Accounts"
@@ -326,22 +394,32 @@ function Accounts() {
                   <div className="muted">{account.lastSeen}</div>
                   <div className="table-actions">
                     {account.roleId === 'lgu_admin' ? (
-                      <button
-                        type="button"
-                        className={`table-action-button ${
-                          account.isActive ? 'deactivate' : 'activate'
-                        }`}
-                        onClick={() =>
-                          openStatusModalForAccount(account, !account.isActive)
-                        }
-                        disabled={
-                          statusModal.loading && statusModal.target?.id === account.id
-                        }
-                      >
-                        {account.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="table-action-button"
+                          onClick={() => openEditModal(account)}
+                        >
+                          Update
+                        </button>
+                        <button
+                          type="button"
+                          className={`table-action-button ${
+                            account.isActive ? 'deactivate' : 'activate'
+                          }`}
+                          onClick={() =>
+                            openStatusModalForAccount(account, !account.isActive)
+                          }
+                          disabled={
+                            statusModal.loading &&
+                            statusModal.target?.id === account.id
+                          }
+                        >
+                          {account.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </>
                     ) : (
-                      <span className="muted">—</span>
+                      <span className="muted">�?"</span>
                     )}
                   </div>
                 </li>
@@ -550,6 +628,109 @@ function Accounts() {
           </div>
         </div>
       )}
+
+            {editModal.open && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Update LGU Administrator</h3>
+                <p>Edit details for this BTO-created account.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={closeEditModal}
+                disabled={editModal.saving}
+              >
+                A-
+              </button>
+            </header>
+            {editModal.error && <div className="modal-error">{editModal.error}</div>}
+            <div className="modal-content">
+              <form className="modal-form" onSubmit={handleUpdateAccount}>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="edit-fullName">
+                    Full name
+                  </label>
+                  <input
+                    id="edit-fullName"
+                    name="fullName"
+                    type="text"
+                    required
+                    value={editModal.form.fullName}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="edit-email">
+                    Government email
+                  </label>
+                  <input
+                    id="edit-email"
+                    name="email"
+                    type="email"
+                    required
+                    value={editModal.form.email}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="edit-municipality">
+                    Municipality assignment
+                  </label>
+                  <select
+                    id="edit-municipality"
+                    name="municipalityId"
+                    required
+                    value={editModal.form.municipalityId}
+                    onChange={handleEditChange}
+                    disabled={loadingMunicipalities || editModal.saving}
+                  >
+                    <option value="" disabled>
+                      {loadingMunicipalities
+                        ? 'Loading municipalities�?�'
+                        : 'Select municipality'}
+                    </option>
+                    {(Array.isArray(municipalities) ? municipalities : []).map(
+                      (municipality) => (
+                        <option
+                          key={municipality.municipality_id || municipality.id}
+                          value={municipality.municipality_id || municipality.id}
+                        >
+                          {municipality.name}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="ghost-cta"
+                    onClick={closeEditModal}
+                    disabled={editModal.saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary-cta"
+                    disabled={editModal.saving}
+                  >
+                    {editModal.saving ? 'Saving�?�' : 'Update Account'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AdminLayout>
   );
 }
