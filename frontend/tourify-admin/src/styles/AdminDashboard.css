@@ -2446,3 +2446,36 @@ body.bto-fixed .dashboard-content {
 .export-buttons button:last-child {
   background: #27ae60;
 }
+
+.split-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.split-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: var(--shadow-layer);
+  min-width: 200px;
+  padding: 6px;
+  z-index: 10;
+}
+
+.split-dropdown-menu button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.split-dropdown-menu button:hover {
+  background: var(--surface-muted);
+}

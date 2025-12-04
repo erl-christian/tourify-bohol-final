@@ -902,3 +902,87 @@ export const listOwnerFeedbackForEstablishment = async (req, res, next) => {
   }
 };
 
+
+// PATCH /api/admin/lgu/accounts/:accountId
+// body: { email?, full_name?, contact_no? }
+export const updateLguManagedAccount = async (req, res, next) => {
+  try {
+    const adminAccountId = req.user?.account_id;
+    if (!adminAccountId) { res.status(401); throw new Error('Unauthorized'); }
+
+    const adminProfile = await AdminStaffProfile.findOne({
+      account_id: adminAccountId,
+      position: 'LGU Admin',
+    }).lean();
+    if (!adminProfile) { res.status(403); throw new Error('Only LGU admins can manage these accounts'); }
+
+    const { accountId } = req.params;
+    const { email, full_name, contact_no } = req.body;
+    if (!email && !full_name && !contact_no) {
+      res.status(400);
+      throw new Error('At least one field (email, full_name, contact_no) is required.');
+    }
+
+    const account = await Account.findOne({
+      account_id: accountId,
+      role: { $in: ['lgu_staff', 'business_establishment'] },
+    });
+    if (!account) { res.status(404); throw new Error('Account not found'); }
+
+    let ownerProfile = null;
+    let staffProfile = null;
+
+    if (account.role === 'lgu_staff') {
+      staffProfile = await AdminStaffProfile.findOne({
+        account_id: accountId,
+        position: 'LGU Staff',
+      });
+      if (!staffProfile || staffProfile.municipality_id !== adminProfile.municipality_id) {
+        res.status(403);
+        throw new Error('You can only manage staff within your municipality');
+      }
+    } else {
+      ownerProfile = await BusinessEstablishmentProfile.findOne({ account_id: accountId });
+      if (!ownerProfile || ownerProfile.municipality_id !== adminProfile.municipality_id) {
+        res.status(403);
+        throw new Error('You can only manage owners from your municipality');
+      }
+    }
+
+    if (email && email !== account.email) {
+      const duplicate = await Account.findOne({ email, account_id: { $ne: accountId } });
+      if (duplicate) { res.status(409); throw new Error('Email already in use'); }
+      account.email = email;
+    }
+
+    if (account.role === 'lgu_staff' && full_name) {
+      staffProfile.full_name = full_name;
+      await staffProfile.save();
+    }
+
+    if (account.role === 'business_establishment') {
+      if (full_name) {
+        ownerProfile.full_name = full_name;
+      }
+      if (contact_no !== undefined) {
+        ownerProfile.contact_no = contact_no;
+      }
+      await ownerProfile.save();
+    }
+
+    await account.save();
+
+    res.json({
+      message: 'Account updated.',
+      account: {
+        account_id: account.account_id,
+        email: account.email,
+        role: account.role,
+        is_active: account.is_active,
+      },
+      profile: staffProfile || ownerProfile || null,
+    });
+  } catch (err) { next(err); }
+};
+
+

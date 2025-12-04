@@ -20,7 +20,8 @@ import {
   listOwnerFeedbackForEstablishment,
   updateLguAdminStatus,
   updateLguManagedAccountStatus,
-  updateLguAdmin
+  updateLguAdmin,
+  updateLguManagedAccount
 } from "../../controllers/adminControllers/adminStaffProfileController.js";
 import {
   listEstablishmentMedia,
@@ -49,6 +50,7 @@ router.post("/lgu/create-lgu-staff", auth, requireRoles("lgu_admin"), createLGUS
 
 router.get("/bto/list", auth, requireRoles("bto_admin", "lgu_admin"), getLGUStaffs);
 router.get("/bto/establishments", auth, requireRoles("bto_admin"), listAllEstablishments);
+router.patch( '/lgu/accounts/:accountId', auth, requireRoles('lgu_admin'), updateLguManagedAccount);
 
 // establishments
 router.post("/lgu/create-owner", auth, requireRoles("lgu_admin"), lguCreateOwnerProfile);

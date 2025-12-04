@@ -24,3 +24,10 @@ export const endorseEstablishmentToAdmin = (estId, payload) =>
 
 export const updateManagedAccountStatus = (accountId, isActive) =>
   http.patch(`/admin/lgu/accounts/${accountId}/status`, { is_active: isActive });
+
+export const updateManagedAccount = (accountId, payload) =>
+  http.patch(`/admin/lgu/accounts/${accountId}`, payload);
+
+export const fetchLguEstablishmentMedia = (estId) =>
+  http.get(`/admin/establishments/${estId}/media`);
+

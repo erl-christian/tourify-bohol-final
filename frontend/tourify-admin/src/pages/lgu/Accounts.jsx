@@ -6,6 +6,7 @@ import {
   createLguStaff,
   createOwnerProfile,
   updateManagedAccountStatus,
+  updateManagedAccount,
 } from '../../services/lguApi';
 
 const accountTabs = [
@@ -45,6 +46,16 @@ function Accounts() {
     error: '',
   });
 
+  const [editModal, setEditModal] = useState({
+    open: false,
+    target: null,
+    form: { fullName: '', email: '', contactNo: '' },
+    saving: false,
+    error: '',
+  });
+
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+
   const loadAccounts = async () => {
     try {
       setLoading(true);
@@ -78,12 +89,13 @@ function Accounts() {
               : account?.role === 'business_establishment'
               ? 'Establishment Owner'
               : account?.role,
+          municipalityId: profile?.municipality_id || '', // add this line here
           municipality: profile?.municipality_id || 'Not assigned',
           status: isActive ? 'Active' : 'Deactivated',
           isActive,
           lastSeen: account?.updatedAt
             ? new Date(account.updatedAt).toLocaleString()
-            : '—',
+            : '…',
         };
       }),
     [accounts],
@@ -233,6 +245,64 @@ function Accounts() {
     }
   };
 
+  const openEditModal = (account) => {
+  setEditModal({
+    open: true,
+    target: account,
+    form: {
+      fullName: account.name || '',
+      email: account.email || '',
+      contactNo: account.roleId === 'business_establishment' ? account.contactNo || '' : '',
+    },
+    saving: false,
+    error: '',
+  });
+};
+
+  const closeEditModal = () =>
+    setEditModal({
+      open: false,
+      target: null,
+      form: { fullName: '', email: '', contactNo: '' },
+      saving: false,
+      error: '',
+    });
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
+  };
+
+  const handleUpdateAccount = async (e) => {
+    e.preventDefault();
+    if (!editModal.target) return;
+    setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
+    try {
+      await updateManagedAccount(editModal.target.id, {
+        email: editModal.form.email,
+        full_name: editModal.form.fullName,
+        contact_no:
+          editModal.target.roleId === 'business_establishment'
+            ? editModal.form.contactNo
+            : undefined,
+      });
+      setFeedbackModal({
+        open: true,
+        status: 'success',
+        message: `${editModal.target.name} has been updated.`,
+      });
+      closeEditModal();
+      await loadAccounts();
+    } catch (err) {
+      setEditModal((prev) => ({
+        ...prev,
+        saving: false,
+        error: err.response?.data?.message || 'Unable to update account. Please try again.',
+      }));
+    }
+  };
+
+
   return (
     <LguLayout
       title="Accounts"
@@ -240,14 +310,37 @@ function Accounts() {
       searchPlaceholder="Search accounts..."
       onSearchSubmit={(value) => console.log('search', value)}
       headerActions={
-        <>
-          <button className="primary-cta" onClick={() => setStaffModalOpen(true)}>
-            Invite LGU Staff
+        <div className="split-dropdown">
+          <button
+            type="button"
+            className="primary-cta"
+            onClick={() => setCreateMenuOpen((prev) => !prev)}
+          >
+            Create account ▾
           </button>
-          <button className="ghost-cta" onClick={() => setOwnerModalOpen(true)}>
-            Create Owner
-          </button>
-        </>
+          {createMenuOpen && (
+            <div className="split-dropdown-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateMenuOpen(false);
+                  setStaffModalOpen(true);
+                }}
+              >
+                LGU Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateMenuOpen(false);
+                  setOwnerModalOpen(true);
+                }}
+              >
+                Establishment Owner
+              </button>
+            </div>
+          )}
+        </div>
       }
     >
       <section className="account-management">
@@ -326,22 +419,24 @@ function Accounts() {
                   </div>
                   <div className="muted">{account.lastSeen}</div>
                   <div className="table-actions">
-                    {account.roleId === 'lgu_staff' ||
-                    account.roleId === 'business_establishment' ? (
-                      <button
-                        type="button"
-                        className={`table-action-button ${
-                          account.isActive ? 'deactivate' : 'activate'
-                        }`}
-                        onClick={() =>
-                          openStatusModalForAccount(account, !account.isActive)
-                        }
-                        disabled={
-                          statusModal.loading && statusModal.target?.id === account.id
-                        }
-                      >
-                        {account.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
+                    {account.roleId === 'lgu_staff' || account.roleId === 'business_establishment' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="table-action-button"
+                          onClick={() => openEditModal(account)}
+                        >
+                          Update
+                        </button>
+                        <button
+                          type="button"
+                          className={`table-action-button ${account.isActive ? 'deactivate' : 'activate'}`}
+                          onClick={() => openStatusModalForAccount(account, !account.isActive)}
+                          disabled={statusModal.loading && statusModal.target?.id === account.id}
+                        >
+                          {account.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </>
                     ) : (
                       <span className="muted">—</span>
                     )}
@@ -624,6 +719,80 @@ function Accounts() {
           </div>
         </div>
       )}
+
+      {editModal.open && (
+  <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div className="modal-card">
+      <header className="modal-header">
+        <div>
+          <h3>Update Account</h3>
+          <p>Edit details for this municipal account.</p>
+        </div>
+        <button
+          type="button"
+          className="modal-close"
+          aria-label="Close"
+          onClick={closeEditModal}
+          disabled={editModal.saving}
+        >
+          ×
+        </button>
+      </header>
+      {editModal.error && <div className="modal-error">{editModal.error}</div>}
+        <div className="modal-content">
+          <form className="modal-form" onSubmit={handleUpdateAccount}>
+            <div className="form-row">
+              <label className="form-label" htmlFor="edit-fullName">Full name</label>
+              <input
+                id="edit-fullName"
+                name="fullName"
+                type="text"
+                required
+                value={editModal.form.fullName}
+                onChange={handleEditChange}
+              />
+            </div>
+            <div className="form-row">
+              <label className="form-label" htmlFor="edit-email">Email</label>
+              <input
+                id="edit-email"
+                name="email"
+                type="email"
+                required
+                value={editModal.form.email}
+                onChange={handleEditChange}
+              />
+            </div>
+            {editModal.target?.roleId === 'business_establishment' && (
+              <div className="form-row">
+                <label className="form-label" htmlFor="edit-contactNo">Contact number</label>
+                <input
+                  id="edit-contactNo"
+                  name="contactNo"
+                  type="tel"
+                  value={editModal.form.contactNo}
+                  onChange={handleEditChange}
+                />
+              </div>
+            )}
+            <div className="form-row">
+              <label className="form-label">Municipality</label>
+              <input type="text" value={editModal.target?.municipality || ''} readOnly className="readonly-input" />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="ghost-cta" onClick={closeEditModal} disabled={editModal.saving}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-cta" disabled={editModal.saving}>
+                {editModal.saving ? 'Saving…' : 'Update Account'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )}
+
     </LguLayout>
   );
 }
