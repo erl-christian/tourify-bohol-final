@@ -19,7 +19,12 @@ const businessEstablishmentSchema = new mongoose.Schema(
         contact_info:    { type: String },
         accreditation_no:{ type: String },
 
-        status: { type: String, enum: ["pending", "needs_admin_review", "approved", "rejected"], default: "pending", index: true },
+        status: {
+            type: String,
+            enum: ["pending", "needs_admin_review", "needs_owner_revision", "approved", "rejected"],
+            default: "pending",
+            index: true,
+        },
 
         ownership_type: { type: String, enum: ["private","government"], default: "private", index: true },
         created_by_adminStaffProfile_id: { type: String, index: true },

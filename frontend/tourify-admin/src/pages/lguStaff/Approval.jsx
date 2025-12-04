@@ -4,6 +4,7 @@ import '../../styles/AdminDashboard.css';
 import {
   fetchLguPendingEstablishments,
   fetchLguEstablishmentDetails,
+  fetchLguEstablishmentMedia,
   endorseEstablishmentToAdmin,
 } from '../../services/lguApi';
 
@@ -13,6 +14,16 @@ const normalizePending = (raw) => {
   if (Array.isArray(raw?.data)) return raw.data;
   return [];
 };
+
+const statusToneMap = {
+  pending: 'warning',
+  needs_admin_review: 'review', // add this
+  approved: 'success',
+  rejected: 'danger',
+};
+
+const resolveTone = (status) =>
+  statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -24,10 +35,12 @@ function Approvals() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [endorsingId, setEndorsingId] = useState('');
 
   const [detailModal, setDetailModal] = useState({
     open: false,
     loading: false,
+    error: '',
     establishment: null,
     owner: null,
     media: [],
@@ -62,21 +75,36 @@ function Approvals() {
   const pendingItems = useMemo(() => items.slice(0, 20), [items]);
 
   const openDetailModal = async (estId) => {
-    setDetailModal((prev) => ({ ...prev, open: true, loading: true }));
+    setDetailModal({ open: true, loading: true, error: '', establishment: null, owner: null, media: [] });
     try {
-      const { data } = await fetchLguEstablishmentDetails(estId);
+      const [detailRes, mediaRes] = await Promise.all([
+        fetchLguEstablishmentDetails(estId),
+        fetchLguEstablishmentMedia(estId),
+      ]);
+
+      const mediaPayload = mediaRes?.data;
+      const mediaItems = Array.isArray(mediaPayload)
+        ? mediaPayload
+        : Array.isArray(mediaPayload?.items)
+        ? mediaPayload.items
+        : Array.isArray(mediaPayload?.media)
+        ? mediaPayload.media
+        : [];
+
       setDetailModal({
         open: true,
         loading: false,
-        establishment: data.establishment,
-        owner: data.ownerProfile,
-        media: data.establishmentMedia || [],
+        error: '',
+        establishment: detailRes?.data?.establishment || detailRes?.data || null,
+        owner: detailRes?.data?.ownerProfile || null,
+        media: mediaItems,
       });
     } catch (err) {
       console.error('Failed to load establishment details', err);
       setDetailModal({
         open: true,
         loading: false,
+        error: err.response?.data?.message || 'Unable to load submission details.',
         establishment: null,
         owner: null,
         media: [],
@@ -88,6 +116,7 @@ function Approvals() {
     setDetailModal({
       open: false,
       loading: false,
+      error: '',
       establishment: null,
       owner: null,
       media: [],
@@ -116,11 +145,18 @@ function Approvals() {
 
   const handleEndorse = async () => {
     if (!endorseModal.estId) return;
+    setEndorsingId(endorseModal.estId);
     setEndorseModal((prev) => ({ ...prev, submitting: true, feedback: '' }));
     try {
-      await endorseEstablishmentToAdmin(endorseModal.estId, {
-        notes: endorseModal.notes,
-      });
+      await endorseEstablishmentToAdmin(endorseModal.estId, { notes: endorseModal.notes });
+      // mark locally so the button disables immediately
+      setItems((prev) =>
+        prev.map((item) =>
+          (item.businessEstablishment_id || item.id) === endorseModal.estId
+            ? { ...item, status: 'needs_admin_review' }
+            : item
+        )
+      );
       setEndorseModal((prev) => ({
         ...prev,
         submitting: false,
@@ -137,8 +173,11 @@ function Approvals() {
           err.message ||
           'Unable to endorse this submission right now.',
       }));
+    } finally {
+      setEndorsingId('');
     }
   };
+
 
   return (
     <LguStaffLayout
@@ -194,37 +233,41 @@ function Approvals() {
                       submission.owner_email ||
                       '—'}
                   </div>
-                  <div>
-                    <span className="role-chip role-muted">
-                      {submission.type || submission.category || '—'}
+                  <div className="status-stack column">
+                    <span className={`status-chip status-${resolveTone(submission.status)}`}>
+                      {submission.status || 'pending'}
                     </span>
+                    {submission.status === 'needs_admin_review' && (
+                      <span className="tag tag-success">Sent to LGU admin</span>
+                    )}
                   </div>
                   <div className="muted">
                     {formatDate(submission.createdAt || submission.updatedAt)}
                   </div>
-                  <div className="action-buttons">
+                  <div className="table-actions">
                     <button
                       type="button"
-                      className="ghost-cta"
+                      className="table-action-button"
                       onClick={() =>
                         openDetailModal(
                           submission.businessEstablishment_id || submission.id,
                         )
                       }
                     >
-                      View details
+                      View
                     </button>
                     <button
                       type="button"
                       className="primary-cta"
-                      onClick={() =>
-                        openEndorseModal(
-                          submission.businessEstablishment_id || submission.id,
-                        )
+                      onClick={() => openEndorseModal(submission.businessEstablishment_id || submission.id)}
+                      disabled={
+                        endorsingId === (submission.businessEstablishment_id || submission.id) ||
+                        (submission.status && submission.status !== 'pending')
                       }
-                      disabled={submission.status && submission.status !== 'pending'}
                     >
-                      Endorse to admin
+                      {endorsingId === (submission.businessEstablishment_id || submission.id)
+                        ? 'Endorsing…'
+                        : 'Endorse to admin'}
                     </button>
                   </div>
                 </li>
@@ -236,69 +279,131 @@ function Approvals() {
 
       {detailModal.open && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal-card wide">
+          <div className="modal-card">
             <header className="modal-header">
               <div>
-                <h3>Owner submission</h3>
-                <p>Review all details and media before endorsement.</p>
+                <h3>Establishment Details</h3>
+                <p>Review submission details and media.</p>
               </div>
               <button
                 type="button"
                 className="modal-close"
                 aria-label="Close"
                 onClick={closeDetailModal}
+                disabled={detailModal.loading}
               >
                 ×
               </button>
             </header>
 
             {detailModal.loading ? (
-              <div className="muted">Loading…</div>
-            ) : !detailModal.establishment ? (
-              <div className="muted">Unable to load submission details.</div>
+              <div className="modal-content">
+                <div className="muted">Loading…</div>
+              </div>
+            ) : detailModal.error ? (
+              <div className="modal-content">
+                <div className="modal-error">{detailModal.error}</div>
+              </div>
             ) : (
-              <div className="detail-grid">
-                <div>
-                  <h4>Establishment</h4>
-                  <p><strong>Name:</strong> {detailModal.establishment.name}</p>
-                  <p><strong>Category:</strong> {detailModal.establishment.type}</p>
-                  <p><strong>Address:</strong> {detailModal.establishment.address || '—'}</p>
-                  <p><strong>Status:</strong> {detailModal.establishment.status}</p>
-                </div>
-                <div>
-                  <h4>Owner profile</h4>
-                  <p><strong>Name:</strong> {detailModal.owner?.full_name || '—'}</p>
-                  <p><strong>Contact:</strong> {detailModal.owner?.contact_no || '—'}</p>
-                  <p><strong>Account ID:</strong> {detailModal.owner?.account_id || '—'}</p>
-                </div>
-                <div className="detail-full">
-                  <h4>Description</h4>
-                  <p>{detailModal.establishment.description || '—'}</p>
+              <div className="modal-content">
+                <div className="detail-grid">
+                  <div className="detail-pair">
+                    <p className="detail-label">Name</p>
+                    <p className="detail-value strong">
+                      {detailModal.establishment?.name || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">ID</p>
+                    <p className="detail-value mono">
+                      {detailModal.establishment?.businessEstablishment_id ||
+                        detailModal.establishment?.id ||
+                        '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Municipality</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.municipality_id ||
+                        detailModal.establishment?.municipality ||
+                        '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Category</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.type ||
+                        detailModal.establishment?.category ||
+                        '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Status</p>
+                    <p className="detail-value chip">
+                      {detailModal.establishment?.status || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.updatedAt
+                        ? new Date(detailModal.establishment.updatedAt).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="detail-full">
-                  <h4>Media</h4>
-                  {detailModal.media.length === 0 ? (
-                    <div className="muted">No media uploaded.</div>
-                  ) : (
+                <div className="detail-block">
+                  <p className="detail-label">Address</p>
+                  <p className="detail-value">
+                    {detailModal.establishment?.address || '—'}
+                  </p>
+                </div>
+                <div className="detail-block">
+                  <p className="detail-label">Description</p>
+                  <p className="detail-value">
+                    {detailModal.establishment?.description || '—'}
+                  </p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Owner</p>
+                  <p className="detail-value">
+                    {detailModal.owner?.full_name || '—'} ·{' '}
+                    {detailModal.owner?.contact_no || '—'}
+                  </p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Media</p>
+                  {detailModal.media?.length ? (
                     <div className="media-grid">
-                      {detailModal.media.map((media) => (
-                        <div key={media.media_id} className="media-card">
-                          {media.file_type === 'video' ? (
-                            <video controls src={media.file_url} />
+                      {detailModal.media.map((m) => (
+                        <a
+                          key={m.media_id || m.id}
+                          className="media-thumb"
+                          href={m.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={m.caption || m.file_url}
+                        >
+                          {m.file_type?.startsWith('image') ? (
+                            <img src={m.file_url} alt={m.caption || 'Media'} />
                           ) : (
-                            <img
-                              src={media.file_url}
-                              alt={media.caption || media.media_id}
-                            />
+                            <span className="media-file">{m.file_type || 'file'}</span>
                           )}
-                          {media.caption && (
-                            <div className="media-caption">{media.caption}</div>
-                          )}
-                        </div>
+                        </a>
                       ))}
                     </div>
+                  ) : (
+                    <p className="muted">No media attached.</p>
                   )}
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="primary-cta" onClick={closeDetailModal}>
+                    Close
+                  </button>
                 </div>
               </div>
             )}

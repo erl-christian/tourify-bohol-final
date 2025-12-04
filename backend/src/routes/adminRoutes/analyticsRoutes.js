@@ -68,14 +68,14 @@ router.get(
 router.get(
   '/arrivals/municipalities',
   auth,
-  requireRoles('bto_admin', 'lgu_admin'),
+  requireRoles('bto_admin', 'lgu_admin', 'lgu_staff'),
   getMunicipalityArrivals
 );
 
 router.get(
   '/heatmap',
   auth,
-  requireRoles('bto_admin', 'lgu_admin'),
+  requireRoles('bto_admin', 'lgu_admin', 'lgu_staff'),
   getVisitorHeatmap
 );
 
@@ -97,7 +97,7 @@ router.get(
 router.get('/export/excel', auth, requireRoles('bto_admin'), exportAnalyticsExcel);
 router.get('/export/pdf', auth, requireRoles('bto_admin'), exportAnalyticsPdf);
 
-router.get('/lgu/export/excel', auth, requireRoles('lgu_admin'), exportLguAnalyticsExcel);
-router.get('/lgu/export/pdf', auth, requireRoles('lgu_admin'), exportLguAnalyticsPdf);
+router.get('/lgu/export/excel', auth, requireRoles('lgu_admin', 'lgu_staff'), exportLguAnalyticsExcel);
+router.get('/lgu/export/pdf', auth, requireRoles('lgu_admin', 'lgu_staff'), exportLguAnalyticsPdf);
 
 export default router;

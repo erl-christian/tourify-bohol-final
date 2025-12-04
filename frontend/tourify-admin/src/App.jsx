@@ -21,6 +21,7 @@ import LguAnalytics from './pages/lgu/Analytics.jsx';
 import AdminFeedback from './pages/admin/Feedback';
 import LguStaffFeedback from './pages/lguStaff/Feedback.jsx';
 import OwnerAnalytics from './pages/owner/Analytics.jsx'
+import LguStaffAnalytics from './pages/lguStaff/Analytics.jsx';
 
 function App() {
 return (
@@ -77,6 +78,14 @@ return (
     <Route path="/lgu-staff/approvals" element={<LguStaffApprovals />} />
     <Route path="/lgu-staff/activities" element={<LguActivities />} />
     <Route path="/lgu-staff/feedback" element={<LguStaffFeedback />} />
+    <Route
+      path="/lgu-staff/reports"
+      element={
+        <ProtectedRoute allowedRoles={['lgu_staff', 'lgu_admin']}>
+          <LguStaffAnalytics />
+        </ProtectedRoute>
+      }
+    />
 
     {/* owner*/}
     <Route path="/owner" element={<Navigate to="/owner/dashboard" replace />} />

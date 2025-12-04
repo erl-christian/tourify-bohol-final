@@ -1,4 +1,3 @@
-// frontend/tourify-admin/src/pages/lguStaff/LguStaffDashboard.jsx
 import { useEffect, useMemo, useState } from 'react';
 import LguStaffLayout from '../../components/LguStaffLayout';
 import '../../styles/AdminDashboard.css';
@@ -6,9 +5,9 @@ import {
   fetchLguEstablishments,
   fetchLguPendingEstablishments,
   fetchLguEstablishmentDetails,
+  fetchLguEstablishmentMedia,
 } from '../../services/lguApi';
 import { fetchMunicipalities } from '../../services/btoApi';
-import { fetchEstablishmentMedia } from '../../services/establishmentApi';
 
 const statusToneMap = {
   verified: 'success',
@@ -61,23 +60,33 @@ function LguStaffDashboard() {
   });
 
   const closeDetailModal = () =>
-  setDetailModal({ open: false, loading: false, establishment: null, media: [], error: '' });
+    setDetailModal({ open: false, loading: false, establishment: null, media: [], error: '' });
 
-  const handleViewDetails = async estId => {
+  const handleViewDetails = async (estId) => {
     if (!estId) return;
-    setDetailModal(prev => ({ ...prev, open: true, loading: true, error: '', media: [] }));
+    setDetailModal({ open: true, loading: true, establishment: null, media: [], error: '' });
     try {
       const [detailRes, mediaRes] = await Promise.all([
         fetchLguEstablishmentDetails(estId),
-        fetchEstablishmentMedia(estId).catch(() => ({ data: [] })),
+        fetchLguEstablishmentMedia(estId),
       ]);
 
+      const mediaPayload = mediaRes?.data;
+      const mediaItems = Array.isArray(mediaPayload)
+        ? mediaPayload
+        : Array.isArray(mediaPayload?.items)
+        ? mediaPayload.items
+        : Array.isArray(mediaPayload?.media)
+        ? mediaPayload.media
+        : [];
+
       const establishment = detailRes.data?.establishment ?? detailRes.data ?? null;
+
       setDetailModal({
         open: true,
         loading: false,
         establishment,
-        media: Array.isArray(mediaRes.data) ? mediaRes.data : [],
+        media: mediaItems,
         error: '',
       });
     } catch (err) {
@@ -304,10 +313,10 @@ function LguStaffDashboard() {
                   <div>
                     <button
                       type="button"
-                      className="ghost-cta"
+                      className="table-action-button"
                       onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
                     >
-                      View details
+                      View
                     </button>
                   </div>
                 </li>
@@ -329,6 +338,7 @@ function LguStaffDashboard() {
             <span>Category</span>
             <span>Status</span>
             <span>Last update</span>
+            <span>Action</span>
           </div>
 
           <ul className="table-body">
@@ -365,98 +375,139 @@ function LguStaffDashboard() {
                   <div className="muted">
                     {formatDate(item.updatedAt || item.createdAt)}
                   </div>
+                  <div>
+                    <button
+                      type="button"
+                      className="table-action-button"
+                      onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
+                    >
+                      View
+                    </button>
+                  </div>
                 </li>
               ))
             )}
           </ul>
         </div>
       </section>
+
       {detailModal.open && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-card">
             <header className="modal-header">
               <div>
-                <h3>{detailModal.establishment?.name ?? 'Establishment details'}</h3>
+                <h3>Establishment Details</h3>
                 <p className="muted">
                   ID: {detailModal.establishment?.businessEstablishment_id ?? '—'}
                 </p>
               </div>
-              <button type="button" className="ghost-btn" onClick={closeDetailModal}>
-                Close
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={closeDetailModal}
+                disabled={detailModal.loading}
+              >
+                ×
               </button>
             </header>
 
             {detailModal.loading ? (
-              <p className="muted">Loading establishment…</p>
+              <div className="modal-content">
+                <div className="muted">Loading…</div>
+              </div>
             ) : detailModal.error ? (
-              <p className="error-text">{detailModal.error}</p>
+              <div className="modal-content">
+                <div className="modal-error">{detailModal.error}</div>
+              </div>
             ) : (
-              <>
-                <section className="establishment-detail-grid">
-                  <div>
-                    <p className="muted">Category</p>
-                    <p>{detailModal.establishment?.type ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="muted">Status</p>
-                    <span
-                      className={`status-chip status-${resolveTone(detailModal.establishment?.status)}`}
-                    >
-                      {detailModal.establishment?.status ?? 'pending'}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="muted">Municipality</p>
-                    <p>{detailModal.establishment?.municipality_id ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="muted">Last updated</p>
-                    <p>{formatDate(detailModal.establishment?.updatedAt)}</p>
-                  </div>
-                </section>
-
-                <section className="establishment-detail-info">
-                  <div>
-                    <p className="muted">Address</p>
-                    <p>{detailModal.establishment?.address ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="muted">Contact</p>
-                    <p>{detailModal.establishment?.contact_info ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="muted">Description</p>
-                    <p>{detailModal.establishment?.description ?? 'No description provided.'}</p>
-                  </div>
-                </section>
-
-                <section className="establishment-media-section">
-                  <div className="section-heading compact">
-                    <h4>Uploaded media</h4>
-                    <p className="muted">
-                      {detailModal.media.length
-                        ? `${detailModal.media.length} file${
-                            detailModal.media.length === 1 ? '' : 's'
-                          }`
-                        : 'No media uploaded yet.'}
+              <div className="modal-content">
+                <div className="detail-grid">
+                  <div className="detail-pair">
+                    <p className="detail-label">Name</p>
+                    <p className="detail-value strong">
+                      {detailModal.establishment?.name || '—'}
                     </p>
                   </div>
-                  {detailModal.media.length ? (
+                  <div className="detail-pair">
+                    <p className="detail-label">Category</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.type || detailModal.establishment?.category || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Status</p>
+                    <p className="detail-value chip">
+                      {detailModal.establishment?.status || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Municipality</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.municipality_id || detailModal.establishment?.municipality || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.updatedAt
+                        ? new Date(detailModal.establishment.updatedAt).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Contact</p>
+                    <p className="detail-value">
+                      {detailModal.establishment?.contact_info || '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Address</p>
+                  <p className="detail-value">
+                    {detailModal.establishment?.address || '—'}
+                  </p>
+                </div>
+                <div className="detail-block">
+                  <p className="detail-label">Description</p>
+                  <p className="detail-value">
+                    {detailModal.establishment?.description || 'No description provided.'}
+                  </p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Media</p>
+                  {detailModal.media?.length ? (
                     <div className="media-grid">
-                      {detailModal.media.map(item => (
-                        <figure key={item._id ?? item.url} className="media-grid-item">
-                          {item.url?.match(/\.(mp4|mov|avi|mkv)$/i) ? (
-                            <video src={item.url} controls />
+                      {detailModal.media.map((m) => (
+                        <a
+                          key={m.media_id || m.id}
+                          className="media-thumb"
+                          href={m.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={m.caption || m.file_url}
+                        >
+                          {m.file_type?.startsWith('image') ? (
+                            <img src={m.file_url} alt={m.caption || 'Media'} />
                           ) : (
-                            <img src={item.url} alt={item.caption ?? 'media upload'} />
+                            <span className="media-file">{m.file_type || 'file'}</span>
                           )}
-                          {item.caption ? <figcaption>{item.caption}</figcaption> : null}
-                        </figure>
+                        </a>
                       ))}
                     </div>
-                  ) : null}
-                </section>
-              </>
+                  ) : (
+                    <p className="muted">No media attached.</p>
+                  )}
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="primary-cta" onClick={closeDetailModal}>
+                    Close
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

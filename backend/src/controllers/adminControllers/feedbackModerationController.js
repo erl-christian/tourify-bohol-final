@@ -8,8 +8,11 @@ import BusinessEstablishmentProfile from "../../models/businessEstablishmentMode
 export const lguReplyFeedback = async (req, res, next) => {
   try {
     const accId = req.user?.account_id;
-    const admin = await AdminStaffProfile.findOne({ account_id: accId, position: "LGU Admin" });
-    if (!admin) { res.status(403); throw new Error("Only LGU Admins can reply"); }
+    const admin = await AdminStaffProfile.findOne({
+      account_id: accId,
+      position: { $in: ["LGU Admin", "LGU Staff"] },
+    });
+    if (!admin) { res.status(403); throw new Error("Only LGU Admin or Staff can reply"); }
 
     const { feedbackId } = req.params;
     const fb = await Feedback.findOne({ feedback_id: feedbackId });

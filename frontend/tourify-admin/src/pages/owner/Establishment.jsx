@@ -690,7 +690,7 @@ function OwnerEstablishments() {
             <span>Status</span>
             <span>Last Update</span>
             <span>QR Code</span>
-            <span>Media</span>
+            <span>Details</span>
           </div>
 
           <ul className="table-body">
@@ -763,13 +763,21 @@ function OwnerEstablishments() {
                         className="ghost-cta"
                         onClick={() => openMediaModal(listing)}
                       >
-                        View media
+                        View details
                       </button>
                     </div>
                     <div className="table-actions">
-                      <button type="button" className="ghost-cta" onClick={() => openEditModal(listing)}>
-                        {listing.status === 'pending' ? 'Edit details' : 'Request update'}
-                      </button>
+                      {listing.status !== 'pending' ? (
+                        <button
+                          type="button"
+                          className="ghost-cta"
+                          onClick={() => openEditModal(listing)}
+                        >
+                          {listing.status === 'needs_owner_revision' ? 'Edit details' : 'Request update'}
+                        </button>
+                      ) : (
+                        <span className="muted">Awaiting review</span>
+                      )}
                     </div>
                   </li>
                 );
@@ -784,10 +792,8 @@ function OwnerEstablishments() {
           <div className="modal-card wide">
             <header className="modal-header">
               <div>
-                <h3>
-                  Media for {activeMediaEst?.name || 'Establishment'} ({activeMediaEst?.estId})
-                </h3>
-                <p>Images and videos submitted for this establishment.</p>
+                <h3>Establishment Details</h3>
+                <p>ID: {activeMediaEst?.estId || '—'}</p>
               </div>
               <button
                 type="button"
@@ -799,62 +805,81 @@ function OwnerEstablishments() {
               </button>
             </header>
 
-            <div className="media-modal-upload">
-              <label className="form-label" htmlFor="modal-media">
-                Add media
-              </label>
-              <div className="media-upload-controls">
-                <input
-                  id="modal-media"
-                  type="file"
-                  multiple
-                  accept="image/*,video/*"
-                  onChange={handleModalFileSelection}
-                />
-                <button
-                  type="button"
-                  className="primary-cta"
-                  onClick={handleModalUpload}
-                  disabled={modalUploading || modalFiles.length === 0}
-                >
-                  {modalUploading ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
-              {modalFiles.length > 0 && (
-                <div className="muted">
-                  {modalFiles.length} file{modalFiles.length > 1 ? 's' : ''} selected.
-                </div>
-              )}
-              {modalFeedback && (
-                <div className="muted" role="status">
-                  {modalFeedback}
-                </div>
-              )}
-            </div>
-
             {mediaModalLoading ? (
-              <div className="muted">Loading media...</div>
+              <div className="muted">Loading details…</div>
             ) : (
-              <div className="media-grid">
-                {(mediaCache[activeMediaEst?.estId] || []).length === 0 ? (
-                  <div className="muted">No media uploaded yet.</div>
-                ) : (
-                  (mediaCache[activeMediaEst?.estId] || []).map((media) => (
-                    <div key={media.media_id} className="media-card">
-                      {media.file_type === 'video' ? (
-                        <video controls src={media.file_url} />
-                      ) : (
-                        <img
-                          src={media.file_url}
-                          alt={media.caption || media.media_id}
-                        />
-                      )}
-                      {media.caption && (
-                        <div className="media-caption">{media.caption}</div>
-                      )}
-                    </div>
-                  ))
-                )}
+              <div className="modal-content">
+                <div className="detail-grid">
+                  <div className="detail-pair">
+                    <p className="detail-label">Name</p>
+                    <p className="detail-value strong">{activeMediaEst?.name || '—'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Status</p>
+                    <p className="detail-value chip">{activeMediaEst?.status || '—'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Municipality</p>
+                    <p className="detail-value">
+                      {activeMediaEst?.municipality || activeMediaEst?.municipality_id || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Category</p>
+                    <p className="detail-value">
+                      {activeMediaEst?.type || activeMediaEst?.category || '—'}
+                    </p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-value">
+                      {activeMediaEst?.updatedAt
+                        ? new Date(activeMediaEst.updatedAt).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Address</p>
+                  <p className="detail-value">{activeMediaEst?.address || '—'}</p>
+                </div>
+                <div className="detail-block">
+                  <p className="detail-label">Description</p>
+                  <p className="detail-value">{activeMediaEst?.description || '—'}</p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Media</p>
+                  <div className="media-grid">
+                    {(mediaCache[activeMediaEst?.estId] || []).length === 0 ? (
+                      <p className="muted">No media uploaded yet.</p>
+                    ) : (
+                      (mediaCache[activeMediaEst?.estId] || []).map((media) => (
+                        <a
+                          key={media.media_id}
+                          className="media-thumb"
+                          href={media.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={media.caption || media.file_url}
+                        >
+                          {media.file_type === 'video' ? (
+                            <video controls src={media.file_url} />
+                          ) : (
+                            <img src={media.file_url} alt={media.caption || media.media_id} />
+                          )}
+                        </a>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="primary-cta" onClick={closeMediaModal}>
+                    Close
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -980,6 +1005,34 @@ function OwnerEstablishments() {
                 {editFeedback}
               </div>
             )}
+            <div className="form-row full">
+            <label className="form-label" htmlFor="edit-media">Add media</label>
+            <input
+              id="edit-media"
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              onChange={handleModalFileSelection}
+            />
+            <button
+              type="button"
+              className="primary-cta"
+              onClick={handleModalUpload}
+              disabled={modalUploading || modalFiles.length === 0 || !editEstablishment}
+            >
+              {modalUploading ? 'Uploading…' : 'Upload'}
+            </button>
+            {modalFiles.length > 0 && (
+              <div className="muted">
+                {modalFiles.length} file{modalFiles.length > 1 ? 's' : ''} selected.
+              </div>
+            )}
+            {modalFeedback && (
+              <div className="muted" role="status">
+                {modalFeedback}
+              </div>
+            )}
+          </div>
 
             <div className="modal-actions">
               <button

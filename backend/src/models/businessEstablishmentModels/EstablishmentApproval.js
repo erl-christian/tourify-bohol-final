@@ -6,7 +6,11 @@ const establishmentApprovalSchema = new mongoose.Schema(
         //pk
         establishment_approval_id: { type: String, required: true, unique: true, index: true },
 
-        approval_status: { type: String, enum: ["pending","approved","rejected"], required: true },
+        approval_status: {
+            type: String,
+            enum: ["pending", "approved", "rejected", "needs_admin_review", "needs_owner_revision"],
+            required: true,
+        },
         action:          { type: String, trim: true }, // "submit" | "approve" | "reject"
         remarks:         { type: String },
         action_date:     { type: Date, default: Date.now },
