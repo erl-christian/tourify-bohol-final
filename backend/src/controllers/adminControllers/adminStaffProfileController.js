@@ -6,6 +6,8 @@ import EstablishmentApproval from "../../models/businessEstablishmentModels/Esta
 import BusinessEstablishmentProfile from "../../models/businessEstablishmentModels/BusinessEstablishmentProfile.js"
 import { generateEstablishmentQr } from '../../services/qrService.js';
 import { listFeedbackForEstablishment } from "../publicControllers/publicFeedbackController.js";
+import Feedback from "../../models/feedback/Feedback.js";
+import FeedbackResponse from "../../models/feedback/FeedbackResponse.js";
 
 //post /api/admin/bto/create-lgu-admin
 export const createLGUAdmin = async (req, res, next) => {
@@ -365,9 +367,9 @@ export const lguCreateOwnerProfile = async (req, res, next) => {
 };
 
 // POST /api/admin/lgu/establishments/:estId/approval
-// body: { action: "approve" | "reject", remarks?: string }
+// body: { action: "approve" | "reject" | "return", remarks?: string }
 export const actOnEstablishment = async (req, res, next) => {
- try {
+  try {
     const creatorAccId = req.user?.account_id;
     if (!creatorAccId) {
       res.status(401);
@@ -398,11 +400,13 @@ export const actOnEstablishment = async (req, res, next) => {
     }
 
     const { action, remarks } = req.body;
-    if (!["approve", "reject"].includes(action)) {
+    if (!["approve", "reject", "return"].includes(action)) {
       res.status(400);
-      throw new Error('action must be "approve" or "reject"');
+      throw new Error('action must be "approve", "reject", or "return"');
     }
-    const approval_status = action === "approve" ? "approved" : "rejected";
+    let approval_status = "rejected";
+    if (action === "approve") approval_status = "approved";
+    if (action === "return") approval_status = "needs_owner_revision";
 
     await EstablishmentApproval.updateMany(
       { businessEstablishment_id: est.businessEstablishment_id, is_latest: true },
@@ -431,6 +435,54 @@ export const actOnEstablishment = async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+};
+
+export const lguModerateFeedback = async (req, res, next) => {
+  try {
+    const adminAccId = req.user?.account_id;
+    if (!adminAccId) { res.status(401); throw new Error('Unauthorized'); }
+
+    const admin = await AdminStaffProfile.findOne({
+      account_id: adminAccId,
+      position: { $in: ['LGU Admin', 'LGU Staff'] },
+    }).lean();
+    if (!admin) { res.status(403); throw new Error('Only LGU Admin/Staff can moderate'); }
+
+    const { feedbackId } = req.params;
+    const { action, reason = '' } = req.body;
+    if (!['hide', 'unhide', 'flag', 'delete'].includes(action)) {
+      res.status(400); throw new Error('Invalid action');
+    }
+
+    const fb = await Feedback.findOne({ feedback_id: feedbackId });
+    if (!fb) { res.status(404); throw new Error('Feedback not found'); }
+
+    const est = await BusinessEstablishment.findOne({ businessEstablishment_id: fb.business_establishment_id });
+    if (!est || est.municipality_id !== admin.municipality_id) {
+      res.status(403); throw new Error('Cannot moderate outside your municipality');
+    }
+
+    if (action === 'hide') {
+      fb.is_hidden = true;
+      fb.moderated_note = reason;
+      fb.moderated_by = adminAccId;
+    } else if (action === 'unhide') {
+      fb.is_hidden = false;
+      fb.moderated_note = reason;
+      fb.moderated_by = adminAccId;
+    } else if (action === 'flag') {
+      fb.is_flagged = true;
+      fb.flagged_reason = reason;
+      fb.moderated_by = adminAccId;
+    } else if (action === 'delete') {
+      fb.deleted_at = new Date();
+      fb.moderated_note = reason;
+      fb.moderated_by = adminAccId;
+    }
+
+    await fb.save();
+    res.json({ message: 'Feedback updated', feedback: fb });
+  } catch (e) { next(e); }
 };
 
 export const listPendingEstablishment = async (req, res, next) => {

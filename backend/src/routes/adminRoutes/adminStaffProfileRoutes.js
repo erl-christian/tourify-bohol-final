@@ -21,7 +21,8 @@ import {
   updateLguAdminStatus,
   updateLguManagedAccountStatus,
   updateLguAdmin,
-  updateLguManagedAccount
+  updateLguManagedAccount,
+  lguModerateFeedback, 
 } from "../../controllers/adminControllers/adminStaffProfileController.js";
 import {
   listEstablishmentMedia,
@@ -39,7 +40,7 @@ import { getFeedbackDetails, listFeedbackForEstablishment} from "../../controlle
 import {
   generateFeedbackSummary,
   getLatestFeedbackSummary,
-  getEstablishmentFeedbackStats
+  getEstablishmentFeedbackStats,
 } from "../../controllers/adminControllers/analyticsControllers.js";
 
 const router = express.Router();
@@ -160,5 +161,8 @@ router.patch(
 
 router.post("/bto/feedback/:feedbackId/reply", auth, requireRoles("bto_admin"), btoReplyFeedback);
 router.patch("/bto/feedback/:feedbackId/moderate", auth, requireRoles("bto_admin"), btoModerateFeedback);
+
+
+router.patch( '/lgu/feedback/:feedbackId/moderate',auth,requireRoles('lgu_admin', 'lgu_staff'),lguModerateFeedback,);
 
 export default router;

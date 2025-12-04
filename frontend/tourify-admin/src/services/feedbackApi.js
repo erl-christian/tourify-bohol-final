@@ -37,4 +37,8 @@ export const btoReplyToFeedback = (feedbackId, payload) =>
 export const btoModerateFeedback = (feedbackId, payload) =>
   http.patch(`/admin/bto/feedback/${feedbackId}/moderate`, payload);
 
+export const lguModerateFeedback = (feedbackId, payload) =>
+  http.patch(`/admin/lgu/feedback/${feedbackId}/moderate`, payload);
+
+
 

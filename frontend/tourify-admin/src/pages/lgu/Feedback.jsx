@@ -15,6 +15,7 @@ import {
   fetchLatestFeedbackSummary,
   generateFeedbackSummary,
   fetchFeedbackStats,
+  lguModerateFeedback,
 } from '../../services/feedbackApi';
 
 const stripMarkdown = text => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
@@ -96,6 +97,29 @@ function LguFeedback() {
 
   const [replyDrafts, setReplyDrafts] = useState({});
   const [replySubmitting, setReplySubmitting] = useState('');
+
+  const [replyModal, setReplyModal] = useState({
+    open: false,
+    target: null,
+    text: '',
+    loading: false,
+    error: '',
+  });
+  const [moderateModal, setModerateModal] = useState({
+    open: false,
+    target: null,
+    action: 'hide',
+    reason: '',
+    loading: false,
+    error: '',
+  });
+  const [threadModal, setThreadModal] = useState({
+    open: false,
+    loading: false,
+    error: '',
+    thread: null,
+  });
+
 
   useEffect(() => {
     const loadEstablishments = async () => {
@@ -181,6 +205,68 @@ function LguFeedback() {
       loadSummary();
     }
   }, [selectedEst, loadFeedback, loadSummary]);
+
+  const openReplyModal = (item) =>
+    setReplyModal({ open: true, target: item, text: '', loading: false, error: '' });
+
+  const submitReply = async (e) => {
+    e.preventDefault();
+    if (!replyModal.target) return;
+    setReplyModal((p) => ({ ...p, loading: true, error: '' }));
+    try {
+      await lguReplyToFeedback(replyModal.target.feedback_id, { response_text: replyModal.text });
+      await loadFeedback();
+      setReplyModal({ open: false, target: null, text: '', loading: false, error: '' });
+    } catch (err) {
+      setReplyModal((p) => ({
+        ...p,
+        loading: false,
+        error: err.response?.data?.message || 'Unable to post reply.',
+      }));
+    }
+  };
+
+  const openModerateModal = (item, action) =>
+    setModerateModal({ open: true, target: item, action, reason: '', loading: false, error: '' });
+
+  const submitModeration = async (e) => {
+    e.preventDefault();
+    if (!moderateModal.target) return;
+    setModerateModal((p) => ({ ...p, loading: true, error: '' }));
+    try {
+      await lguModerateFeedback(moderateModal.target.feedback_id, {
+        action: moderateModal.action,
+        reason: moderateModal.reason,
+      });
+      await loadFeedback();
+      setModerateModal({ open: false, target: null, action: 'hide', reason: '', loading: false, error: '' });
+    } catch (err) {
+      setModerateModal((p) => ({
+        ...p,
+        loading: false,
+        error: err.response?.data?.message || 'Unable to update feedback.',
+      }));
+    }
+  };
+
+  const openThreadModal = async (feedbackId) => {
+    setThreadModal({ open: true, loading: true, error: '', thread: null });
+    try {
+      const { data } = await fetchFeedbackDetails(feedbackId);
+      setThreadModal({ open: true, loading: false, error: '', thread: data });
+    } catch (err) {
+      setThreadModal({
+        open: true,
+        loading: false,
+        error: err.response?.data?.message || 'Unable to load thread.',
+        thread: null,
+      });
+    }
+  };
+
+  const closeThreadModal = () =>
+    setThreadModal({ open: false, loading: false, error: '', thread: null });
+
 
   const handleGenerateSummary = async () => {
     if (!selectedEst) return;
@@ -450,69 +536,29 @@ function LguFeedback() {
                       </div>
 
                       <div className="lgu-review-actions">
-                        <details>
-                          <summary>View thread</summary>
-                          <div className="owner-card-thread">
-                            {Array.isArray(item.replies) && item.replies.length ? (
-                              item.replies.map(reply => (
-                                <article key={reply._id ?? reply.response_id} className="owner-thread-reply">
-                                  <header>
-                                    <strong>
-                                      {reply.bto_account_id
-                                        ? 'BTO response'
-                                        : reply.business_establishment_profile_id
-                                        ? 'Owner response'
-                                        : 'LGU response'}
-                                    </strong>
-                                    <span>
-                                      {reply.createdAt ? new Date(reply.createdAt).toLocaleString() : ''}
-                                    </span>
-                                  </header>
-                                  <p>{reply.response_text}</p>
-                                </article>
-                              ))
-                            ) : (
-                              <div className="reply-placeholder">No replies recorded yet.</div>
-                            )}
-                          </div>
-
-                          <div className="owner-reply-box compact">
-                            <textarea
-                              value={replyDrafts[item.feedback_id] ?? ''}
-                              placeholder="Compose an LGU response..."
-                              onChange={event =>
-                                setReplyDrafts(prev => ({
-                                  ...prev,
-                                  [item.feedback_id]: event.target.value,
-                                }))
-                              }
-                            />
-                            <div className="reply-actions">
-                              <button
-                                type="button"
-                                className="ghost-btn"
-                                onClick={() =>
-                                  setReplyDrafts(prev => ({ ...prev, [item.feedback_id]: '' }))
-                                }
-                                disabled={!replyDrafts[item.feedback_id]}
-                              >
-                                Clear
-                              </button>
-                              <button
-                                type="button"
-                                className="primary-btn"
-                                onClick={() => handleReplySubmit(item.feedback_id)}
-                                disabled={
-                                  !replyDrafts[item.feedback_id]?.trim() ||
-                                  replySubmitting === item.feedback_id
-                                }
-                              >
-                                {replySubmitting === item.feedback_id ? 'Sending…' : 'Send LGU reply'}
-                              </button>
-                            </div>
-                          </div>
-                        </details>
+                        <div className="action-buttons">
+                          <button type="button" className="btn-primary" onClick={() => openReplyModal(item)}>
+                            Reply
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => openModerateModal(item, item.is_hidden ? 'unhide' : 'hide')}
+                          >
+                            {item.is_hidden ? 'Unhide' : 'Hide'}
+                          </button>
+                          <button type="button" className="btn-warning" onClick={() => openModerateModal(item, 'flag')}>
+                            Flag
+                          </button>
+                          <button type="button" className="btn-danger" onClick={() => openModerateModal(item, 'delete')}>
+                            Delete
+                          </button>
+                          <button type="button" className="btn-ghost" onClick={() => openThreadModal(item.feedback_id)}>
+                            View thread
+                          </button>
+                        </div>
                       </div>
+
                     </article>
                   ))
                 ) : (
@@ -543,6 +589,169 @@ function LguFeedback() {
           </>
         )}
       </section>
+      {replyModal.open && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Reply to feedback</h3>
+                <p>Respond as LGU.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={() => setReplyModal({ open: false, target: null, text: '', loading: false, error: '' })}
+                disabled={replyModal.loading}
+              >
+                ×
+              </button>
+            </header>
+            {replyModal.error && <div className="modal-error">{replyModal.error}</div>}
+            <div className="modal-content">
+              <form className="modal-form" onSubmit={submitReply}>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="lgu-reply-text">Message</label>
+                  <textarea
+                    id="lgu-reply-text"
+                    rows={4}
+                    required
+                    value={replyModal.text}
+                    onChange={(e) => setReplyModal((p) => ({ ...p, text: e.target.value }))}
+                  />
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="ghost-cta" onClick={() => setReplyModal({ open: false, target: null, text: '', loading: false, error: '' })} disabled={replyModal.loading}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-cta" disabled={replyModal.loading}>
+                    {replyModal.loading ? 'Sending…' : 'Send reply'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {moderateModal.open && (
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div className="modal-card">
+          <header className="modal-header">
+            <div>
+              <h3>Moderate feedback</h3>
+              <p>Action: {moderateModal.action}</p>
+            </div>
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close"
+              onClick={() => setModerateModal({ open: false, target: null, action: 'hide', reason: '', loading: false, error: '' })}
+              disabled={moderateModal.loading}
+            >
+              ×
+            </button>
+      </header>
+      {moderateModal.error && <div className="modal-error">{moderateModal.error}</div>}
+          <div className="modal-content">
+            <form className="modal-form" onSubmit={submitModeration}>
+              <div className="form-row">
+                <label className="form-label" htmlFor="lgu-mod-reason">Reason (optional)</label>
+                <textarea
+                  id="lgu-mod-reason"
+                  rows={3}
+                  value={moderateModal.reason}
+                  onChange={(e) => setModerateModal((p) => ({ ...p, reason: e.target.value }))}
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="ghost-cta"
+                  onClick={() => setModerateModal({ open: false, target: null, action: 'hide', reason: '', loading: false, error: '' })}
+                  disabled={moderateModal.loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={
+                    moderateModal.action === 'delete'
+                      ? 'danger-cta'
+                      : moderateModal.action === 'flag'
+                      ? 'review-cta'
+                      : 'primary-cta'
+                  }
+                  disabled={moderateModal.loading}
+                >
+                  {moderateModal.loading ? 'Applying…' : `Confirm ${moderateModal.action}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )}
+    {threadModal.open && (
+  <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div className="modal-card">
+      <header className="modal-header">
+        <div>
+          <h3>Feedback thread</h3>
+          <p>Full conversation history.</p>
+        </div>
+        <button
+          type="button"
+          className="modal-close"
+          aria-label="Close"
+          onClick={closeThreadModal}
+          disabled={threadModal.loading}
+        >
+          ×
+        </button>
+      </header>
+      {threadModal.loading ? (
+        <div className="modal-content"><div className="muted">Loading thread…</div></div>
+      ) : threadModal.error ? (
+        <div className="modal-content"><div className="modal-error">{threadModal.error}</div></div>
+      ) : (
+        <div className="modal-content">
+          <div className="detail-block">
+            <p className="detail-label">Original review</p>
+            <p className="detail-value">{threadModal.thread?.review_text || 'No comment provided.'}</p>
+          </div>
+          <div className="detail-block">
+            <p className="detail-label">Replies</p>
+            {threadModal.thread?.replies?.length ? (
+              threadModal.thread.replies.map((reply) => (
+                <article key={reply._id ?? reply.feedback_response_id ?? reply.response_id} className="detail-reply">
+                  <header>
+                    <strong>
+                      {reply.bto_account_id
+                        ? 'BTO response'
+                        : reply.business_establishment_profile_id
+                        ? 'Owner response'
+                        : 'LGU response'}
+                    </strong>
+                    <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleString() : ''}</span>
+                  </header>
+                  <p>{reply.response_text}</p>
+                </article>
+              ))
+            ) : (
+              <p className="muted">No replies recorded yet.</p>
+            )}
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="primary-cta" onClick={closeThreadModal}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
     </LguLayout>
   );
 }
