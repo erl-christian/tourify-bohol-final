@@ -95,8 +95,8 @@ function LguFeedback() {
     parsedSummary: null,
   });
 
-  const [replyDrafts, setReplyDrafts] = useState({});
-  const [replySubmitting, setReplySubmitting] = useState('');
+  // const [replyDrafts, setReplyDrafts] = useState({});
+  // const [replySubmitting, setReplySubmitting] = useState('');
 
   const [replyModal, setReplyModal] = useState({
     open: false,
@@ -288,21 +288,21 @@ function LguFeedback() {
     }
   };
 
-  const handleReplySubmit = async feedbackId => {
-    const message = replyDrafts[feedbackId]?.trim();
-    if (!message) return;
-    try {
-      setReplySubmitting(feedbackId);
-      await lguReplyToFeedback(feedbackId, { response_text: message });
-      setReplyDrafts(prev => ({ ...prev, [feedbackId]: '' }));
-      await loadFeedback();
-    } catch (err) {
-      console.error('Failed to send LGU reply', err);
-      alert('Unable to send reply. Please try again.');
-    } finally {
-      setReplySubmitting('');
-    }
-  };
+  // const handleReplySubmit = async feedbackId => {
+  //   const message = replyDrafts[feedbackId]?.trim();
+  //   if (!message) return;
+  //   try {
+  //     setReplySubmitting(feedbackId);
+  //     await lguReplyToFeedback(feedbackId, { response_text: message });
+  //     setReplyDrafts(prev => ({ ...prev, [feedbackId]: '' }));
+  //     await loadFeedback();
+  //   } catch (err) {
+  //     console.error('Failed to send LGU reply', err);
+  //     alert('Unable to send reply. Please try again.');
+  //   } finally {
+  //     setReplySubmitting('');
+  //   }
+  // };
 
   const summaryCards = useMemo(() => {
     if (!feedbackState.summary) return [];
