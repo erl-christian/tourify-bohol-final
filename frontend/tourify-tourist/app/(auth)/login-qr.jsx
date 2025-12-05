@@ -21,21 +21,24 @@ export default function LoginQrScreen() {
       try {
         let establishmentId = data;
 
-        if (data.startsWith('http') || data.startsWith('tourify://')) {
+        if (data.startsWith('{')) {
+          const parsed = JSON.parse(data);
+          establishmentId =
+            parsed.business_establishment_id ||
+            parsed.est ||
+            parsed.establishmentId ||
+            establishmentId;
+        } else if (data.startsWith('http') || data.startsWith('tourify://')) {
           const url = new URL(data);
           establishmentId =
+            url.searchParams.get('est') ||
             url.searchParams.get('establishmentId') ||
             url.pathname.split('/').filter(Boolean).pop();
         }
 
-        if (!establishmentId) {
-          throw new Error('No establishment ID detected.');
-        }
-
-        router.replace({
-          pathname: '/(auth)/login',
-          params: { establishmentId },
-        });
+        if (!establishmentId) throw new Error('No establishment ID detected.');
+        console.log('[QR SCAN] establishmentId parsed:', establishmentId);
+        router.replace({ pathname: '/(auth)/login', params: { establishmentId } });
       } catch (err) {
         Alert.alert('Invalid QR code', err.message || 'Please scan a Tourify venue QR.');
         setScanned(false);
@@ -43,6 +46,7 @@ export default function LoginQrScreen() {
     },
     [router, scanned],
   );
+
 
   if (!permission) {
     return (

@@ -3,6 +3,67 @@ import BusinessEstablishment from '../../models/businessEstablishmentModels/Busi
 import Itinerary from '../../models/tourist/Itinerary.js';
 import TravelHistory from '../../models/tourist/TravelHistory.js';
 
+// helper (top of file)
+const buildQrItineraryId = (touristProfileId, date = new Date()) =>
+  `qr-${touristProfileId}-${date.toISOString().slice(0, 10)}`;
+
+export const recordQrArrival = async (req, res, next) => {
+  try {
+    const accountId = req.user?.account_id;
+    if (!accountId) { res.status(401); throw new Error('Unauthorized'); }
+
+    const tourist = await TouristProfile.findOne({ account_id: accountId });
+    if (!tourist) { res.status(404); throw new Error('Tourist profile not found'); }
+
+    const establishmentId =
+      req.body.business_establishment_id ||
+      req.body.establishmentId ||
+      req.body.establishment_id ||
+      req.body.est;
+    if (!establishmentId) { res.status(400); throw new Error('business_establishment_id is required'); }
+
+    const est = await BusinessEstablishment.findOne({ businessEstablishment_id: establishmentId }).lean();
+    if (!est) { res.status(404); throw new Error('Establishment does not exist'); }
+
+    const now = new Date();
+    const itineraryId = `qr-${tourist.tourist_profile_id}-${now.toISOString().slice(0, 10)}`;
+
+    const filter = {
+      itinerary_id: itineraryId,
+      tourist_profile_id: tourist.tourist_profile_id,
+      business_establishment_id: establishmentId,
+    };
+
+    const existing = await TravelHistory.findOne(filter);
+    const visitCount = await TravelHistory.countDocuments({
+      itinerary_id: itineraryId,
+      tourist_profile_id: tourist.tourist_profile_id,
+    });
+
+    const payload = {
+      status: 'visited',
+      scheduled_date: existing?.scheduled_date ?? now,
+      scheduled_destination: est.name ?? 'QR check-in',
+      date_visited: now,
+      capture_method: 'qr_scan',
+      actual_arrival: now,
+      capture_latitude: req.body.latitude ?? req.body.capture_latitude,
+      capture_longitude: req.body.longitude ?? req.body.capture_longitude,
+      latitude: est.latitude ?? undefined,
+      longitude: est.longitude ?? undefined,
+      priority: existing?.priority ?? visitCount + 1,
+    };
+
+    const visit = existing
+      ? await TravelHistory.findOneAndUpdate(filter, { $set: payload }, { new: true })
+      : await TravelHistory.create({ ...filter, ...payload });
+
+    res.json({ message: 'Arrival recorded', visit, itinerary_id: itineraryId });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const checkinStop = async (req, res, next) => {
   try {
     const accountId = req.user?.account_id;

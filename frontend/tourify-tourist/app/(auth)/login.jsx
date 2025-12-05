@@ -16,6 +16,7 @@ import AuthCard from '../../components/AuthCard';
 import TextField from '../../components/TextField';
 import { colors, spacing } from '../../constants/theme';
 import { login } from '../../lib/auth';
+import { recordQrArrival } from '../../lib/tourist';
 import { useAuth } from '../../hooks/useAuth';
 import client from '../../lib/http';
 
@@ -66,11 +67,25 @@ export default function LoginScreen() {
     };
   }, [establishmentId]);
 
+// inside onSubmit
   const onSubmit = async values => {
     try {
       setSubmitting(true);
       const data = await login(values);
       await signIn(data);
+
+      if (establishmentId) {
+        await recordQrArrival(establishmentId)
+          .then(res => {
+            console.log('[QR ARRIVAL] recorded', {
+              estId: establishmentId,
+              itinerary: res?.itinerary_id,
+              visitId: res?.visit?.travel_history_id,
+            });
+          })
+          .catch(err => console.warn('[QR ARRIVAL] failed', err?.message || err));
+      }
+
       router.replace('/home');
     } catch (error) {
       alert(error.message ?? 'Failed to log in. Check your credentials.');

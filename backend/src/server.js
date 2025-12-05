@@ -32,6 +32,7 @@ import analyticsRoutes from './routes/adminRoutes/analyticsRoutes.js';
 import sharedItineraryRoutes from './routes/touristRoutes/sharedItineraryRoutes.js';
 import lguAnalyticsRoutes from './routes/lguRoutes/analyticsRoutes.js';
 import ownerAnalyticsRoutes from './routes/ownerRoutes/analyticsRoutes.js';
+import spmRoutes from './routes/adminRoutes/spmRoute.js';
 
 
 const app = express()
@@ -43,6 +44,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   "https://tourify-bohol-final.onrender.com",
+  "http://192.168.1.7:5173",
+  "http://192.168.1.7:5001",
 ];
 
 app.use(
@@ -64,6 +67,7 @@ app.use('/uploads', express.static(path.resolve('uploads')));
 app.use("/api/accounts", accountRoutes);
 app.use("/api/municipalities", municipalityRoutes)
 app.use("/api/admin", adminStaffProfileRoutes);
+app.use('/api/admin', spmRoutes);
 app.use("/api/tourist", touristProfileRoutes)
 app.use("/api/tourist/itineraries", itineraries)
 app.use("/api/tourist/feedback", touristFeedbackRoutes);

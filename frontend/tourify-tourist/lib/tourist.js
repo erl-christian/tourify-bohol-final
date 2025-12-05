@@ -117,3 +117,11 @@ export const shareCompletedItinerary = (itineraryId, caption) =>
 
 export const fetchSharedItineraries = limit =>
   client.get('/tourist/shared-itineraries', { params: { limit } }).then(res => res.data.items ?? []);
+
+export async function recordQrArrival(establishmentId, coords = {}) {
+  return client.post('/tourist/qr-arrivals', {
+    business_establishment_id: establishmentId,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+  }).then(res => res.data);
+}

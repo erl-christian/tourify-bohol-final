@@ -14,7 +14,9 @@ import {
   markStopVisited, 
   reorderItineraryStops, 
   updateHistoryStop } from "../../controllers/tourist/travelHistoryController.js";
-import { checkinStop, finalizeItinerary } from "../../controllers/tourist/checkInController.js";
+import { checkinStop, finalizeItinerary, recordQrArrival 
+
+ } from "../../controllers/tourist/checkInController.js";
 import { previewItinerary } from "../../controllers/tourist/itineraryPreviewControl.js";
 
 
@@ -37,6 +39,7 @@ router.patch("/:itineraryId/history/reorder", auth, requireRoles("tourist"), reo
 //check in
 router.post("/:itineraryId/checkin", auth, requireRoles("tourist"), checkinStop);
 router.post( "/:itineraryId/complete", auth, requireRoles("tourist"), finalizeItinerary);
+router.post("/qr-arrivals", auth, requireRoles("tourist"), recordQrArrival);
 
 //mmapping
 router.post("/preview", auth, requireRoles("tourist"), previewItinerary);

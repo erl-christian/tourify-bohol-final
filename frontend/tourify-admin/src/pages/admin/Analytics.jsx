@@ -28,6 +28,8 @@ import {
   fetchFeedbackDistribution,
   fetchAccreditationSummary,
   fetchMovementAnalytics,
+  fetchSpmStatus, 
+  rebuildSpm
 } from '../../services/analyticsApi';
 
 const transformMunicipalitySeries = municipalities =>
@@ -122,6 +124,53 @@ function HeatmapLayer({ points, radius = 20, blur = 25 }) {
   }, [map, points, radius, blur]);
 
   return null;
+}
+
+function SpmControls() {
+  const [status, setStatus] = useState({ running: false, lastRunAt: null });
+  const [loading, setLoading] = useState(false);
+
+  const loadStatus = async () => {
+    try {
+      const data = await fetchSpmStatus();
+      setStatus(data);
+    } catch (err) {
+      console.warn('SPM status failed', err?.message);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const handleRebuild = async () => {
+    setLoading(true);
+    try {
+      await rebuildSpm();
+      await loadStatus();
+      alert('SPM mining started/completed.');
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to start mining.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+      <button
+        type="button"
+        className="primary-cta"
+        onClick={handleRebuild}
+        disabled={loading || status.running}
+      >
+        {status.running ? 'Mining…' : 'Mine sequences'}
+      </button>
+      <span className="muted">
+        Last run: {status.lastRunAt ? new Date(status.lastRunAt).toLocaleString() : 'Never'}
+      </span>
+    </div>
+  );
 }
 
 
@@ -298,6 +347,7 @@ function AdminAnalytics() {
           </button>
         </div>
       </section>
+      <SpmControls />
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p className="muted">Loading analytics…</p> : null}
 

@@ -26,3 +26,10 @@ export const fetchFeedbackDistribution = () =>
 
 export const fetchAccreditationSummary = () =>
   http.get('/admin/analytics/accreditation');
+
+export const fetchSpmStatus = () =>
+  http.get('/admin/spm/status').then(res => res.data);
+
+export const rebuildSpm = () =>
+  http.post('/admin/spm/rebuild').then(res => res.data);
+
