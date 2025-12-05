@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 const MAP_STYLE_URL =
   process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? 'https://demotiles.maplibre.org/style.json';
 
-MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? ''); // MapLibre: leave blank
+MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? 'maplibre-demo-token');
 MapboxGL.setTelemetryEnabled(false);
 
 const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
