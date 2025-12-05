@@ -27,4 +27,6 @@ export const setAuthToken = token => {
   }
 };
 
+console.log('[API BASE]', baseURL);
+
 export default client;
