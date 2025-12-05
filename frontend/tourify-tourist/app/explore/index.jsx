@@ -15,7 +15,8 @@ import {
   Modal,
   ImageBackground,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+// import MapView, { Marker } from 'react-native-maps';
+import { MapView, Marker } from '../../components/MapLibreMap'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+// import MapView, { Marker, Polyline } from 'react-native-maps';
+import { MapView, Marker, Polyline } from '../components/MapLibreMap';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '../constants/theme';
 import SectionHeader from '../components/SectionHeader';

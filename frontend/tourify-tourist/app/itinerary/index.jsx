@@ -14,7 +14,8 @@ import {
   Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+// import MapView, { Polyline, Marker } from 'react-native-maps';
+import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radii } from '../../constants/theme';
 import { useAuth } from '../../hooks/useAuth';

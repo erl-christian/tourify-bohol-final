@@ -12,7 +12,8 @@ import {
   InteractionManager,
   TextInput
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+// import MapView, { Marker, Polyline } from 'react-native-maps';
+import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter, router as RouterSingleton } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
