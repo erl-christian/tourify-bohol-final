@@ -16,8 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import MapView, { Marker } from 'react-native-maps';
-// import { MapView, Marker } from '../../components/MapLibreMap';
+// import MapView, { Marker } from 'react-native-maps';
+import { MapView, Marker } from '../../components/MapLibreMap';
 
 import { colors, spacing, radii } from '../../constants/theme';
 import DestinationCard from '../../components/DestinationCard';

@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
-// import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
+// import MapView, { Marker, Polyline } from 'react-native-maps';
+import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radii } from '../../constants/theme';
 import { getTravelHistory } from '../../lib/tourist';
