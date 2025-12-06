@@ -1,6 +1,7 @@
 import MapboxGL from '@rnmapbox/maps';
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 const MAP_STYLE_URL =
   process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? 'https://demotiles.maplibre.org/style.json';
@@ -113,7 +114,11 @@ export const Marker = ({ id, coordinate, title, description, pinColor = '#6c5ce7
       coordinate={[coordinate.longitude, coordinate.latitude]}
       onSelected={onPress}
     >
-      {children ?? <View style={[styles.pin, { backgroundColor: pinColor }]} />}
+      {children ?? (
+        <View style={styles.iconWrapper}>
+          <Ionicons name="location-sharp" size={28} color={pinColor} />
+        </View>
+      )}
       {title ? (
         <MapboxGL.Callout title={title}>
           {description ? <Text style={styles.calloutText}>{description}</Text> : null}
@@ -177,6 +182,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
     elevation: 3,
+  },
+   iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   calloutText: { color: '#111827', paddingVertical: 4 },
 });

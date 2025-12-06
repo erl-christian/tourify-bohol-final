@@ -47,7 +47,11 @@
       [
         "expo-build-properties",
         {
-          "android": { "extraMavenRepos": ["https://mapbox-maven.s3.amazonaws.com"] },
+          "android": {
+            "extraMavenRepos": [
+              "https://mapbox-maven.s3.amazonaws.com"
+            ]
+          },
           "ios": {}
         }
       ],
@@ -56,8 +60,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "912fc9c0-fe63-4a9c-821d-f0f3783b8b86"
+        "projectId": "f2eeccc3-3e58-4297-a708-02eddef7fe64"
       }
-    }
+    },
+    "owner": "kai711"
   }
 }
