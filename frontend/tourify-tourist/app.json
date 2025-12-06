@@ -47,15 +47,10 @@
       [
         "expo-build-properties",
         {
-          "android": {
-            "extraMavenRepos": [
-              "https://mapbox-maven.s3.amazonaws.com"
-            ]
-          },
+          "android": {},
           "ios": {}
         }
-      ],
-      "@rnmapbox/maps"
+      ]
     ],
     "extra": {
       "router": {},
