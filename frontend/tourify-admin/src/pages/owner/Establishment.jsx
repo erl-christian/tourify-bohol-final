@@ -94,9 +94,6 @@ function OwnerEstablishments() {
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [activeMediaEst, setActiveMediaEst] = useState(null);
   const [mediaModalLoading, setMediaModalLoading] = useState(false);
-  const [modalFiles, setModalFiles] = useState([]);
-  const [modalUploading, setModalUploading] = useState(false);
-  const [modalFeedback, setModalFeedback] = useState('');
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editEstablishment, setEditEstablishment] = useState(null);
@@ -378,8 +375,6 @@ function OwnerEstablishments() {
     const estId = establishment.businessEstablishment_id || establishment.id;
     setActiveMediaEst({ ...establishment, estId });
     setShowMediaModal(true);
-    setModalFiles([]);
-    setModalFeedback('');
 
     if (!mediaCache[estId]) {
       setMediaModalLoading(true);
@@ -391,39 +386,8 @@ function OwnerEstablishments() {
   const closeMediaModal = () => {
     setShowMediaModal(false);
     setActiveMediaEst(null);
-    setModalFiles([]);
-    setModalFeedback('');
   };
 
-  const handleModalFileSelection = (event) => {
-    const files = Array.from(event.target.files || []);
-    setModalFiles(files);
-  };
-
-  const handleModalUpload = async () => {
-    if (!activeMediaEst?.estId || modalFiles.length === 0) return;
-
-    const formData = new FormData();
-    modalFiles.forEach((file) => formData.append('files', file));
-
-    try {
-      setModalUploading(true);
-      setModalFeedback('');
-      await uploadEstablishmentMedia(activeMediaEst.estId, formData);
-      await fetchMediaFor(activeMediaEst.estId);
-      setModalFiles([]);
-      setModalFeedback('Media uploaded successfully.');
-    } catch (err) {
-      console.error('Failed to upload media', err);
-      setModalFeedback(
-        err.response?.data?.message ||
-          err.message ||
-          'Unable to upload media right now.',
-      );
-    } finally {
-      setModalUploading(false);
-    }
-  };
 
   const sortedListings = useMemo(() => {
     return [...listings].sort((a, b) => {
