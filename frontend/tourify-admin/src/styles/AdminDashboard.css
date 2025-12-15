@@ -13,6 +13,8 @@
   --accent-review: #2b6a6b;
   --accent-danger: #b23a48;
   --shadow-layer: 0 24px 48px -28px rgba(1, 77, 78, 0.25);
+  --button-gap: 12px;
+  --button-icon-gap: 8px;
 }
 
 
@@ -274,7 +276,8 @@
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
 }
 
 .icon-pill {
@@ -387,8 +390,8 @@
 
 .account-controls .account-actions {
   display: flex;
-  gap: 0.5rem;
-  flex: 0 0 auto;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
 }
 
 .account-controls {
@@ -877,9 +880,30 @@
 
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--button-gap);
   flex-wrap: wrap;
+  align-items: center;
 }
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--button-gap);
+  align-items: center;
+}
+
+.button-row > button,
+.action-buttons > button,
+.export-buttons > button,
+.reply-actions > button,
+.modal-actions > button,
+.modal-form .modal-actions > button,
+.header-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--button-icon-gap) * 0.5);
+}
+
 
 .btn-primary {
   background: var(--accent-primary);
@@ -976,8 +1000,9 @@
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 4px;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
+  margin-top: 4px
 }
 
 .modal-card.wide {
@@ -1050,7 +1075,8 @@
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
-  gap: 14px;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
   margin-top: 6px;
 }
 
@@ -1482,7 +1508,8 @@
 .reply-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.6rem;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
   margin-top: 0.5rem;
 }
 
@@ -2478,7 +2505,8 @@ body.bto-fixed .dashboard-content {
 
 .export-buttons {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--button-gap);
+  flex-wrap: wrap;
 }
 
 .export-buttons button {

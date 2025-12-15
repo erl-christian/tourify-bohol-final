@@ -542,9 +542,6 @@ const closeThreadModal = () =>
                           >
                             {item.is_hidden ? 'Unhide' : 'Hide'}
                           </button>
-                          <button type="button" className="btn-warning" onClick={() => openModerateModal(item, 'flag')}>
-                            Flag
-                          </button>
                           <button type="button" className="btn-danger" onClick={() => openModerateModal(item, 'delete')}>
                             Delete
                           </button>

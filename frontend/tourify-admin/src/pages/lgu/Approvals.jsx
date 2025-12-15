@@ -68,12 +68,23 @@ function Approvals() {
     const estId = est.businessEstablishment_id || est.id;
     if (!estId) return;
     setDetailModal({ open: true, loading: true, error: '', data: null, media: [] });
-    try {
+        try {
       const [detailRes, mediaRes] = await Promise.all([
         fetchLguEstablishmentDetails(estId),
         fetchLguEstablishmentMedia(estId),
       ]);
-      const mediaItems = Array.isArray(mediaRes?.data) ? mediaRes.data : mediaRes?.data?.items || [];
+
+      const mediaPayload = mediaRes?.data;
+      const mediaItems = Array.isArray(mediaPayload)
+        ? mediaPayload
+        : Array.isArray(mediaPayload?.items)
+        ? mediaPayload.items
+        : Array.isArray(mediaPayload?.media)
+        ? mediaPayload.media
+        : Array.isArray(mediaPayload?.data?.media)
+        ? mediaPayload.data.media
+        : [];
+
       setDetailModal({
         open: true,
         loading: false,

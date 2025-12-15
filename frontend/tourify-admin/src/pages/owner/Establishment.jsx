@@ -106,6 +106,13 @@ function OwnerEstablishments() {
 
   const [geoStatus, setGeoStatus] = useState({ loading: false, message: '' });
 
+  const [editMediaFiles, setEditMediaFiles] = useState([]);
+
+  const handleEditFileSelection = event => {
+    const files = Array.from(event.target.files || []);
+    setEditMediaFiles(files);
+  };
+
   const fillCoordinates = (lat, lng) => {
     setForm(prev => ({
       ...prev,
@@ -227,10 +234,12 @@ function OwnerEstablishments() {
   };
 
   const openEditModal = (listing) => {
-  if (!listing) return;
-
-  setEditEstablishment(listing);
-  setEditForm({
+    if (!listing) return;
+    setEditFeedback('');
+    setEditMediaFiles([]);
+    setShowEditModal(true);
+    setEditEstablishment(listing);
+    setEditForm({
       municipalityId:
       listing.municipality_id ||
       listing.municipality ||
@@ -253,6 +262,7 @@ function OwnerEstablishments() {
     setShowEditModal(false);
     setEditEstablishment(null);
     setEditFeedback('');
+    setEditMediaFiles([]);
   };
 
   const handleEditChange = (event) => {
@@ -278,6 +288,14 @@ function OwnerEstablishments() {
         latitude: editForm.latitude === '' ? undefined : Number(editForm.latitude),
         longitude: editForm.longitude === '' ? undefined : Number(editForm.longitude),
       });
+      
+      if (editMediaFiles.length > 0) {
+        const formData = new FormData();
+        editMediaFiles.forEach(file => formData.append('files', file));
+        await uploadEstablishmentMedia(editEstablishment.businessEstablishment_id, formData);
+        setEditMediaFiles([]);          // clear queued files
+        await fetchMediaFor(editEstablishment.businessEstablishment_id); // refresh cache (optional)
+      }
 
       const wasPending = editEstablishment?.status === 'pending';
       setEditFeedback(    wasPending
@@ -1006,33 +1024,21 @@ function OwnerEstablishments() {
               </div>
             )}
             <div className="form-row full">
-            <label className="form-label" htmlFor="edit-media">Add media</label>
-            <input
-              id="edit-media"
-              type="file"
-              multiple
-              accept="image/*,video/*"
-              onChange={handleModalFileSelection}
-            />
-            <button
-              type="button"
-              className="primary-cta"
-              onClick={handleModalUpload}
-              disabled={modalUploading || modalFiles.length === 0 || !editEstablishment}
-            >
-              {modalUploading ? 'Uploading…' : 'Upload'}
-            </button>
-            {modalFiles.length > 0 && (
-              <div className="muted">
-                {modalFiles.length} file{modalFiles.length > 1 ? 's' : ''} selected.
-              </div>
-            )}
-            {modalFeedback && (
-              <div className="muted" role="status">
-                {modalFeedback}
-              </div>
-            )}
-          </div>
+              <label className="form-label" htmlFor="edit-media">Add media</label>
+              <input
+                id="edit-media"
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={handleEditFileSelection}
+                disabled={editSubmitting}
+              />
+              {editMediaFiles.length > 0 && (
+                <div className="muted">
+                  {editMediaFiles.length} file{editMediaFiles.length > 1 ? 's' : ''} will upload on save.
+                </div>
+              )}
+            </div>
 
             <div className="modal-actions">
               <button

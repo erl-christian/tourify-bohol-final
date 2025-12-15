@@ -89,6 +89,8 @@ function Approvals() {
         ? mediaPayload.items
         : Array.isArray(mediaPayload?.media)
         ? mediaPayload.media
+        : Array.isArray(mediaPayload?.data?.media)
+        ? mediaPayload.data.media
         : [];
 
       setDetailModal({
