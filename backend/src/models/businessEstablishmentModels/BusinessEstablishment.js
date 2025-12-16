@@ -37,7 +37,8 @@ const businessEstablishmentSchema = new mongoose.Schema(
         rating_avg:   { type: Number, default: 0 },
 
 
-    }
+    },
+    { timestamps: true }
 )
 
 //auto-generated pk

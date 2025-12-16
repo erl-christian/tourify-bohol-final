@@ -26,6 +26,14 @@ function Establishments() {
     data: null,
   });
 
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString();
+  };
+
+
+
   const loadEstablishments = useCallback(
     async (searchTerm) => {
       try {
@@ -70,6 +78,7 @@ function Establishments() {
         loading: false,
         error: '',
         data: data?.establishment || data,
+        latestApproval: data?.latestApproval || null,
       });
     } catch (err) {
       setDetailModal({
@@ -106,7 +115,7 @@ function Establishments() {
             <span>Municipality</span>
             <span>Category</span>
             <span>Status</span>
-            <span>Last Update</span>
+            <span>Dates</span>
             <span>Actions</span>
           </div>
 
@@ -142,7 +151,9 @@ function Establishments() {
                     </span>
                   </div>
                   <div className="muted">
-                    {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—'}
+                    <div>Submitted: {formatDateTime(item.createdAt)}</div>
+                    <div>Approved: {formatDateTime(item.approvedAt || item.verifiedAt)}</div>
+                    <div>Updated: {formatDateTime(item.updatedAt)}</div>
                   </div>
                   <div className="table-actions">
                     <button
@@ -220,11 +231,13 @@ function Establishments() {
                     <p className="detail-value chip">{detailModal.data?.status || '—'}</p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-label">Submitted</p>
+                    <p className="detail-value">{formatDateTime(detailModal.data?.createdAt)}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Approved / Last Update</p>
                     <p className="detail-value">
-                      {detailModal.data?.updatedAt
-                        ? new Date(detailModal.data.updatedAt).toLocaleString()
-                        : '—'}
+                      {formatDateTime(detailModal.data?.approvedAt || detailModal.data?.updatedAt)}
                     </p>
                   </div>
                 </div>

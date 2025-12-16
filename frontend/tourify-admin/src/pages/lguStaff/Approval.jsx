@@ -25,12 +25,6 @@ const statusToneMap = {
 const resolveTone = (status) =>
   statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
 
-const formatDate = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
-};
-
 function Approvals() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +47,12 @@ function Approvals() {
     submitting: false,
     feedback: '',
   });
+
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  };
 
   const loadPending = useCallback(async () => {
     try {
@@ -196,7 +196,7 @@ function Approvals() {
         <div className="table-shell">
           <div className="table-head table-grid">
             <span>Submission</span>
-            <span>Submitted By</span>
+            <span>Submitted / Updated</span>
             <span>Type</span>
             <span>Received</span>
             <span>Action</span>
@@ -244,7 +244,8 @@ function Approvals() {
                     )}
                   </div>
                   <div className="muted">
-                    {formatDate(submission.createdAt || submission.updatedAt)}
+                    <div>Submitted: {formatDateTime(submission.createdAt)}</div>
+                    <div>Updated: {formatDateTime(submission.updatedAt)}</div>
                   </div>
                   <div className="table-actions">
                     <button
@@ -346,11 +347,15 @@ function Approvals() {
                     </p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">Last Updated</p>
+                    <p className="detail-label">Submitted</p>
+                    <p className="detail-value">{formatDateTime(detailModal.establishment?.createdAt)}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Approved / Last Update</p>
                     <p className="detail-value">
-                      {detailModal.establishment?.updatedAt
-                        ? new Date(detailModal.establishment.updatedAt).toLocaleString()
-                        : '—'}
+                      {formatDateTime(
+                        detailModal.establishment?.approvedAt || detailModal.establishment?.updatedAt
+                      )}
                     </p>
                   </div>
                 </div>

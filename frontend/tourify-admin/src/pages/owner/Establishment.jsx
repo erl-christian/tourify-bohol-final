@@ -670,7 +670,7 @@ function OwnerEstablishments() {
             <span>Municipality</span>
             <span>Category</span>
             <span>Status</span>
-            <span>Last Update</span>
+            <span>Submitted / Updated</span>
             <span>QR Code</span>
             <span>Details</span>
           </div>
@@ -715,8 +715,9 @@ function OwnerEstablishments() {
                         {listing.status || 'pending'}
                       </span>
                     </div>
-                    <div className="muted">
-                      {formatDate(listing.updatedAt || listing.createdAt)}
+                   <div className="muted">
+                      <div>Submitted: {formatDate(listing.createdAt)}</div>
+                      <div>Updated: {formatDate(listing.approvedAt || listing.updatedAt)}</div>
                     </div>
                     <div className="table-actions">
                       {listing.qr_code ? (

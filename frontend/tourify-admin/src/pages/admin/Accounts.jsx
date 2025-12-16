@@ -71,6 +71,13 @@ function Accounts() {
     return [];
   };
 
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  };
+
+
   const loadData = useCallback(async () => {
     try {
       setLoadingStaff(true);
@@ -119,6 +126,8 @@ function Accounts() {
           lastSeen: account.updatedAt
             ? new Date(account.updatedAt).toLocaleString()
             : '�?"',
+          createdAt: account.createdAt,
+          updatedAt: account.updatedAt,
         };
       }),
     [staff],
@@ -392,6 +401,10 @@ function Accounts() {
                     </span>
                   </div>
                   <div className="muted">{account.lastSeen}</div>
+                  <div className="muted">
+                  <div>Created: {formatDateTime(account.createdAt)}</div>
+                  <div>Updated: {formatDateTime(account.updatedAt)}</div>
+                </div>
                   <div className="table-actions">
                     {account.roleId === 'lgu_admin' ? (
                       <>

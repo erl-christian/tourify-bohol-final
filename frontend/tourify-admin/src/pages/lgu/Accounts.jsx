@@ -96,6 +96,8 @@ function Accounts() {
           lastSeen: account?.updatedAt
             ? new Date(account.updatedAt).toLocaleString()
             : '…',
+          createdAt: account.createdAt,
+          updatedAt: account.updatedAt,
         };
       }),
     [accounts],
@@ -127,6 +129,13 @@ function Accounts() {
     const { name, value } = event.target;
     setStaffForm((prev) => ({ ...prev, [name]: value }));
   };
+
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  };
+
 
   const handleOwnerFormChange = (event) => {
     const { name, value } = event.target;
@@ -418,6 +427,10 @@ function Accounts() {
                     </span>
                   </div>
                   <div className="muted">{account.lastSeen}</div>
+                  <div className="muted">
+                    <div>Created: {formatDateTime(account.createdAt)}</div>
+                    <div>Updated: {formatDateTime(account.updatedAt)}</div>
+                  </div>
                   <div className="table-actions">
                     {account.roleId === 'lgu_staff' || account.roleId === 'business_establishment' ? (
                       <>
