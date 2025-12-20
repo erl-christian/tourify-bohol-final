@@ -32,6 +32,10 @@ function Accounts() {
   const [submittingStaff, setSubmittingStaff] = useState(false);
   const [submittingOwner, setSubmittingOwner] = useState(false);
 
+  const pageSize = 10;
+  const [page, setPage] = useState(1);
+
+
   const [feedbackModal, setFeedbackModal] = useState({
     open: false,
     status: 'success',
@@ -124,6 +128,22 @@ function Accounts() {
         : normalizedAccounts.filter((account) => account.roleId === activeTab),
     [normalizedAccounts, activeTab],
   );
+
+  useEffect(() => setPage(1), [activeTab]);
+
+  useEffect(() => {
+    const max = Math.max(1, Math.ceil(filteredAccounts.length / pageSize) || 1);
+    setPage((prev) => Math.min(prev, max));
+  }, [filteredAccounts.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAccounts.length / pageSize));
+  const paginatedAccounts = useMemo(
+    () => filteredAccounts.slice((page - 1) * pageSize, page * pageSize),
+    [filteredAccounts, page],
+  );
+  const pageStart = filteredAccounts.length ? (page - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(page * pageSize, filteredAccounts.length);
+
 
   const handleStaffFormChange = (event) => {
     const { name, value } = event.target;
@@ -407,7 +427,7 @@ function Accounts() {
                 <div className="muted">No accounts found for this filter.</div>
               </li>
             ) : (
-              filteredAccounts.map((account) => (
+              paginatedAccounts.map((account) => (
                 <li key={account.id} className="table-row table-grid accounts-grid">
                   <div className="account-cell">
                     <p className="account-name">{account.name}</p>
@@ -459,6 +479,31 @@ function Accounts() {
             )}
           </ul>
         </div>
+        <div className="pagination-bar">
+  <div className="pagination-info">
+    Showing {filteredAccounts.length ? `${pageStart}–${pageEnd}` : '0'} of {filteredAccounts.length}
+  </div>
+  <div className="pagination-controls">
+    <button
+      type="button"
+      className="pagination-button"
+      onClick={() => setPage((p) => Math.max(1, p - 1))}
+      disabled={page === 1 || !filteredAccounts.length}
+    >
+      Previous
+    </button>
+    <span className="pagination-page">Page {page} of {totalPages}</span>
+    <button
+      type="button"
+      className="pagination-button"
+      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      disabled={page === totalPages || !filteredAccounts.length}
+    >
+      Next
+    </button>
+  </div>
+</div>
+
       </section>
 
       {isStaffModalOpen && (

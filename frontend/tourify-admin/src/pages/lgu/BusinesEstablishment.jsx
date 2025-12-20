@@ -22,6 +22,10 @@ function Establishments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const pageSize = 10;
+  const [page, setPage] = useState(1);
+
+
   const [detailModal, setDetailModal] = useState({
     open: false,
     loading: false,
@@ -57,6 +61,21 @@ function Establishments() {
   }, []);
 
   const rows = useMemo(() => establishments, [establishments]);
+
+  useEffect(() => {
+    const max = Math.max(1, Math.ceil(rows.length / pageSize) || 1);
+    setPage((prev) => Math.min(prev, max));
+  }, [rows.length]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const paginatedRows = useMemo(
+    () => rows.slice((page - 1) * pageSize, page * pageSize),
+    [rows, page],
+  );
+  const pageStart = rows.length ? (page - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(page * pageSize, rows.length);
+
+
   const resolveTone = (status) =>
     statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
 
@@ -160,6 +179,30 @@ function Establishments() {
             )}
           </ul>
         </div>
+        <div className="pagination-bar">
+            <div className="pagination-info">
+              Showing {paginatedRows.length ? `${pageStart}–${pageEnd}` : '0'} of {paginatedRows.length}
+            </div>
+            <div className="pagination-controls">
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || !paginatedRows.length}
+              >
+                Previous
+              </button>
+              <span className="pagination-page">Page {page} of {totalPages}</span>
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || !paginatedRows.length}
+              >
+                Next
+              </button>
+            </div>
+          </div>
       </section>
 
       {detailModal.open && (

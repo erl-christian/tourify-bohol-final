@@ -19,6 +19,10 @@ function Establishments() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
 
+  const pageSize = 10;
+  const [page, setPage] = useState(1);
+
+
   const [detailModal, setDetailModal] = useState({
     open: false,
     loading: false,
@@ -39,7 +43,8 @@ function Establishments() {
       try {
         setLoading(true);
         const term = searchTerm ?? query;
-        const params = term ? { q: term } : undefined;
+        const params = { page: 1, limit: 100 }; // bump as needed (max 100)
+        if (term) params.q = term;
         const { data } = await fetchAllEstablishments(params);
         const items = Array.isArray(data?.items)
           ? data.items
@@ -63,6 +68,20 @@ function Establishments() {
   }, [loadEstablishments]);
 
   const filteredEstablishments = useMemo(() => establishments, [establishments]);
+
+  useEffect(() => {
+    const max = Math.max(1, Math.ceil(filteredEstablishments.length / pageSize) || 1);
+    setPage((prev) => Math.min(prev, max));
+  }, [filteredEstablishments.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEstablishments.length / pageSize));
+  const paginatedEstablishments = useMemo(
+    () => filteredEstablishments.slice((page - 1) * pageSize, page * pageSize),
+    [filteredEstablishments, page],
+  );
+  const pageStart = filteredEstablishments.length ? (page - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(page * pageSize, filteredEstablishments.length);
+
 
   const resolveTone = (status) =>
     statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
@@ -133,7 +152,7 @@ function Establishments() {
                 <div className="muted">No establishments found.</div>
               </li>
             ) : (
-              filteredEstablishments.map((item) => (
+              paginatedEstablishments.map((item) => (
                 <li key={item.businessEstablishment_id || item.id} className="table-row table-grid">
                   <div className="account-cell">
                     <p className="account-name">{item.name}</p>
@@ -169,6 +188,30 @@ function Establishments() {
             )}
           </ul>
         </div>
+        <div className="pagination-bar">
+            <div className="pagination-info">
+              Showing {filteredEstablishments.length ? `${pageStart}–${pageEnd}` : '0'} of {filteredEstablishments.length}
+            </div>
+            <div className="pagination-controls">
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || !filteredEstablishments.length}
+              >
+                Previous
+              </button>
+              <span className="pagination-page">Page {page} of {totalPages}</span>
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || !filteredEstablishments.length}
+              >
+                Next
+              </button>
+            </div>
+          </div>
       </section>
 
       {detailModal.open && (
