@@ -1091,31 +1091,6 @@ export default function ItineraryPlanner() {
                       </View>
                     ) : null}
                   </TouchableOpacity>
-                  <View style={styles.stopActions}>
-                    <TouchableOpacity
-                      style={styles.stopActionButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/feedback/compose',
-                          params: {
-                            estId:
-                              item.business_establishment_id ??
-                              item.businessEstablishment_id ??
-                              item.establishment?.business_establishment_id,
-                            estName: stop.title,
-                            itineraryId: itineraryId ?? '',
-                          },
-                        })
-                      }
-                      disabled={!itineraryId}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.primary} />
-                      <Text style={styles.stopActionText}>
-                        {itineraryId ? 'Write feedback' : 'Save itinerary to review'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 </ScaleDecorator>
               );
             }}
