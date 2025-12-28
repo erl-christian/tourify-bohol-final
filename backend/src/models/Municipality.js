@@ -15,20 +15,24 @@ const municipalitySchema = new mongoose.Schema(
 municipalitySchema.pre("validate", async function (next) {
     try {
         if (this.isNew && !this.municipality_id) {
-        const prefix = this.name.substring(0, 4).toUpperCase(); // "TAGB"
-        const c = await Counter.findOneAndUpdate(
-            { _id: "municipality" },
-            { $inc: { seq: 1 } },
-            { new: true, upsert: true }
-        );
-        const seq = String(c.seq).padStart(3, "0"); // 001, 002, ...
-        this.municipality_id = `${prefix}-${seq}`;
-    }
-    next();
+
+            const prefix = this.name.substring(0, 4).toUpperCase();
+
+            const c = await Counter.findOneAndUpdate(
+                { _id: `municipality_${prefix}` },
+                { $inc: { seq: 1 } },
+                { new: true, upsert: true }
+            );
+
+            const seq = String(c.seq).padStart(3, "0");
+            this.municipality_id = `${prefix}-${seq}`;
+        }
+
+        next();
     } catch (error) {
-        next(error)
+        next(error);
     }
-})
+});
 
 
 export default mongoose.model("Municipality", municipalitySchema);
