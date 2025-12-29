@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Pie, PieChart,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Sankey, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
@@ -310,7 +310,21 @@ function LguStaffAnalytics() {
               <PieChart>
                 <Tooltip />
                 <Legend />
-                <Pie data={feedbackBreakdown} dataKey="count" nameKey="label" innerRadius={48} outerRadius={80} label />
+                <Pie
+                  data={feedbackBreakdown}
+                  dataKey="count"
+                  nameKey="label"
+                  innerRadius={48}
+                  outerRadius={80}
+                  label
+                >
+                  {feedbackBreakdown.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
               </PieChart>
             </ResponsiveContainer>
           </article>
@@ -324,7 +338,21 @@ function LguStaffAnalytics() {
               <PieChart>
                 <Tooltip />
                 <Legend />
-                <Pie data={accreditation} dataKey="count" nameKey="status" outerRadius={80} label />
+                <Pie 
+                  data={accreditation}
+                  dataKey="count"
+                  nameKey="status"
+                  innerRadius={48}
+                  outerRadius={80}
+                  label
+                >
+                  {accreditation.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
               </PieChart>
             </ResponsiveContainer>
           </article>

@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Pie,
   PieChart,
@@ -102,6 +103,8 @@ const heatGradient = {
   0.7: '#f2c94c',
   1.0: '#f94144',
 };
+
+const pieColors = ['#2f80ed', '#56ccf2', '#f2c94c', '#f2994a', '#eb5757'];
 
 function HeatmapLayer({ points, radius = 20, blur = 25 }) {
   const map = useMap();
@@ -399,7 +402,14 @@ function AdminAnalytics() {
                   innerRadius={48}
                   outerRadius={80}
                   label
-                />
+                >
+                  {feedbackBreakdown.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
               </PieChart>
             </ResponsiveContainer>
           </article>
@@ -413,7 +423,21 @@ function AdminAnalytics() {
               <PieChart id="province-arrivals-chart">
                 <Tooltip />
                 <Legend />
-                <Pie data={accreditation} dataKey="count" nameKey="status" outerRadius={80} label />
+                <Pie
+                  data={accreditation}
+                  dataKey="count"
+                  nameKey="status"
+                  innerRadius={48}
+                  outerRadius={80}
+                  label
+                >
+                  {accreditation.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
               </PieChart>
             </ResponsiveContainer>
           </article>
