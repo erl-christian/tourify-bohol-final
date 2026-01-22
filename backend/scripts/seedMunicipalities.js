@@ -5,6 +5,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import Municipality from '../src/models/Municipality.js';
+import { getMongoUri } from "../src/config/dbUri.js";
+
+const uri = getMongoUri();
+if (!uri) {
+  console.error("Missing Mongo URI");
+  process.exit(1);
+}
+await mongoose.connect(uri);
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

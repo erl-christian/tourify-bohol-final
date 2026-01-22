@@ -88,7 +88,7 @@ export default function LiveItinerary() {
   const [stopFeedback, setStopFeedback] = useState([]);
 
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
-  const [completionPending, setCompletionPending] = useState(false);
+  // const [completionPending, setCompletionPending] = useState(false);
 
   const [processingStop, setProcessingStop] = useState(false);
   const [postCheckinStop, setPostCheckinStop] = useState(null);   // add here
@@ -109,6 +109,12 @@ export default function LiveItinerary() {
 
   const unvisitedStops = stops.filter(stop => !stop.visited);
   const activeMarkers = unvisitedStops.length ? unvisitedStops : stops; // fallback if all visited
+
+  const scanLockRef = useRef(false);
+
+  const findStopByEstId = (estId, list) =>
+  (list ?? []).find(stop => resolveEstablishmentId(stop) === estId);
+
 
 
   useEffect(() => {
@@ -350,17 +356,20 @@ export default function LiveItinerary() {
   const openScanner = async stop => {
     const normalized = withEstablishmentId(stop);
     setActiveStop(normalized);
-    setStopOptionsVisible(false);
-    if (await ensureCamera()) {
-      setScannerVisible(true);
-    } else {
+
+    const granted = await ensureCamera();
+    if (!granted) {
       Alert.alert('Camera permission required', 'Allow camera access to scan QR codes.');
+      return;
     }
+
+    setStopOptionsVisible(false);
+    setScannerVisible(true);
   };
 
-  const applyItineraryUpdate = next => {
+  const applyItineraryUpdate = (next, targetIdOverride) => {
     if (!next?.itinerary) return;
-    const targetId = resolveEstablishmentId(activeStop);
+    const targetId = targetIdOverride ?? resolveEstablishmentId(activeStop);
 
     setPayload(prev => {
       const mergedStops = mergeStops(prev?.stops ?? [], next.itinerary.stops ?? []);
@@ -398,9 +407,12 @@ export default function LiveItinerary() {
     closeStopOptions();
     try {
       const response = await checkinStop(itineraryId, estId);
-      applyItineraryUpdate(response);
+      applyItineraryUpdate(response, estId);
+
       setPostCheckinStop(normalized);
-      setPostCheckinModalVisible(true);
+      setFeedbackStop(normalized);
+      setFeedbackVisible(true);
+      setPostCheckinModalVisible(false);
     } catch (err) {
       Alert.alert('Unable to mark visited', err.message ?? 'Please try again.');
     } finally {
@@ -409,16 +421,17 @@ export default function LiveItinerary() {
 };
 
   const handleScanSuccess = async ({ data }) => {
+    if (scanLockRef.current || processingStop) return;
+    scanLockRef.current = true;
     setScannerVisible(false);
-    if (!itineraryId) return;
 
-    let estId =
-      activeStop?.business_establishment_id ??
-      activeStop?.establishment?.business_establishment_id;
+    if (!itineraryId) {
+      scanLockRef.current = false;
+      return;
+    }
 
-    const normalizedActive = withEstablishmentId(activeStop);
+    let estId = resolveEstablishmentId(activeStop);
 
-    setPostCheckinStop(normalizedActive);
     try {
       if (data?.startsWith('{')) {
         const parsed = JSON.parse(data);
@@ -431,28 +444,49 @@ export default function LiveItinerary() {
       // ignore parse errors
     }
 
-    if (!estId) return Alert.alert('Invalid QR code', 'Please try again.');
+    if (!estId) {
+      scanLockRef.current = false;
+      return Alert.alert('Invalid QR code', 'Please try again.');
+    }
+
+    const matchedStop = findStopByEstId(estId, payload?.stops);
+    if (!matchedStop) {
+      scanLockRef.current = false;
+      return Alert.alert(
+        'QR not in itinerary',
+        'This QR code does not match any stop in your itinerary.'
+      );
+    }
+
+    const normalizedMatch = withEstablishmentId(matchedStop);
 
     setProcessingStop(true);
     try {
       const response = await checkinStop(itineraryId, estId);
-      applyItineraryUpdate(response);
-      setPostCheckinStop(normalizedActive);
-      setPostCheckinModalVisible(true);
+      applyItineraryUpdate(response, estId);
+      setPostCheckinStop(normalizedMatch);
+      setFeedbackStop(normalizedMatch);
+      setFeedbackVisible(true);
+      setPostCheckinModalVisible(false);
+
     } catch (err) {
       Alert.alert('Check-in failed', err.message ?? 'QR scanning did not register.');
     } finally {
       setProcessingStop(false);
+      setTimeout(() => {
+        scanLockRef.current = false;
+      }, 500);
     }
   };
+
 
   const closeFeedbackModal = () => {
     setFeedbackVisible(false);
     setFeedbackStop(null);
     setQueuedFeedbackStop(null);
-    if (completionPending) {
-      setSharePromptVisible(true);
-      setCompletionPending(false);
+
+    if (postCheckinStop) {
+      setPostCheckinModalVisible(true);
     }
   };
 
@@ -531,24 +565,14 @@ export default function LiveItinerary() {
         ...result?.itinerary,
       }));
 
-      const targetFeedbackStop =
-        queuedFeedbackStop ??
-        (postCheckinStop ? withEstablishmentId(postCheckinStop) : null);
-
-      setCompletionPending(true);
-      if (targetFeedbackStop) {
-        setFeedbackStop(targetFeedbackStop);
-        setFeedbackVisible(true);
-      } else {
-        setSharePromptVisible(true);
-      }
-
+      setSharePromptVisible(true); // or setCompletionModalVisible(true) if you prefer
     } catch (err) {
       Alert.alert('Unable to complete itinerary', err.message ?? 'Please try again.');
     } finally {
       setPostCheckinStop(null);
     }
   };
+
 
   if (!payload || isLocating || !userLocation) {
     return (
@@ -765,11 +789,24 @@ export default function LiveItinerary() {
               </TouchableOpacity>
 
               {allStopsVisited ? (
-                <TouchableOpacity style={styles.sheetPrimary} onPress={handleCompleteItinerary}>
+                <TouchableOpacity
+                  style={styles.sheetPrimary}
+                  onPress={handleCompleteItinerary}
+                  activeOpacity={0.85}
+                >
                   <Ionicons name="flag-outline" size={18} color={colors.white} />
                   <Text style={styles.sheetPrimaryText}>Complete itinerary</Text>
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <TouchableOpacity
+                  style={styles.stopActionButton}
+                  disabled={!nextPendingStop}
+                  onPress={() => nextPendingStop && openStopOptions(nextPendingStop)}
+                >
+                  <Ionicons name="qr-code-outline" size={14} color={colors.primary} />
+                  <Text style={styles.stopActionText}>Open next stop</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity style={styles.sheetSecondary} onPress={handleAddMoreStops}>
                 <Ionicons name="map-outline" size={18} color={colors.primary} />
