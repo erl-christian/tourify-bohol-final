@@ -388,45 +388,6 @@ export default function Home() {
                     );
                   })}
                 </ScrollView>
-
-            <View style={styles.sectionSpacer}>
-            <SectionHeader
-              title="Next in your itinerary"
-              subtitle="Stay on track with your upcoming plans."
-            />
-            {itinerary ? (
-              <View style={styles.itineraryCard}>
-                <View style={styles.itineraryHeader}>
-                  <Ionicons name="flag" size={20} color={colors.primary} />
-                  <Text style={styles.itineraryTitle}>{itinerary.title}</Text>
-                </View>
-                <Text style={styles.itineraryMeta}>
-                  {formatDateRange(itinerary.start_date, itinerary.end_date)}
-                </Text>
-                <View style={styles.itineraryFooter}>
-                  <Ionicons name="time-outline" size={18} color={colors.primaryDark} />
-                  <Text style={styles.itineraryFooterText}>{itinerary.status ?? 'Planned'}</Text>
-                </View>
-                <TouchableOpacity style={styles.primaryButton}>
-                  <Text style={styles.primaryButtonText}>Open itinerary</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>Plan your first itinerary</Text>
-                <Text style={styles.emptyText}>
-                  Build a personalized schedule to unlock navigation and feedback tracking.
-                </Text>
-                <TouchableOpacity style={styles.primaryButtonOutline}>
-                  <Text style={styles.primaryButtonOutlineText}>Plan a trip</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            </View>
-            <SectionHeader
-              title="Your latest feedback"
-              subtitle="Share experiences to refine recommendations."
-            />
             {feedback.length ? (
               <View style={styles.feedbackStack}>
                 {feedback.map(item => (

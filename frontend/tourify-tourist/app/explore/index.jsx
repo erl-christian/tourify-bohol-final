@@ -145,6 +145,8 @@ export default function Explore() {
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
+  const SKELETON_COUNT = 4;
+
   const loadPendingCount = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(PENDING_KEY);
@@ -505,6 +507,8 @@ export default function Explore() {
   const primaryList = recommendations.length ? recommendations : fallbackDestinations;
   const showEmptyState = !primaryList.length && !!emptyMessage;
 
+  const isPicksLoading = loading && !primaryList.length;
+
   if (isLocating && !userLocation) {
     return (
       <SafeAreaView style={styles.loadingSafe} edges={['top', 'bottom']}>
@@ -738,7 +742,7 @@ export default function Explore() {
           }
         />
 
-        {showEmptyState ? (
+        {/* {showEmptyState ? (
           <Text style={styles.emptyState}>
             {emptyMessage ?? 'No destinations matched your current filters.'}
           </Text>
@@ -774,7 +778,59 @@ export default function Explore() {
               );
             })}
           </ScrollView>
-        )}
+        )} */}
+
+        {isPicksLoading ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.picksScroller}
+            >
+              {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                <View key={`skeleton-${idx}`} style={styles.skeletonCard}>
+                  <View style={styles.skeletonImage} />
+                  <View style={styles.skeletonLineWide} />
+                  <View style={styles.skeletonLineSmall} />
+                </View>
+              ))}
+            </ScrollView>
+          ) : showEmptyState ? (
+            <Text style={styles.emptyState}>
+              {emptyMessage ?? 'No destinations matched your current filters.'}
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.picksScroller}
+            >
+              {primaryList.map((item, index) => {
+                 const cardPayload = buildEstablishmentCard(item, index);
+              const cardSource = normaliseEstablishmentSource(item);
+              const itemKey =
+                cardPayload.id ??
+                item.travel_recommendation_id ??
+                item.business_establishment_id ??
+                `pick-${index}`;
+
+              return (
+                <View key={itemKey} style={styles.horizontalCardWrapper}>
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => openDetail(cardSource)}>
+                    <DestinationCard item={cardPayload} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.horizontalAddButton}
+                    onPress={() => addToPlanner(cardSource)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name='add-circle-outline' size={16} color={colors.primary} />
+                    <Text style={styles.horizontalAddText}>Add to itinerary</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+              })}
+            </ScrollView>
+          )}
 
         {pendingCount > 0 && (
           <View style={styles.proceedCard}>
@@ -1533,4 +1589,31 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: colors.primary,
   },
+  skeletonCard: {
+    width: 240,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    padding: spacing(1),
+    marginRight: spacing(1),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.12)',
+    gap: spacing(0.75),
+  },
+  skeletonImage: {
+    height: 140,
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonLineWide: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonLineSmall: {
+    height: 10,
+    width: '60%',
+    borderRadius: 5,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+
 });

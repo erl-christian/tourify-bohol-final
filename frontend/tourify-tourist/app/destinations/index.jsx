@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
   ImageBackground,
+  TextInput, 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -35,6 +36,9 @@ export default function DestinationDirectory() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const SKELETON_COUNT = 5;
 
   const loadDestinations = useCallback(async () => {
     setError('');
@@ -61,13 +65,27 @@ export default function DestinationDirectory() {
   };
 
   const filteredEntries = useMemo(() => {
-    if (activeFilter === 'All') return entries;
-    const tag = activeFilter.toLowerCase();
-    return entries.filter(entry => {
-      const tags = entry.establishment?.tag_names ?? entry.card.tags ?? [];
-      return tags.some(t => t?.toLowerCase?.().includes(tag));
+    let list = entries;
+
+    if (activeFilter !== 'All') {
+      const tag = activeFilter.toLowerCase();
+      list = list.filter(entry => {
+        const tags = entry.establishment?.tag_names ?? entry.card.tags ?? [];
+        return tags.some(t => t?.toLowerCase?.().includes(tag));
+      });
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return list;
+
+    return list.filter(entry => {
+      const est = entry.establishment ?? {};
+      const name = est.name ?? entry.card.title ?? '';
+      const location = est.address ?? est.municipality_id ?? '';
+      const tags = Array.isArray(est.tag_names) ? est.tag_names.join(' ') : '';
+      return `${name} ${location} ${tags}`.toLowerCase().includes(query);
     });
-  }, [entries, activeFilter]);
+  }, [entries, activeFilter, searchQuery]);
 
   const featured = filteredEntries.slice(0, 5);
   const rest = filteredEntries.slice(5);
@@ -110,6 +128,16 @@ export default function DestinationDirectory() {
           </View>
         </ImageBackground>
 
+        <View style={styles.searchRow}>
+            <Ionicons name="search-outline" size={16} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search destinations"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+        </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -137,10 +165,38 @@ export default function DestinationDirectory() {
         />
 
         {loading ? (
-          <View style={styles.stateCard}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.stateText}>Loading destinations…</Text>
-          </View>
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.featuredRow}
+            >
+              {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                <View key={`featured-skeleton-${idx}`} style={styles.skeletonFeaturedCard}>
+                  <View style={styles.skeletonFeaturedImage} />
+                  <View style={styles.skeletonLineWide} />
+                  <View style={styles.skeletonLineSmall} />
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.list}>
+              {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                <View key={`list-skeleton-${idx}`} style={styles.skeletonListCard}>
+                  <View style={styles.skeletonListImage} />
+                  <View style={styles.skeletonListBody}>
+                    <View style={styles.skeletonLineWide} />
+                    <View style={styles.skeletonLineSmall} />
+                    <View style={styles.skeletonTagRow}>
+                      <View style={styles.skeletonTag} />
+                      <View style={styles.skeletonTag} />
+                      <View style={styles.skeletonTag} />
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
         ) : error ? (
           <View style={styles.stateCard}>
             <Ionicons name="alert-circle" size={24} color={colors.primary} />
@@ -420,4 +476,75 @@ const styles = StyleSheet.create({
         color: colors.primary,
         fontSize: 12,
     },
+    searchRow: {
+      marginHorizontal: spacing(1.5),
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing(0.75),
+      borderWidth: 1,
+      borderColor: 'rgba(108,92,231,0.2)',
+      borderRadius: 999,
+      paddingHorizontal: spacing(1.25),
+      backgroundColor: colors.white,
+    },
+    searchInput: {
+      flex: 1,
+      height: 40,
+      fontFamily: 'Inter_500Medium',
+      color: colors.text,
+    },
+    skeletonFeaturedCard: {
+      width: 240,
+      borderRadius: radii.lg,
+      backgroundColor: colors.white,
+      padding: spacing(1),
+      marginRight: spacing(1),
+      borderWidth: 1,
+      borderColor: 'rgba(108,92,231,0.12)',
+      gap: spacing(0.75),
+    },
+    skeletonFeaturedImage: {
+      height: 140,
+      borderRadius: radii.md,
+      backgroundColor: 'rgba(15,23,42,0.08)',
+    },
+    skeletonListCard: {
+      borderRadius: radii.lg,
+      backgroundColor: colors.white,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: 'rgba(148,163,184,0.2)',
+    },
+    skeletonListImage: {
+      height: 160,
+      backgroundColor: 'rgba(15,23,42,0.08)',
+    },
+    skeletonListBody: {
+      padding: spacing(1.25),
+      gap: spacing(0.5),
+    },
+    skeletonLineWide: {
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: 'rgba(15,23,42,0.08)',
+    },
+    skeletonLineSmall: {
+      height: 10,
+      width: '60%',
+      borderRadius: 5,
+      backgroundColor: 'rgba(15,23,42,0.08)',
+    },
+    skeletonTagRow: {
+      flexDirection: 'row',
+      gap: spacing(0.5),
+      marginTop: spacing(0.5),
+    },
+    skeletonTag: {
+      width: 50,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: 'rgba(15,23,42,0.08)',
+    },
+
+
 });
