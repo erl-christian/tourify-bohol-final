@@ -2,6 +2,7 @@ import Feedback from '../../models/feedback/Feedback.js';
 import TravelHistory from '../../models/tourist/TravelHistory.js';
 import BusinessEstablishment from '../../models/businessEstablishmentModels/BusinessEstablishment.js';
 import BusinessEstablishmentProfile from '../../models/businessEstablishmentModels/BusinessEstablishmentProfile.js';
+import TouristProfile from '../../models/tourist/TouristProfile.js';
 
 /**
  * Guard: ensure the logged-in owner actually owns the establishment.
@@ -53,6 +54,69 @@ export const getRatingTrend = async (req, res, next) => {
 
     res.json({
       trend: rows.map(item => ({ month: item._id, rating: Number(item.rating.toFixed(2)) })),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getOwnerNationalities = async (req, res, next) => {
+  try {
+    const { estId } = req.params;
+    await assertOwnerAccess(estId, req.user?.account_id);
+
+    const { limit = 8 } = req.query;
+    const safeLimit = Number(limit) > 0 ? Number(limit) : 8;
+
+    const rows = await TravelHistory.aggregate([
+      { $match: { business_establishment_id: estId, status: 'visited' } },
+      { $group: { _id: '$tourist_profile_id' } }, // unique tourists
+      {
+        $lookup: {
+          from: TouristProfile.collection.name,
+          localField: '_id',
+          foreignField: 'tourist_profile_id',
+          as: 'profile',
+        },
+      },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          nationalityRaw: {
+            $trim: { input: { $ifNull: ['$profile.nationality', ''] } },
+          },
+        },
+      },
+      {
+        $addFields: {
+          nationalityKey: {
+            $cond: [
+              { $eq: ['$nationalityRaw', ''] },
+              'unknown',
+              { $toLower: '$nationalityRaw' },
+            ],
+          },
+          nationalityLabel: {
+            $cond: [{ $eq: ['$nationalityRaw', ''] }, 'Unknown', '$nationalityRaw'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$nationalityKey',
+          nationality: { $first: '$nationalityLabel' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+      { $limit: safeLimit },
+    ]);
+
+    res.json({
+      nationalities: rows.map(row => ({
+        nationality: row.nationality ?? 'Unknown',
+        count: row.count ?? 0,
+      })),
     });
   } catch (err) {
     next(err);

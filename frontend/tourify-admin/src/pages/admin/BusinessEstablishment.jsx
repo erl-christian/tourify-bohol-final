@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import '../../styles/AdminDashboard.css';
-import { fetchAllEstablishments, fetchEstablishmentDetails } from '../../services/btoApi';
+import { fetchAllEstablishments, fetchEstablishmentDetails, fetchEstablishmentMediaForAdmin } from '../../services/btoApi';
 
 const statusToneMap = {
   verified: 'success',
@@ -28,6 +28,9 @@ function Establishments() {
     loading: false,
     error: '',
     data: null,
+    ownerProfile: null,
+    latestApproval: null,
+    media: [],
   });
 
   const formatDateTime = (value) => {
@@ -36,6 +39,14 @@ function Establishments() {
     return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString();
   };
 
+  const toMediaList = (payload) =>
+    Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.media)
+      ? payload.media
+      : Array.isArray(payload?.items)
+      ? payload.items
+      : [];
 
 
   const loadEstablishments = useCallback(
@@ -89,15 +100,35 @@ function Establishments() {
   const openDetailModal = async (est) => {
     const estId = est.businessEstablishment_id || est.id;
     if (!estId) return;
-    setDetailModal({ open: true, loading: true, error: '', data: null });
+
+    setDetailModal({
+      open: true,
+      loading: true,
+      error: '',
+      data: null,
+      ownerProfile: null,
+      latestApproval: null,
+      media: [],
+    });
+
     try {
-      const { data } = await fetchEstablishmentDetails(estId);
+      const [detailRes, spotRes, docsRes] = await Promise.all([
+        fetchEstablishmentDetails(estId),
+        fetchEstablishmentMediaForAdmin(estId, 'spot_gallery'),
+        fetchEstablishmentMediaForAdmin(estId, 'submission_requirement'),
+      ]);
+
+      const detailPayload = detailRes?.data ?? {};
+
       setDetailModal({
         open: true,
         loading: false,
         error: '',
-        data: data?.establishment || data,
-        latestApproval: data?.latestApproval || null,
+        data: detailPayload.establishment || detailPayload || null,
+        ownerProfile: detailPayload.ownerProfile || null,
+        latestApproval: detailPayload.latestApproval || null,
+        spotMedia: toMediaList(spotRes?.data),
+        requirementDocs: toMediaList(docsRes?.data),
       });
     } catch (err) {
       setDetailModal({
@@ -105,6 +136,10 @@ function Establishments() {
         loading: false,
         error: err.response?.data?.message || 'Unable to load establishment details.',
         data: null,
+        ownerProfile: null,
+        latestApproval: null,
+        spotMedia: [],
+        requirementDocs: [],
       });
     }
   };
@@ -293,6 +328,50 @@ function Establishments() {
                   <p className="detail-label">Description</p>
                   <p className="detail-value">{detailModal.data?.description || '—'}</p>
                 </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Spot Photos / Videos</p>
+                  {detailModal.spotMedia?.length ? (
+                    <div className="media-grid">
+                      {detailModal.spotMedia.map((m) => (
+                        <a
+                          key={m.media_id || m.id}
+                          className="media-thumb"
+                          href={m.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={m.caption || m.file_url}
+                        >
+                          {m.file_type === 'video' ? (
+                            <video controls src={m.file_url} />
+                          ) : (
+                            <img src={m.file_url} alt={m.caption || 'Spot media'} />
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">No spot photos/videos.</p>
+                  )}
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Submission Documents</p>
+                  {detailModal.requirementDocs?.length ? (
+                    <div className="doc-list">
+                      {detailModal.requirementDocs.map((d, index) => (
+                        <p key={d.media_id || d.id || index}>
+                          <a href={d.file_url} target="_blank" rel="noreferrer">
+                            {d.original_name || d.caption || `Document ${index + 1}`}
+                          </a>
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">No submission documents.</p>
+                  )}
+                </div>
+
 
                 <div className="modal-actions">
                   <button type="button" className="primary-cta" onClick={closeDetailModal}>

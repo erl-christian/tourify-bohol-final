@@ -20,3 +20,7 @@ export const fetchLguCheckins = params =>
 
 export const fetchLguItineraryStops = params =>
   http.get('/lgu/analytics/itinerary-stops', { params });
+
+export const fetchLguNationalities = params =>
+  http.get('/lgu/analytics/nationalities', { params });
+

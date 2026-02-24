@@ -29,7 +29,8 @@ import {
   fetchFeedbackDistribution,
   fetchAccreditationSummary,
   fetchMovementAnalytics,
-  fetchSpmStatus, 
+  fetchSpmStatus,
+  fetchVisitorNationalities,
   rebuildSpm
 } from '../../services/analyticsApi';
 
@@ -52,6 +53,7 @@ const transformMunicipalitySeries = municipalities =>
 const buildSankeyData = flows => {
   const nodes = [];
   const nodeIndex = new Map();
+
   const ensureNode = (id, name) => {
     const key = id || name || `unknown-${nodes.length}`;
     if (!nodeIndex.has(key)) {
@@ -61,28 +63,58 @@ const buildSankeyData = flows => {
     return nodeIndex.get(key);
   };
 
-  const links = [];
-  const seenEdges = new Set();
-
+  // Merge A->B and B->A into one edge so reverse traffic is not discarded.
+  const pairMap = new Map();
   flows.forEach(flow => {
-    const sourceIdx = ensureNode(flow.from?.id, flow.from?.name);
-    const targetIdx = ensureNode(flow.to?.id, flow.to?.name);
+    const fromId = flow.from?.id || flow.from?.name;
+    const toId = flow.to?.id || flow.to?.name;
+    const fromName = flow.from?.name || String(fromId || 'Unknown');
+    const toName = flow.to?.name || String(toId || 'Unknown');
+    const visits = Number(flow.visits);
 
-    if (!Number.isFinite(flow.visits) || flow.visits <= 0) return;
-    if (sourceIdx === targetIdx) return; // no self loops
+    if (!fromId || !toId || fromId === toId) return;
+    if (!Number.isFinite(visits) || visits <= 0) return;
 
-    const forward = `${sourceIdx}->${targetIdx}`;
-    const reverse = `${targetIdx}->${sourceIdx}`;
+    const leftFirst = String(fromId) < String(toId);
+    const leftId = leftFirst ? String(fromId) : String(toId);
+    const rightId = leftFirst ? String(toId) : String(fromId);
+    const leftName = leftFirst ? fromName : toName;
+    const rightName = leftFirst ? toName : fromName;
 
-    if (seenEdges.has(reverse)) {
-      // skip the reverse edge to avoid a two-node cycle that crashes recharts
-      return;
-    }
+    const pairKey = `${leftId}::${rightId}`;
+    const pair = pairMap.get(pairKey) ?? {
+      leftId,
+      rightId,
+      leftName,
+      rightName,
+      leftToRight: 0,
+      rightToLeft: 0,
+    };
 
-    seenEdges.add(forward);
-    links.push({ source: sourceIdx, target: targetIdx, value: flow.visits });
+    if (String(fromId) === leftId) pair.leftToRight += visits;
+    else pair.rightToLeft += visits;
+
+    pairMap.set(pairKey, pair);
   });
 
+  const links = [];
+  pairMap.forEach(pair => {
+    const total = pair.leftToRight + pair.rightToLeft;
+    if (total <= 0) return;
+
+    const useLeftToRight = pair.leftToRight >= pair.rightToLeft;
+    const sourceId = useLeftToRight ? pair.leftId : pair.rightId;
+    const targetId = useLeftToRight ? pair.rightId : pair.leftId;
+    const sourceName = useLeftToRight ? pair.leftName : pair.rightName;
+    const targetName = useLeftToRight ? pair.rightName : pair.leftName;
+
+    const sourceIdx = ensureNode(sourceId, sourceName);
+    const targetIdx = ensureNode(targetId, targetName);
+
+    links.push({ source: sourceIdx, target: targetIdx, value: total });
+  });
+
+  links.sort((a, b) => b.value - a.value);
   return { nodes, links };
 };
 
@@ -187,6 +219,7 @@ function AdminAnalytics() {
   const [feedbackBreakdown, setFeedbackBreakdown] = useState([]);
   const [accreditation, setAccreditation] = useState([]);
   const [flows, setFlows] = useState([]);
+  const [nationalities, setNationalities] = useState([]);
 
   const tourists30Days = useMemo(() => {
     if (!trend.length) return 0;
@@ -284,6 +317,7 @@ function AdminAnalytics() {
           feedbackRes,
           accreditationRes,
           flowsRes,
+          nationalitiesRes,
         ] = await Promise.all([
           fetchProvinceTrends().then(res => res.data?.arrivals ?? []),
           fetchMunicipalityArrivals({ limit: 12 }).then(res => res.data?.municipalities ?? []),
@@ -292,6 +326,7 @@ function AdminAnalytics() {
           fetchFeedbackDistribution().then(res => res.data?.ratings ?? []),
           fetchAccreditationSummary().then(res => res.data?.statuses ?? []),
           fetchMovementAnalytics({ limit: 8 }).then(res => res.data?.flows ?? []),
+          fetchVisitorNationalities({ limit: 8 }).then(res => res.data?.nationalities ?? []),
         ]);
         if (!mounted) return;
         setTrend(trendRes);
@@ -301,6 +336,7 @@ function AdminAnalytics() {
         setFeedbackBreakdown(feedbackRes);
         setAccreditation(accreditationRes);
         setFlows(flowsRes);
+        setNationalities(nationalitiesRes);
         setError('');
       } catch (err) {
         console.error('[AdminAnalytics] load failed', err);
@@ -440,6 +476,36 @@ function AdminAnalytics() {
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
+          </article>
+
+          <article className="analytics-card compact-card" id="nationality-card">
+            <header>
+              <h3>Visitor nationalities</h3>
+              <p>Top nationalities of visitors (unique tourists).</p>
+            </header>
+
+            {nationalities.length ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Tooltip />
+                  <Legend />
+                  <Pie
+                    data={nationalities}
+                    dataKey="count"
+                    nameKey="nationality"
+                    innerRadius={48}
+                    outerRadius={80}
+                    label
+                  >
+                    {nationalities.map((entry, index) => (
+                      <Cell key={entry.nationality} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="muted">No nationality data yet.</p>
+            )}
           </article>
         </div>
       </section>

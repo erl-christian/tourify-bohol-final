@@ -82,7 +82,7 @@ router.post(
 router.get(
   "/establishments/:estId/media",
   auth,
-  requireRoles("business_establishment", "lgu_admin", "lgu_staff"),
+  requireRoles("business_establishment", "lgu_admin", "lgu_staff", "bto_admin"),
   listEstablishmentMedia
 );
 router.delete(

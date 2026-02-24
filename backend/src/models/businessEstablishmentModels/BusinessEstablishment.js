@@ -18,6 +18,8 @@ const businessEstablishmentSchema = new mongoose.Schema(
         description:     { type: String },
         contact_info:    { type: String },
         accreditation_no:{ type: String },
+        budget_min:      { type: Number, min: 0 },
+        budget_max:      { type: Number, min: 0 },
 
         status: {
             type: String,

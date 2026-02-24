@@ -12,15 +12,15 @@ import {
   InteractionManager,
   TextInput
 } from 'react-native';
-// import MapView, { Marker, Polyline } from 'react-native-maps';
-import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+// import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter, router as RouterSingleton } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, radii, spacing } from '../../constants/theme';
 import { checkinStop, completeItinerary, shareCompletedItinerary} from '../../lib/tourist';
-import { fetchEstablishmentFeedback, createFeedback, uploadFeedbackMedia } from '../../lib/feedback';
+import { fetchEstablishmentFeedback, createFeedback, uploadFeedbackMedia, getMyFeedback } from '../../lib/feedback';
 import FeedbackForm from '../../components/FeedbackForm';
 import FeedbackCard from '../../components/FeedbackCard';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -99,12 +99,17 @@ export default function LiveItinerary() {
   const [sharePromptVisible, setSharePromptVisible] = useState(false);
   const [shareCaption, setShareCaption] = useState('');
 
+  const [missingFeedbackVisible, setMissingFeedbackVisible] = useState(false);
+  const [missingFeedbackStops, setMissingFeedbackStops] = useState([]);
+  const [pendingCompleteAfterFeedback, setPendingCompleteAfterFeedback] = useState(false);
+
   const itineraryId = payload?.itineraryId ?? payload?.itinerary_id ?? payload?._id;
 
   const stops = payload?.stops ?? [];
   const totalStops = stops.length;
   const visitedCount = stops.filter(stop => stop.visited).length;
   const allStopsVisited = totalStops > 0 && visitedCount === totalStops;
+  const isItineraryCompleted = String(payload?.status ?? '').toLowerCase() === 'completed';
   const nextPendingStop = stops.find(stop => !stop.visited);
 
   const unvisitedStops = stops.filter(stop => !stop.visited);
@@ -255,6 +260,15 @@ export default function LiveItinerary() {
       ...markers,
     ].filter(Boolean);
 
+    const getAnchorId = (anchor, fallbackIndex) =>
+      anchor?.id ??
+      anchor?.markerId ??
+      anchor?.business_establishment_id ??
+      anchor?.businessEstablishment_id ??
+      anchor?.travel_history_id ??
+      anchor?.itinerary_stop_id ??
+      `anchor-${fallbackIndex}`;
+
     const segments = [];
     for (let i = 0; i < anchors.length - 1; i += 1) {
       const startIdx = findNearestIndex(
@@ -270,8 +284,11 @@ export default function LiveItinerary() {
       const slice = plannedPolyline.slice(lo, hi + 1);
       if (slice.length < 2) continue;
 
+      const fromId = getAnchorId(anchors[i], i);
+      const toId = getAnchorId(anchors[i + 1], i + 1);
+
       segments.push({
-        id: `${anchors[i].id}-to-${anchors[i + 1].id}`,
+        id: `${fromId}-to-${toId}-${i}`,
         color: segmentPalette[i % segmentPalette.length],
         coordinates: startIdx <= endIdx ? slice : slice.reverse(),
       });
@@ -479,11 +496,15 @@ export default function LiveItinerary() {
     }
   };
 
-
   const closeFeedbackModal = () => {
     setFeedbackVisible(false);
     setFeedbackStop(null);
     setQueuedFeedbackStop(null);
+
+    if (pendingCompleteAfterFeedback) {
+      setMissingFeedbackVisible(true);
+      return;
+    }
 
     if (postCheckinStop) {
       setPostCheckinModalVisible(true);
@@ -493,11 +514,8 @@ export default function LiveItinerary() {
   const handleFeedbackSubmit = async ({ rating, review_text, assets }) => {
     if (!feedbackStop || !itineraryId) return;
 
-    console.log('Submitting feedback for stop:', feedbackStop);
-    console.log('Feedback stop payload:', feedbackStop);
-
     const establishmentId = resolveEstablishmentId(feedbackStop);
-    
+
     if (!establishmentId) {
       Alert.alert('Unable to submit feedback', 'Missing establishment ID.');
       return;
@@ -516,6 +534,25 @@ export default function LiveItinerary() {
         await uploadFeedbackMedia(feedback.feedback_id, assets);
       }
 
+      if (pendingCompleteAfterFeedback) {
+        const remainingStops = await getMissingFeedbackStops();
+
+        setFeedbackVisible(false);
+        setFeedbackStop(null);
+        setQueuedFeedbackStop(null);
+
+        if (remainingStops.length) {
+          setMissingFeedbackStops(remainingStops);
+          setMissingFeedbackVisible(true);
+        } else {
+          setMissingFeedbackVisible(false);
+          setPendingCompleteAfterFeedback(false);
+          await runCompleteItinerary();
+        }
+
+        return;
+      }
+
       closeFeedbackModal();
     } catch (err) {
       Alert.alert('Unable to submit feedback', err.message ?? 'Please try again.');
@@ -523,6 +560,7 @@ export default function LiveItinerary() {
       setFeedbackSubmitting(false);
     }
   };
+
 
   const handleContinueItinerary = () => {
       setPostCheckinModalVisible(false);
@@ -549,30 +587,102 @@ export default function LiveItinerary() {
     });
   };
 
+  const resolveFeedbackEstablishmentId = item =>
+    item?.business_establishment_id ??
+    item?.businessEstablishment_id ??
+    item?.establishment?.business_establishment_id ??
+    item?.establishment?.businessEstablishment_id ??
+    item?.establishment_id ??
+    null;
+
+  const getMissingFeedbackStops = async () => {
+    const visitedStops = (payload?.stops ?? []).filter(stop => stop?.visited);
+    if (!visitedStops.length || !itineraryId) return [];
+
+    const myFeedback = await getMyFeedback();
+    const itineraryFeedback = (myFeedback ?? []).filter(item => {
+      const feedbackItineraryId =
+        item?.itinerary_id ??
+        item?.itinerary?.itinerary_id ??
+        item?.itinerary?.id ??
+        item?.itineraryId;
+
+      return String(feedbackItineraryId ?? '') === String(itineraryId);
+    });
+
+    const feedbackEstIds = new Set(
+      itineraryFeedback
+        .map(resolveFeedbackEstablishmentId)
+        .filter(Boolean)
+        .map(id => String(id))
+    );
+
+    return visitedStops.filter(stop => {
+      const estId = resolveEstablishmentId(stop);
+      if (!estId) return false;
+      return !feedbackEstIds.has(String(estId));
+    });
+  };
+
+  const runCompleteItinerary = async () => {
+    const result = await completeItinerary(itineraryId);
+    setPayload(prev => ({
+      ...prev,
+      status: 'Completed',
+      ...result?.itinerary,
+    }));
+    setSharePromptVisible(true);
+  };
+
+  const openFeedbackFromMissingList = stop => {
+    const normalized = withEstablishmentId(stop);
+    setFeedbackStop(normalized);
+    setFeedbackVisible(true);
+    setMissingFeedbackVisible(false);
+    setPostCheckinModalVisible(false);
+    setPostCheckinStop(null);
+  };
+
+  const handleCompleteWithoutAllFeedback = async () => {
+    setMissingFeedbackVisible(false);
+    setPendingCompleteAfterFeedback(false);
+
+    try {
+      await runCompleteItinerary();
+    } catch (err) {
+      Alert.alert('Unable to complete itinerary', err.message ?? 'Please try again.');
+    }
+  };
+
+
+
   const handleCompleteItinerary = async () => {
     if (!itineraryId) return;
+
     if (!allStopsVisited) {
       Alert.alert('Visit remaining stops', 'Please mark every stop as visited before completing the itinerary.');
       return;
     }
+
     setPostCheckinModalVisible(false);
 
     try {
-      const result = await completeItinerary(itineraryId);
-      setPayload(prev => ({
-        ...prev,
-        status: 'Completed',
-        ...result?.itinerary,
-      }));
+      const missingStops = await getMissingFeedbackStops();
 
-      setSharePromptVisible(true); // or setCompletionModalVisible(true) if you prefer
+      if (missingStops.length) {
+        setMissingFeedbackStops(missingStops);
+        setPendingCompleteAfterFeedback(true);
+        setMissingFeedbackVisible(true);
+        return;
+      }
+
+      await runCompleteItinerary();
     } catch (err) {
       Alert.alert('Unable to complete itinerary', err.message ?? 'Please try again.');
     } finally {
       setPostCheckinStop(null);
     }
   };
-
 
   if (!payload || isLocating || !userLocation) {
     return (
@@ -778,15 +888,19 @@ export default function LiveItinerary() {
                     : 'Keep exploring your itinerary.'}
               </Text>
 
-              <TouchableOpacity style={styles.sheetPrimary} onPress={handleContinueItinerary}>
-                <Ionicons name="walk-outline" size={18} color={colors.white} />
-                <Text style={styles.sheetPrimaryText}>Continue itinerary</Text>
-              </TouchableOpacity>
+              {!allStopsVisited && !isItineraryCompleted ? (
+                <>
+                  <TouchableOpacity style={styles.sheetPrimary} onPress={handleContinueItinerary}>
+                    <Ionicons name="walk-outline" size={18} color={colors.white} />
+                    <Text style={styles.sheetPrimaryText}>Continue itinerary</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity style={styles.sheetSecondary} onPress={handleShowFeedbackFromModal}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
-                <Text style={styles.sheetSecondaryText}>Leave feedback now</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity style={styles.sheetSecondary} onPress={handleShowFeedbackFromModal}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+                    <Text style={styles.sheetSecondaryText}>Leave feedback now</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
 
               {allStopsVisited ? (
                 <TouchableOpacity
@@ -845,6 +959,75 @@ export default function LiveItinerary() {
           </View>
         </Modal>
       ) : null}
+
+      {missingFeedbackVisible ? (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={missingFeedbackVisible}
+          onRequestClose={() => {
+            setMissingFeedbackVisible(false);
+            setPendingCompleteAfterFeedback(false);
+          }}
+        >
+          <View style={styles.sheetBackdrop}>
+            <View style={styles.sheetCard}>
+              <Text style={styles.sheetTitle}>Feedback needed</Text>
+              <Text style={styles.sheetHelperMuted}>
+                You visited these places but have not left feedback yet.
+              </Text>
+
+              <ScrollView style={styles.missingFeedbackScroll} contentContainerStyle={styles.missingFeedbackList}>
+                {missingFeedbackStops.map((stop, idx) => {
+                  const stopId =
+                    resolveEstablishmentId(stop) ??
+                    stop?.travel_history_id ??
+                    stop?.itinerary_stop_id ??
+                    `missing-${idx}`;
+
+                  const stopName = stop?.title ?? stop?.establishment?.name ?? `Stop ${idx + 1}`;
+                  const stopMeta = stop?.establishment?.address ?? stop?.subtitle ?? null;
+
+                  return (
+                    <TouchableOpacity
+                      key={stopId}
+                      style={styles.missingFeedbackItem}
+                      onPress={() => openFeedbackFromMissingList(stop)}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.missingFeedbackTextWrap}>
+                        <Text style={styles.missingFeedbackName}>{stopName}</Text>
+                        {stopMeta ? (
+                          <Text numberOfLines={1} style={styles.missingFeedbackMeta}>
+                            {stopMeta}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Ionicons name="create-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <TouchableOpacity style={styles.sheetPrimary} onPress={handleCompleteWithoutAllFeedback}>
+                <Ionicons name="flag-outline" size={18} color={colors.white} />
+                <Text style={styles.sheetPrimaryText}>Complete itinerary now</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sheetSecondary}
+                onPress={() => {
+                  setMissingFeedbackVisible(false);
+                  setPendingCompleteAfterFeedback(false);
+                }}
+              >
+                <Text style={styles.sheetSecondaryText}>Do this later</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
 
       {sharePromptVisible ? (
         <Modal transparent animationType="fade" onRequestClose={() => setSharePromptVisible(false)}>
@@ -1103,4 +1286,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginTop: spacing(1),
   },
+
+  missingFeedbackScroll: { maxHeight: 260 },
+  missingFeedbackList: { gap: spacing(0.8) },
+  missingFeedbackItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(0.75),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.22)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing(1),
+    paddingVertical: spacing(0.9),
+    backgroundColor: 'rgba(108,92,231,0.05)',
+  },
+  missingFeedbackTextWrap: { flex: 1, gap: spacing(0.2) },
+  missingFeedbackName: { fontFamily: 'Inter_600SemiBold', color: colors.text },
+  missingFeedbackMeta: { fontFamily: 'Inter_400Regular', color: colors.muted, fontSize: 12 },
+
 });

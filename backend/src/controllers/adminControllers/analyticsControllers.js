@@ -7,6 +7,7 @@ import BusinessEstablishment from '../../models/businessEstablishmentModels/Busi
 import Municipality from '../../models/Municipality.js';
 import FrequentSequence from '../../models/recommendations/FrequentSequence.js';
 import AdminStaffProfile from '../../models/adminModels/AdminStaffProfile.js';
+import TouristProfile from '../../models/tourist/TouristProfile.js';
 
 export async function resolveMunicipalityForLgu(accountId, role, fallbackId) {
   if (fallbackId || role === 'bto_admin') return fallbackId ?? null;
@@ -42,6 +43,153 @@ const callOpenAiSummary = async prompt => {
 
   return text?.trim();
 };
+
+export const aggregateNationalityBreakdown = async (limit = 8) => {
+  const safeLimit = Number(limit) > 0 ? Number(limit) : 8;
+
+  const rows = await TravelHistory.aggregate([
+    { $match: { status: 'visited' } },
+    { $group: { _id: '$tourist_profile_id' } }, // unique tourists
+    {
+      $lookup: {
+        from: TouristProfile.collection.name,
+        localField: '_id',
+        foreignField: 'tourist_profile_id',
+        as: 'profile',
+      },
+    },
+    { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        nationalityRaw: {
+          $trim: { input: { $ifNull: ['$profile.nationality', ''] } },
+        },
+      },
+    },
+    {
+      $addFields: {
+        nationalityKey: {
+          $cond: [
+            { $eq: ['$nationalityRaw', ''] },
+            'unknown',
+            { $toLower: '$nationalityRaw' },
+          ],
+        },
+        nationalityLabel: {
+          $cond: [{ $eq: ['$nationalityRaw', ''] }, 'Unknown', '$nationalityRaw'],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: '$nationalityKey',
+        nationality: { $first: '$nationalityLabel' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { count: -1 } },
+    { $limit: safeLimit },
+  ]);
+
+  return rows.map(row => ({
+    nationality: row.nationality ?? 'Unknown',
+    count: row.count ?? 0,
+  }));
+};
+
+export const getVisitorNationalities = async (req, res, next) => {
+  try {
+    const { limit = 8 } = req.query;
+    const nationalities = await aggregateNationalityBreakdown(limit);
+    res.json({ nationalities });
+  } catch (e) {
+    next(e);
+  }
+};
+
+
+export const aggregateNationalityBreakdownByMunicipality = async ({ municipalityId, limit = 8 }) => {
+  const safeLimit = Number(limit) > 0 ? Number(limit) : 8;
+
+  const rows = await TravelHistory.aggregate([
+    { $match: { status: 'visited' } },
+    {
+      $lookup: {
+        from: BusinessEstablishment.collection.name,
+        localField: 'business_establishment_id',
+        foreignField: 'businessEstablishment_id',
+        as: 'est',
+      },
+    },
+    { $unwind: '$est' },
+    { $match: { 'est.municipality_id': municipalityId } },
+    { $group: { _id: '$tourist_profile_id' } }, // unique tourists
+    {
+      $lookup: {
+        from: TouristProfile.collection.name,
+        localField: '_id',
+        foreignField: 'tourist_profile_id',
+        as: 'profile',
+      },
+    },
+    { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        nationalityRaw: {
+          $trim: { input: { $ifNull: ['$profile.nationality', ''] } },
+        },
+      },
+    },
+    {
+      $addFields: {
+        nationalityKey: {
+          $cond: [
+            { $eq: ['$nationalityRaw', ''] },
+            'unknown',
+            { $toLower: '$nationalityRaw' },
+          ],
+        },
+        nationalityLabel: {
+          $cond: [{ $eq: ['$nationalityRaw', ''] }, 'Unknown', '$nationalityRaw'],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: '$nationalityKey',
+        nationality: { $first: '$nationalityLabel' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { count: -1 } },
+    { $limit: safeLimit },
+  ]);
+
+  return rows.map(row => ({
+    nationality: row.nationality ?? 'Unknown',
+    count: row.count ?? 0,
+  }));
+};
+
+export const getLguVisitorNationalities = async (req, res, next) => {
+  try {
+    const { limit = 8, municipalityId: queryMunicipality } = req.query;
+    const municipalityId = await resolveMunicipalityForLgu(
+      req.user?.account_id,
+      req.user?.role,
+      queryMunicipality,
+    );
+    if (!municipalityId) {
+      res.status(400);
+      throw new Error('Municipality not resolved for LGU request.');
+    }
+    const nationalities = await aggregateNationalityBreakdownByMunicipality({ municipalityId, limit });
+    res.json({ nationalities });
+  } catch (e) {
+    next(e);
+  }
+};
+
 
 export const getEstablishmentFeedbackStats = async (req, res, next) => {
   try {
@@ -634,7 +782,7 @@ export const getVisitorAnalytics = async (req, res, next) => {
 export const getDestinationAnalytics = async (req, res, next) => {
 
   try {
-    const { scope = 'province', municipalityId: queryMunicipality, limit = 10 } = req.query;
+    const { scope = 'province', municipalityId: queryMunicipality, limit = 50 } = req.query;
     const municipalityId = await resolveMunicipalityForLgu(
       req.user?.account_id,
       req.user?.role,
@@ -649,20 +797,23 @@ export const getDestinationAnalytics = async (req, res, next) => {
 
 export const getMovementAnalytics = async (req, res, next) => {
   try {
-    const { scope = 'province', municipalityId: queryMunicipality, limit = 10 } = req.query;
-      const municipalityId = await resolveMunicipalityForLgu(
-        req.user?.account_id,
-        req.user?.role,
-        queryMunicipality
-      );
-    const flows = await aggregateSequentialPatterns({ limit: Number(limit) });
-     console.log('[analytics] sequential flows:', flows.length, flows); // <-- add this
+    const { scope = 'province', municipalityId: queryMunicipality, limit = 50 } = req.query;
+    const municipalityId = await resolveMunicipalityForLgu(
+      req.user?.account_id,
+      req.user?.role,
+      queryMunicipality
+    );
+
+    // ✅ use municipalityId here
+    const flows = await aggregateSequentialPatterns({ limit: Number(limit), municipalityId });
+
     res.json({ flows });
   } catch (e) {
     console.error('[analytics] movement error:', e);
     next(e);
   }
 };
+
 
 
 
@@ -753,7 +904,9 @@ const normalizeEstablishmentId = value => {
 
 
 const aggregateFromSpm = async ({ limit, municipalityId }) => {
-  const filter = {};
+  const filter = municipalityId
+    ? { municipality_id: municipalityId }
+    : { municipality_id: null };
   if (municipalityId) filter.municipality_id = municipalityId;
 
   const rows = await FrequentSequence.find(filter)
@@ -778,9 +931,23 @@ const aggregateFromSpm = async ({ limit, municipalityId }) => {
   return hydrateSequenceRows(sanitized);
 };
 
-const aggregateFromHistory = async ({ limit }) => {
-  const sequences = await TravelHistory.aggregate([
+const aggregateFromHistory = async ({ limit, municipalityId }) => {
+  const pipeline = [
     { $match: { status: 'visited' } },
+    ...(municipalityId
+      ? [
+          {
+            $lookup: {
+              from: 'businessestablishments',
+              localField: 'business_establishment_id',
+              foreignField: 'businessEstablishment_id',
+              as: 'est',
+            },
+          },
+          { $unwind: '$est' },
+          { $match: { 'est.municipality_id': municipalityId } },
+        ]
+      : []),
     { $sort: { itinerary_id: 1, date_visited: 1, scheduled_date: 1, _id: 1 } },
     {
       $group: {
@@ -852,7 +1019,9 @@ const aggregateFromHistory = async ({ limit }) => {
     },
     { $sort: { visits: -1 } },
     { $limit: Number(limit) },
-  ]);
+  ];
+
+  const sequences = await TravelHistory.aggregate(pipeline);
 
   return sequences.map(row => ({
     visits: row.visits,
@@ -863,9 +1032,9 @@ const aggregateFromHistory = async ({ limit }) => {
   }));
 };
 
-const aggregateSequentialPatterns = async ({ limit = 5, municipalityId }) => {
+export const aggregateSequentialPatterns = async ({ limit = 50, municipalityId }) => {
   const spmFlows = await aggregateFromSpm({ limit, municipalityId });
   if (spmFlows.length) return spmFlows;
 
-  return aggregateFromHistory({ limit });
+  return aggregateFromHistory({ limit, municipalityId });
 };

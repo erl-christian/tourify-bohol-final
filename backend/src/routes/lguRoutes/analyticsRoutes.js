@@ -7,6 +7,7 @@ import {
   getFeedbackDistribution,
   getAccreditationSummary,
   getMunicipalityCheckins,
+  getLguVisitorNationalities,
 } from '../../controllers/adminControllers/analyticsControllers.js';
 
 const router = express.Router();
@@ -59,11 +60,20 @@ router.get(
   (req, res, next) => getMunicipalityCheckins(req, res, next) // implement this in analyticsControllers
 );
 
+// router.get(
+//   '/itinerary-stops',
+//   auth,
+//   requireRoles('lgu_admin', 'lgu_staff'),
+//   (req, res, next) => getMunicipalityItineraryStops(req, res, next)
+// );
+
 router.get(
-  '/itinerary-stops',
+  '/nationalities',
   auth,
   requireRoles('lgu_admin', 'lgu_staff'),
-  (req, res, next) => getMunicipalityItineraryStops(req, res, next)
+  (req, res, next) => getLguVisitorNationalities(req, res, next)
 );
+
+
 
 export default router;

@@ -1,31 +1,62 @@
 import 'dotenv/config';
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-const apiKey = process.env.SENDGRID_API_KEY;
-if (apiKey) sgMail.setApiKey(apiKey);
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+const SMTP_SECURE =
+  String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || SMTP_PORT === 465;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const MAIL_FROM = process.env.MAIL_FROM || SMTP_USER || 'no-reply@tourify.com';
 
-export async function sendMail({ to, subject, html }) {
-  if (!apiKey) {
-    console.warn('Skipping email send: missing SENDGRID_API_KEY');
-    return;
+let transporter = null;
+
+function getTransporter() {
+  if (transporter) return transporter;
+
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+    return null;
   }
+
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  });
+
+  return transporter;
+}
+
+export async function sendMail({ to, subject, html, text }) {
+  const tx = getTransporter();
+
+  if (!tx) {
+    console.warn('[mail] skipped: missing SMTP config (SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS)');
+    return null;
+  }
+
   try {
-    const resp = await sgMail.send({
+    const info = await tx.sendMail({
+      from: MAIL_FROM,
       to,
-      from: process.env.MAIL_FROM || 'no-reply@tourify.com',
       subject,
       html,
+      text: text || (html ? html.replace(/<[^>]+>/g, ' ') : ''),
     });
-    const msgId = resp?.[0]?.headers?.['x-message-id'];
-    console.log('[mail] sent', { to, messageId: msgId });
-    return resp;
+
+    console.log('[mail] sent', { to, messageId: info?.messageId, provider: 'smtp' });
+    return info;
   } catch (err) {
     console.error('[mail] failed', {
       to,
       subject,
       message: err?.message,
       code: err?.code,
-      response: err?.response?.body,
+      response: err?.response,
     });
     throw err;
   }

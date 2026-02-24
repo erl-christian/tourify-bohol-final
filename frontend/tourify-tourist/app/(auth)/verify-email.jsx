@@ -23,7 +23,7 @@ export default function VerifyEmail() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
-  const { control, handleSubmit, setValue } = useForm({
+  const { control, handleSubmit, setValue, getValues } = useForm({
     resolver: zodResolver(schema),
     defaultValues: { otp: '', token: presetToken },
   });
@@ -31,13 +31,21 @@ export default function VerifyEmail() {
   useEffect(() => {
     if (presetToken) {
       setValue('token', presetToken, { shouldValidate: false });
+    } else {
+      setMessage('Missing verification session. Request a new code.');
     }
   }, [presetToken, setValue]);
 
   const onSubmit = async values => {
     try {
+      const token = values.token || getValues('token');
+      if (!token) {
+        setMessage('Missing verification session. Please request a new code.');
+        return;
+      }
+
       setSubmitting(true);
-      await verifyEmail({ otp: values.otp, token: values.token });
+      await verifyEmail({ otp: values.otp, token });
       setMessage('Email verified. You can log in now.');
       setTimeout(() => router.replace('/(auth)/login'), 800);
     } catch (err) {
@@ -53,13 +61,13 @@ export default function VerifyEmail() {
         <View style={styles.header}>
           <Text style={styles.title}>Enter verification code</Text>
           <Text style={styles.subtitle}>
-            Paste the code from your email. The token is prefilled if you came from the previous step.
+            Enter the 6-digit code sent to your email.
           </Text>
         </View>
 
         <AuthCard>
           <TextField label="Verification code (OTP)" name="otp" control={control} keyboardType="number-pad" />
-          <TextField label="Verification token" name="token" control={control} />
+          {/* token is kept in form state, hidden from user */}
 
           <TouchableOpacity
             style={styles.primaryButton}

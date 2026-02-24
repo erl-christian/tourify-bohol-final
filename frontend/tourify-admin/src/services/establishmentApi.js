@@ -10,13 +10,17 @@ export const regenerateQr = (estId) =>
   http.post(`/admin/establishments/${estId}/qr`);
 
 //media
-export const uploadEstablishmentMedia = (estId, formData) =>
-  http.post(`/admin/establishments/${estId}/media`, formData, {
+export const uploadEstablishmentMedia = (estId, formData, mediaKind = 'spot_gallery') => {
+  formData.set('media_kind', mediaKind);
+  return http.post(`/admin/establishments/${estId}/media`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+};
 
-export const fetchEstablishmentMedia = (estId) =>
-  http.get(`/admin/establishments/${estId}/media`);
+export const fetchEstablishmentMedia = (estId, mediaKind) =>
+  http.get(`/admin/establishments/${estId}/media`, {
+    params: mediaKind ? { media_kind: mediaKind } : undefined,
+  });
 
 export const deleteEstablishmentMedia = (estId, mediaId) =>
   http.delete(`/admin/establishments/${estId}/media/${mediaId}`);

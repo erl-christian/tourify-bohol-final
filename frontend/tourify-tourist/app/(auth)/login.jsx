@@ -71,22 +71,18 @@ export default function LoginScreen() {
   const onSubmit = async values => {
     try {
       setSubmitting(true);
-      const data = await login(values);
-      await signIn(data);
 
-      if (establishmentId) {
-        await recordQrArrival(establishmentId)
-          .then(res => {
-            console.log('[QR ARRIVAL] recorded', {
-              estId: establishmentId,
-              itinerary: res?.itinerary_id,
-              visitId: res?.visit?.travel_history_id,
-            });
-          })
-          .catch(err => console.warn('[QR ARRIVAL] failed', err?.message || err));
+      const data = await login(values);
+      const profileAfterLogin = await signIn(data);
+      const hasProfile = Boolean(profileAfterLogin?.tourist_profile_id);
+
+      if (establishmentId && hasProfile) {
+        await recordQrArrival(establishmentId).catch(err =>
+          console.warn('[QR ARRIVAL] failed', err?.message || err)
+        );
       }
 
-      router.replace('/home');
+      router.replace(hasProfile ? '/home' : '/profile/setup');
     } catch (error) {
       alert(error.message ?? 'Failed to log in. Check your credentials.');
     } finally {

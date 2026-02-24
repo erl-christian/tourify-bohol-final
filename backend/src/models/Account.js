@@ -39,6 +39,7 @@ const accountSchema= new mongoose.Schema(
         password:   { type: String, required:true, minlength: 8 },
         role:       { type: String, enum: ROLES, default: "tourist", index: true },
         is_active:  { type: Boolean, default: true, index: true },
+        must_change_password: { type: Boolean, default: false, index: true },
         email_verified: { type: Boolean, default: false, index: true },
         email_verified_at: { type: Date },
         //PK

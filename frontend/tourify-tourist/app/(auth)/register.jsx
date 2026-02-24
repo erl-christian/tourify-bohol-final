@@ -16,7 +16,7 @@ import AuthCard from '../../components/AuthCard';
 import TextField from '../../components/TextField';
 import { colors, spacing } from '../../constants/theme';
 import { register as registerAccount } from '../../lib/auth';
-import { useAuth } from '../../hooks/useAuth';
+// import { useAuth } from '../../hooks/useAuth';
 
 const schema = z
   .object({
@@ -31,7 +31,7 @@ const schema = z
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  // const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const { control, handleSubmit, reset } = useForm({
     resolver: zodResolver(schema),
@@ -42,15 +42,24 @@ export default function RegisterScreen() {
     try {
       setLoading(true);
       const payload = await registerAccount({ email, password, role: 'tourist' });
-      await signIn(payload);
       reset();
-      router.replace('/profile/setup');
+
+      // Go to email verification flow first (not profile setup)
+      if (payload?.verifyToken) {
+        router.replace({
+          pathname: '/(auth)/verify-email',
+          params: { token: payload.verifyToken },
+        });
+      } else {
+        router.replace('/(auth)/verify-email-request');
+      }
     } catch (error) {
       alert(error.message ?? 'Unable to create account. Email may already be registered.');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <AuthBackground>

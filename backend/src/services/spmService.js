@@ -2,96 +2,209 @@ import TravelHistory from '../models/tourist/TravelHistory.js';
 import BusinessEstablishment from '../models/businessEstablishmentModels/BusinessEstablishment.js';
 import FrequentSequence from '../models/recommendations/FrequentSequence.js';
 
-const WINDOW_DAYS = Number(process.env.SPM_WINDOW_DAYS || 365);
 let isRunning = false;
 let lastRunAt = null;
+let rerunRequested = false;
 
 const normalizeId = v => (typeof v === 'string' && v.trim() ? v.trim() : null);
-const key = (a, b, m = null) => `${a}::${b}::${m || ''}`;
+const pairKey = (fromId, toId) => `${fromId}::${toId}`;
+const scopedPairKey = (municipalityId, fromId, toId) => `${municipalityId}::${fromId}::${toId}`;
+const scopedNodeKey = (municipalityId, estId) => `${municipalityId}::${estId}`;
+
+const getWindowDays = () => {
+  const parsed = Number(process.env.SPM_WINDOW_DAYS ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const buildVisitFilter = () => {
+  const windowDays = getWindowDays();
+  const filter = { status: 'visited' };
+
+  if (windowDays > 0) {
+    filter.date_visited = {
+      $gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000),
+    };
+  }
+
+  return filter;
+};
+
+const increment = (map, mapKey, by = 1) => {
+  map.set(mapKey, (map.get(mapKey) || 0) + by);
+};
+
+const startBackgroundMining = reason => {
+  setImmediate(() => {
+    runSpmMining().catch(err => {
+      console.warn(`[SPM] ${reason} failed: ${err.message}`);
+    });
+  });
+};
+
+const splitScopedPairKey = raw => {
+  const [municipalityId, fromId, toId] = raw.split('::');
+  return { municipalityId, fromId, toId };
+};
 
 export async function runSpmMining() {
   if (isRunning) throw new Error('SPM mining is already running');
   isRunning = true;
+
   try {
-    const sinceDate = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const windowDays = getWindowDays();
 
-    const visits = await TravelHistory.find({ date_visited: { $gte: sinceDate } })
-      .select('tourist_profile_id business_establishment_id date_visited')
-      .sort({ tourist_profile_id: 1, date_visited: 1 })
+    const visits = await TravelHistory.find(buildVisitFilter())
+      .select('tourist_profile_id itinerary_id business_establishment_id date_visited scheduled_date createdAt')
+      .sort({
+        tourist_profile_id: 1,
+        itinerary_id: 1,
+        date_visited: 1,
+        scheduled_date: 1,
+        createdAt: 1,
+        _id: 1,
+      })
       .lean();
 
-    const estIds = [...new Set(visits.map(v => v.business_establishment_id))];
-    const ests = await BusinessEstablishment.find({ business_establishment_id: { $in: estIds } })
-      .select('business_establishment_id municipality_id')
-      .lean();
-    const estToMun = Object.fromEntries(ests.map(e => [e.business_establishment_id, e.municipality_id || null]));
+    const estIds = [...new Set(visits.map(v => normalizeId(v.business_establishment_id)).filter(Boolean))];
+    const establishments = estIds.length
+      ? await BusinessEstablishment.find({
+          $or: [
+            { businessEstablishment_id: { $in: estIds } },
+            { business_establishment_id: { $in: estIds } },
+          ],
+        })
+          .select('businessEstablishment_id business_establishment_id municipality_id')
+          .lean()
+      : [];
 
-    const support = new Map();
-    const fromSupport = new Map();
-    const toSupport = new Map();
-    const lastByTourist = new Map();
+    const estToMunicipality = new Map();
+    establishments.forEach(est => {
+      const estId = est.businessEstablishment_id ?? est.business_establishment_id ?? null;
+      if (!estId) return;
+      estToMunicipality.set(estId, est.municipality_id ?? null);
+    });
+
+    const globalSupport = new Map();
+    const globalFromSupport = new Map();
+    const globalToSupport = new Map();
+
+    const scopedSupport = new Map();
+    const scopedFromSupport = new Map();
+    const scopedToSupport = new Map();
+
+    const lastByTouristItinerary = new Map();
 
     for (const visit of visits) {
-      const prev = normalizeId(lastByTourist.get(visit.tourist_profile_id));
-      const curr = normalizeId(visit.business_establishment_id);
+      const touristId = normalizeId(visit.tourist_profile_id);
+      const itineraryId = normalizeId(visit.itinerary_id);
+      const currId = normalizeId(visit.business_establishment_id);
+      if (!touristId || !itineraryId || !currId) continue;
 
-      if (prev && curr && prev !== curr) {
-        const mun = estToMun[curr] || estToMun[prev] || null;
-        const k = key(prev, curr, mun);
-        support.set(k, (support.get(k) || 0) + 1);
-        fromSupport.set(prev, (fromSupport.get(prev) || 0) + 1);
-        toSupport.set(curr, (toSupport.get(curr) || 0) + 1);
+      const sessionKey = `${touristId}::${itineraryId}`;
+      const prevId = normalizeId(lastByTouristItinerary.get(sessionKey));
+
+      if (prevId && prevId !== currId) {
+        increment(globalSupport, pairKey(prevId, currId));
+        increment(globalFromSupport, prevId);
+        increment(globalToSupport, currId);
+
+        const prevMunicipality = estToMunicipality.get(prevId) ?? null;
+        const currMunicipality = estToMunicipality.get(currId) ?? null;
+        const municipalities = [...new Set([prevMunicipality, currMunicipality].filter(Boolean))];
+
+        municipalities.forEach(municipalityId => {
+          increment(scopedSupport, scopedPairKey(municipalityId, prevId, currId));
+          increment(scopedFromSupport, scopedNodeKey(municipalityId, prevId));
+          increment(scopedToSupport, scopedNodeKey(municipalityId, currId));
+        });
       }
 
-      if (curr) lastByTourist.set(visit.tourist_profile_id, curr);
+      lastByTouristItinerary.set(sessionKey, currId);
     }
 
-    const totalToSupport = [...toSupport.values()].reduce((a, b) => a + b, 0) || 1;
-    const bulk = [];
-    for (const [k, sup] of support) {
-      const [from_id, to_id, mun] = k.split('::');
-      const fromSup = fromSupport.get(from_id) || 1;
-      const toSup = toSupport.get(to_id) || 1;
+    const globalTotalTo = [...globalToSupport.values()].reduce((a, b) => a + b, 0) || 1;
 
-      const confidence = sup / fromSup;
-      const pB = toSup / totalToSupport;
-      const lift = confidence / (pB || 1e-6);
+    const municipalityTotalTo = new Map();
+    for (const [nodeKey, count] of scopedToSupport.entries()) {
+      const [municipalityId] = nodeKey.split('::');
+      municipalityTotalTo.set(municipalityId, (municipalityTotalTo.get(municipalityId) || 0) + count);
+    }
 
-      bulk.push({
-        updateOne: {
-          filter: {
-            from_business_establishment_id: from_id,
-            to_business_establishment_id: to_id,
-            municipality_id: mun || null,
-          },
-          update: {
-            $set: {
-              support: sup,
-              from_support: fromSup,
-              confidence,
-              lift,
-              window_days: WINDOW_DAYS,
-              updated_at: new Date(),
-            },
-          },
-          upsert: true,
-        },
+    const docs = [];
+
+    for (const [transition, support] of globalSupport.entries()) {
+      const [fromId, toId] = transition.split('::');
+      const fromSup = globalFromSupport.get(fromId) || 1;
+      const toSup = globalToSupport.get(toId) || 1;
+      const confidence = support / fromSup;
+      const lift = confidence / ((toSup / globalTotalTo) || 1e-6);
+
+      docs.push({
+        from_business_establishment_id: fromId,
+        to_business_establishment_id: toId,
+        municipality_id: null,
+        support,
+        from_support: fromSup,
+        confidence,
+        lift,
+        window_days: windowDays,
+        updated_at: new Date(),
       });
     }
 
-    if (bulk.length) {
-      await FrequentSequence.bulkWrite(bulk, { ordered: false });
+    for (const [transition, support] of scopedSupport.entries()) {
+      const { municipalityId, fromId, toId } = splitScopedPairKey(transition);
+      const fromSup = scopedFromSupport.get(scopedNodeKey(municipalityId, fromId)) || 1;
+      const toSup = scopedToSupport.get(scopedNodeKey(municipalityId, toId)) || 1;
+      const totalTo = municipalityTotalTo.get(municipalityId) || 1;
+      const confidence = support / fromSup;
+      const lift = confidence / ((toSup / totalTo) || 1e-6);
+
+      docs.push({
+        from_business_establishment_id: fromId,
+        to_business_establishment_id: toId,
+        municipality_id: municipalityId,
+        support,
+        from_support: fromSup,
+        confidence,
+        lift,
+        window_days: windowDays,
+        updated_at: new Date(),
+      });
     }
 
+    await FrequentSequence.deleteMany({});
+    if (docs.length) await FrequentSequence.insertMany(docs, { ordered: false });
+
     lastRunAt = new Date();
-    return { upserts: bulk.length, lastRunAt };
+    return {
+      upserts: docs.length,
+      lastRunAt,
+      windowDays,
+      message: windowDays > 0 ? `Windowed (${windowDays} days)` : 'All-time',
+    };
   } finally {
     isRunning = false;
+
+    if (rerunRequested) {
+      rerunRequested = false;
+      startBackgroundMining('queued rerun');
+    }
   }
+}
+
+export function queueSpmMining(reason = 'auto-trigger') {
+  if (isRunning) {
+    rerunRequested = true;
+    return { queued: true, running: true, reason };
+  }
+
+  startBackgroundMining(reason);
+  return { queued: true, running: false, reason };
 }
 
 export const getSpmStatus = () => ({
   running: isRunning,
   lastRunAt,
-  windowDays: WINDOW_DAYS,
+  windowDays: getWindowDays(),
 });

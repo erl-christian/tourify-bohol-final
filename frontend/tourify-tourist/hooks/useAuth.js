@@ -47,10 +47,13 @@ export const AuthProvider = ({ children }) => {
     setToken(payload.token);
     setAccount(payload.account);
     setAuthToken(payload.token);
+
     try {
-      await fetchProfile();
+      const nextProfile = await fetchProfile();
+      return nextProfile;
     } catch {
       setProfile(null);
+      return null;
     }
   };
 

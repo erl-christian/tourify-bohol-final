@@ -236,19 +236,36 @@ export default function Explore() {
       return;
     }
 
+    const selectedInterests = interests.map(i => String(i).trim()).filter(Boolean);
+    if (!selectedInterests.length) {
+      Alert.alert('Select interests', 'Please choose at least one interest before generating.');
+      return;
+    }
+
     const locationPayload = userLocation
       ? { lat: userLocation.latitude, lng: userLocation.longitude }
       : null;
 
     setLoading(true);
     try {
+      const normalizedBudget = {
+        min: Math.max(0, Number(budget.min) || 0),
+        max: Math.max(0, Number(budget.max) || 0),
+      };
+
+      if (normalizedBudget.max < normalizedBudget.min) {
+        normalizedBudget.max = normalizedBudget.min;
+      }
+
+      const normalizedRadius = Math.max(1, Number(radius) || 10);
+
       const payload = {
         tourist_profile_id: profile.tourist_profile_id,
-        preferences: interests,
-        budget,
-        radius,
+        preferences: selectedInterests,
+        budget: normalizedBudget,
+        radius: normalizedRadius,
         location: locationPayload,
-        limit: 12,
+        limit: 200,
       };
 
       const { items, message } = await generateRecommendations(payload);
@@ -276,6 +293,7 @@ export default function Explore() {
       setLoading(false);
     }
   };
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -499,6 +517,35 @@ export default function Explore() {
 
   const detailCard = selectedDestination ? buildEstablishmentCard(selectedDestination) : null;
   const detailTags = detailInfo?.tag_names ?? detailCard?.tags ?? [];
+  const selectedEst = selectedDestination?.establishment ?? {};
+
+  const parseFiniteBudget = value => {
+    if (value === '' || value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const formatBudgetPhp = value =>
+    `PHP ${Number(value).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+
+  const rawBudgetMin = detailInfo?.budget_min ?? selectedEst?.budget_min;
+  const rawBudgetMax = detailInfo?.budget_max ?? selectedEst?.budget_max;
+  const budgetMin = parseFiniteBudget(rawBudgetMin);
+  const budgetMax = parseFiniteBudget(rawBudgetMax);
+
+  const detailPriceRange = detailInfo?.price_range ?? selectedEst?.price_range ?? null;
+  const detailAverageSpend = detailInfo?.average_spend ?? selectedEst?.average_spend ?? null;
+
+  const budgetLabel =
+    detailPriceRange ||
+    (budgetMin !== null && budgetMax !== null
+      ? `${formatBudgetPhp(budgetMin)} - ${formatBudgetPhp(budgetMax)}`
+      : budgetMin !== null
+      ? `${formatBudgetPhp(budgetMin)} and up`
+      : budgetMax !== null
+      ? `Up to ${formatBudgetPhp(budgetMax)}`
+      : null);
+
   const feedbackSummary = detailInfo?.feedback_summary;
   const feedbackItems = Array.isArray(detailInfo?.recent_feedback)
     ? detailInfo.recent_feedback.slice(0, 3)
@@ -937,6 +984,18 @@ export default function Explore() {
                       </Text>
                     </View>
                   ) : null}
+                  {budgetLabel ? (
+                    <View style={styles.detailInfoRow}>
+                      <Ionicons name='cash-outline' size={18} color={colors.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.detailInfoText}>Budget: {budgetLabel}</Text>
+                        {detailAverageSpend ? (
+                          <Text style={styles.detailBodyText}>Average spend: {detailAverageSpend}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
+
                 </View>
 
                 <View style={styles.detailSection}>

@@ -20,17 +20,31 @@ export const getEstablishment = id =>
   client.get(`/public/establishments/${id}`).then(res => res.data.establishment);
 
 export const enrichRecommendations = async items => {
+  const list = Array.isArray(items)
+    ? items
+    : Array.isArray(items?.items)
+      ? items.items
+      : [];
+
   const enriched = await Promise.all(
-    items.map(async rec => {
+    list.map(async rec => {
+      const establishmentId =
+        rec?.businessEstablishment_id ??
+        rec?.business_establishment_id ??
+        rec?.establishment?.businessEstablishment_id ??
+        rec?.establishment?.business_establishment_id;
+
+      if (!establishmentId) return rec;
+
       try {
-        const establishment = await getEstablishment(rec.businessEstablishment_id);
+        const establishment = await getEstablishment(establishmentId);
         return { ...rec, establishment };
       } catch {
         return rec;
       }
     })
   );
-  return enriched.filter(item => item.establishment);
+  return enriched.filter(item => item?.establishment);
 };
 
 export const listPublicEstablishments = (params = {}) =>

@@ -14,3 +14,6 @@ export const fetchOwnerFeedbackCategories = estId =>
 
 export const fetchOwnerTagPerformance = estId =>
   http.get(`/owner/analytics/${estId}/tag-performance`);
+
+export const fetchOwnerNationalities = (estId, params) =>
+  http.get(`/owner/analytics/${estId}/nationalities`, { params });

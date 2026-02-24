@@ -31,8 +31,22 @@ function Establishments() {
     loading: false,
     error: '',
     data: null,
-    media: [],
+    ownerProfile: null,
+    spotMedia: [],
+    requirementDocs: [],
+    latestApproval: null,
+    latestApprovalActor: null,
   });
+
+  const toMediaList = (payload) =>
+  Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.media)
+    ? payload.media
+    : Array.isArray(payload?.items)
+    ? payload.items
+    : [];
+
 
   const loadEstablishments = async () => {
     try {
@@ -82,19 +96,38 @@ function Establishments() {
   const openDetailModal = useCallback(async (est) => {
     const estId = est.businessEstablishment_id || est.id;
     if (!estId) return;
-    setDetailModal({ open: true, loading: true, error: '', data: null, media: [] });
+
+    setDetailModal({
+      open: true,
+      loading: true,
+      error: '',
+      data: null,
+      ownerProfile: null,
+      spotMedia: [],
+      requirementDocs: [],
+      latestApproval: null,
+      latestApprovalActor: null,
+    });
+
     try {
-      const [detailRes, mediaRes] = await Promise.all([
+      const [detailRes, spotRes, docsRes] = await Promise.all([
         fetchLguEstablishmentDetails(estId),
-        fetchLguEstablishmentMedia(estId),
+        fetchLguEstablishmentMedia(estId, 'spot_gallery'),
+        fetchLguEstablishmentMedia(estId, 'submission_requirement'),
       ]);
-      const mediaItems = Array.isArray(mediaRes?.data) ? mediaRes.data : mediaRes?.data?.items || [];
+
+      const detailPayload = detailRes?.data ?? {};
+
       setDetailModal({
         open: true,
         loading: false,
         error: '',
-        data: detailRes?.data?.establishment || detailRes?.data || null,
-        media: mediaItems,
+        data: detailPayload.establishment || detailPayload || null,
+        ownerProfile: detailPayload.ownerProfile || null,
+        spotMedia: toMediaList(spotRes?.data),
+        requirementDocs: toMediaList(docsRes?.data),
+        latestApproval: detailPayload.latestApproval || null,
+        latestApprovalActor: detailPayload.latestApprovalActor || null,
       });
     } catch (err) {
       setDetailModal({
@@ -102,13 +135,27 @@ function Establishments() {
         loading: false,
         error: err.response?.data?.message || 'Unable to load establishment details.',
         data: null,
-        media: [],
+        ownerProfile: null,
+        spotMedia: [],
+        requirementDocs: [],
+        latestApproval: null,
+        latestApprovalActor: null,
       });
     }
   }, []);
 
   const closeDetailModal = () =>
-    setDetailModal({ open: false, loading: false, error: '', data: null, media: [] });
+    setDetailModal({
+      open: false,
+      loading: false,
+      error: '',
+      data: null,
+      ownerProfile: null,
+      spotMedia: [],
+      requirementDocs: [],
+      latestApproval: null,
+      latestApprovalActor: null,
+    });
 
   return (
     <LguLayout
@@ -237,74 +284,133 @@ function Establishments() {
                 <div className="detail-grid">
                   <div className="detail-pair">
                     <p className="detail-label">Name</p>
-                    <p className="detail-value strong">{detailModal.data?.name || '—'}</p>
+                    <p className="detail-value strong">{detailModal.data?.name || '-'}</p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">ID</p>
+                    <p className="detail-label">Establishment ID</p>
                     <p className="detail-value mono">
-                      {detailModal.data?.businessEstablishment_id || detailModal.data?.id || '—'}
+                      {detailModal.data?.businessEstablishment_id || detailModal.data?.id || '-'}
                     </p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">Municipality</p>
-                    <p className="detail-value">
-                      {detailModal.data?.municipality_id || detailModal.data?.municipality || '—'}
-                    </p>
+                    <p className="detail-label">Municipality ID</p>
+                    <p className="detail-value">{detailModal.data?.municipality_id || '-'}</p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Category</p>
-                    <p className="detail-value">
-                      {detailModal.data?.type || detailModal.data?.category || '—'}
-                    </p>
+                    <p className="detail-value">{detailModal.data?.type || detailModal.data?.category || '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Ownership Type</p>
+                    <p className="detail-value">{detailModal.data?.ownership_type || '-'}</p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Status</p>
-                    <p className="detail-value chip">{detailModal.data?.status || '—'}</p>
+                    <p className="detail-value chip">{detailModal.data?.status || '-'}</p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">Submitted</p>
+                    <p className="detail-label">Contact Info</p>
+                    <p className="detail-value">{detailModal.data?.contact_info || '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Accreditation No.</p>
+                    <p className="detail-value">{detailModal.data?.accreditation_no || '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Budget Min</p>
+                    <p className="detail-value">{detailModal.data?.budget_min ?? '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Budget Max</p>
+                    <p className="detail-value">{detailModal.data?.budget_max ?? '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Latitude</p>
+                    <p className="detail-value">{detailModal.data?.latitude ?? '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Longitude</p>
+                    <p className="detail-value">{detailModal.data?.longitude ?? '-'}</p>
+                  </div>
+                  <div className="detail-pair">
+                    <p className="detail-label">Created</p>
                     <p className="detail-value">{formatDateTime(detailModal.data?.createdAt)}</p>
                   </div>
                   <div className="detail-pair">
-                    <p className="detail-label">Approved / Last Update</p>
-                    <p className="detail-value">
-                      {formatDateTime(detailModal.data?.approvedAt || detailModal.data?.updatedAt)}
-                    </p>
+                    <p className="detail-label">Updated</p>
+                    <p className="detail-value">{formatDateTime(detailModal.data?.updatedAt)}</p>
                   </div>
                 </div>
 
                 <div className="detail-block">
                   <p className="detail-label">Address</p>
-                  <p className="detail-value">{detailModal.data?.address || '—'}</p>
-                </div>
-                <div className="detail-block">
-                  <p className="detail-label">Description</p>
-                  <p className="detail-value">{detailModal.data?.description || '—'}</p>
+                  <p className="detail-value">{detailModal.data?.address || '-'}</p>
                 </div>
 
                 <div className="detail-block">
-                  <p className="detail-label">Media</p>
-                  {detailModal.media?.length ? (
+                  <p className="detail-label">Description</p>
+                  <p className="detail-value">{detailModal.data?.description || '-'}</p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Owner Profile</p>
+                  <p className="detail-value">Name: {detailModal.ownerProfile?.full_name || '-'}</p>
+                  <p className="detail-value">Contact No: {detailModal.ownerProfile?.contact_no || '-'}</p>
+                  <p className="detail-value">Owner Account ID: {detailModal.ownerProfile?.account_id || '-'}</p>
+                  <p className="detail-value">Role: {detailModal.ownerProfile?.role || '-'}</p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Latest Decision</p>
+                  <p className="detail-value">{detailModal.latestApproval?.approval_status || 'No decision yet'}</p>
+                  <p className="detail-value">
+                    By: {detailModal.latestApprovalActor?.full_name || '-'} ({detailModal.latestApprovalActor?.position || '-'})
+                  </p>
+                  <p className="detail-value">Action: {detailModal.latestApproval?.action || '-'}</p>
+                  <p className="detail-value">Date: {formatDateTime(detailModal.latestApproval?.action_date)}</p>
+                  <p className="detail-value">Remarks: {detailModal.latestApproval?.remarks || '-'}</p>
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Spot Photos / Videos</p>
+                  {detailModal.spotMedia?.length ? (
                     <div className="media-grid">
-                      {detailModal.media.map((m) => (
+                      {detailModal.spotMedia.map((m, index) => (
                         <a
-                          key={m.media_id || m.id}
+                          key={m.media_id || m.id || index}
                           className="media-thumb"
                           href={m.file_url}
                           target="_blank"
                           rel="noreferrer"
                           title={m.caption || m.file_url}
                         >
-                          {m.file_type?.startsWith('image') ? (
-                            <img src={m.file_url} alt={m.caption || 'Media'} />
+                          {m.file_type === 'video' || m.file_type?.startsWith('video') ? (
+                            <video controls src={m.file_url} />
                           ) : (
-                            <span className="media-file">{m.file_type || 'file'}</span>
+                            <img src={m.file_url} alt={m.caption || 'Spot media'} />
                           )}
                         </a>
                       ))}
                     </div>
                   ) : (
-                    <p className="muted">No media attached.</p>
+                    <p className="muted">No spot photos/videos.</p>
+                  )}
+                </div>
+
+                <div className="detail-block">
+                  <p className="detail-label">Submission Documents</p>
+                  {detailModal.requirementDocs?.length ? (
+                    <div className="doc-list">
+                      {detailModal.requirementDocs.map((d, index) => (
+                        <p key={d.media_id || d.id || index}>
+                          <a href={d.file_url} target="_blank" rel="noreferrer">
+                            {d.original_name || d.caption || `Document ${index + 1}`}
+                          </a>
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">No submission documents.</p>
                   )}
                 </div>
 

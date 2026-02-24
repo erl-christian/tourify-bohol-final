@@ -26,3 +26,8 @@ export const updateLguAdmin = (accountId, payload) =>
 
 export const fetchEstablishmentDetails = (estId) =>
   http.get(`/admin/bto/establishments/${estId}`);
+
+export const fetchEstablishmentMediaForAdmin = (estId, mediaKind) =>
+  http.get(`/admin/establishments/${estId}/media`, {
+    params: mediaKind ? { media_kind: mediaKind } : undefined,
+});

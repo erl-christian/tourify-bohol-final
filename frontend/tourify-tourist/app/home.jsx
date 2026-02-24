@@ -125,11 +125,12 @@ export default function Home() {
     try {
       let recs = await getRecommendations(profile.tourist_profile_id, 6);
       if ((!recs || !recs.length) && regen) {
-        recs = await generateRecommendations({
+        const generated = await generateRecommendations({
           tourist_profile_id: profile.tourist_profile_id,
           limit: 6,
           preferences: profile.preferences ?? [],
         });
+        recs = Array.isArray(generated) ? generated : generated?.items ?? [];
       }
 
       const [popularRaw, underratedRaw] = await Promise.all([

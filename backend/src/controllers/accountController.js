@@ -183,6 +183,7 @@ export const loginAccount = async (req, res, next) => {
         email: acc.email,
         role: acc.role,
         email_verified: acc.email_verified,
+        must_change_password: acc.must_change_password,
       },
       token,
     });
@@ -190,6 +191,59 @@ export const loginAccount = async (req, res, next) => {
     next(err);
   }
 };
+
+
+export const changePasswordFirstLogin = async (req, res, next) => {
+  try {
+    const accountObjectId = req.user?._id;
+    if (!accountObjectId) {
+      res.status(401);
+      throw new Error('Unauthorized');
+    }
+
+    const { newPassword, confirmPassword } = req.body;
+    if (!newPassword || !confirmPassword) {
+      res.status(400);
+      throw new Error('newPassword and confirmPassword are required');
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400);
+      throw new Error('Password must be at least 8 characters');
+    }
+
+    if (newPassword !== confirmPassword) {
+      res.status(400);
+      throw new Error('Passwords do not match');
+    }
+
+    const acc = await Account.findById(accountObjectId);
+    if (!acc) {
+      res.status(404);
+      throw new Error('Account not found');
+    }
+
+    if (!acc.must_change_password) {
+      res.status(409);
+      throw new Error('First-login password change is not required for this account');
+    }
+
+    const sameAsOld = await acc.comparePassword(newPassword);
+    if (sameAsOld) {
+      res.status(400);
+      throw new Error('New password must be different from temporary password');
+    }
+
+    acc.password = newPassword; // hashed by pre-save hook
+    acc.must_change_password = false;
+    await acc.save();
+
+    res.json({ message: 'Password updated. You may now continue.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 
 // GET /api/accounts
 export const listAccounts = async (req, res, next) => {

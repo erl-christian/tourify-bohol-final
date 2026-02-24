@@ -16,8 +16,16 @@ import {
   fetchLguApprovalStats,
   fetchLguMovements,
   fetchLguCheckins,
+  fetchLguNationalities,
 } from '../../services/lguAnalyticsApi';
-import { fetchMunicipalityArrivals, fetchVisitorHeatmap } from '../../services/analyticsApi';
+import {
+  fetchMunicipalityArrivals,
+  fetchVisitorHeatmap,
+  fetchSpmStatus,
+  rebuildSpm,
+} from '../../services/analyticsApi';
+
+const pieColors = ['#2f80ed', '#56ccf2', '#f2c94c', '#f2994a', '#eb5757'];
 
 const wrapTickLabel = (text) => {
   if (!text) return ['—'];
@@ -50,9 +58,10 @@ const EstablishmentTick = ({ x, y, payload }) => {
   );
 };
 
-const buildSankeyData = (flows) => {
+const buildSankeyData = flows => {
   const nodes = [];
   const nodeIndex = new Map();
+
   const ensureNode = (id, name) => {
     const key = id || name || `unknown-${nodes.length}`;
     if (!nodeIndex.has(key)) {
@@ -61,19 +70,62 @@ const buildSankeyData = (flows) => {
     }
     return nodeIndex.get(key);
   };
-  const links = [];
-  const seen = new Set();
-  flows.forEach((flow) => {
-    const s = ensureNode(flow.from?.id, flow.from?.name);
-    const t = ensureNode(flow.to?.id, flow.to?.name);
-    if (!Number.isFinite(flow.visits) || flow.visits <= 0 || s === t) return;
-    const fwd = `${s}->${t}`, rev = `${t}->${s}`;
-    if (seen.has(rev)) return;
-    seen.add(fwd);
-    links.push({ source: s, target: t, value: flow.visits });
+
+  const pairMap = new Map();
+
+  flows.forEach(flow => {
+    const fromId = flow.from?.id || flow.from?.name;
+    const toId = flow.to?.id || flow.to?.name;
+    const fromName = flow.from?.name || String(fromId || 'Unknown');
+    const toName = flow.to?.name || String(toId || 'Unknown');
+    const visits = Number(flow.visits);
+
+    if (!fromId || !toId || fromId === toId) return;
+    if (!Number.isFinite(visits) || visits <= 0) return;
+
+    const leftFirst = String(fromId) < String(toId);
+    const leftId = leftFirst ? String(fromId) : String(toId);
+    const rightId = leftFirst ? String(toId) : String(fromId);
+    const leftName = leftFirst ? fromName : toName;
+    const rightName = leftFirst ? toName : fromName;
+
+    const pairKey = `${leftId}::${rightId}`;
+    const pair = pairMap.get(pairKey) ?? {
+      leftId,
+      rightId,
+      leftName,
+      rightName,
+      leftToRight: 0,
+      rightToLeft: 0,
+    };
+
+    if (String(fromId) === leftId) pair.leftToRight += visits;
+    else pair.rightToLeft += visits;
+
+    pairMap.set(pairKey, pair);
   });
+
+  const links = [];
+  pairMap.forEach(pair => {
+    const total = pair.leftToRight + pair.rightToLeft;
+    if (total <= 0) return;
+
+    const useLeftToRight = pair.leftToRight >= pair.rightToLeft;
+    const sourceId = useLeftToRight ? pair.leftId : pair.rightId;
+    const targetId = useLeftToRight ? pair.rightId : pair.leftId;
+    const sourceName = useLeftToRight ? pair.leftName : pair.rightName;
+    const targetName = useLeftToRight ? pair.rightName : pair.leftName;
+
+    const sourceIdx = ensureNode(sourceId, sourceName);
+    const targetIdx = ensureNode(targetId, targetName);
+
+    links.push({ source: sourceIdx, target: targetIdx, value: total });
+  });
+
+  links.sort((a, b) => b.value - a.value);
   return { nodes, links };
 };
+
 
 const formatStop = (stop) => {
   if (!stop) return 'N/A';
@@ -98,6 +150,54 @@ function HeatmapLayer({ points, radius = 20, blur = 25 }) {
   return null;
 }
 
+function SpmControls() {
+  const [status, setStatus] = useState({ running: false, lastRunAt: null });
+  const [loading, setLoading] = useState(false);
+
+  const loadStatus = async () => {
+    try {
+      const data = await fetchSpmStatus();
+      setStatus(data);
+    } catch (err) {
+      console.warn('SPM status failed', err?.message);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const handleRebuild = async () => {
+    setLoading(true);
+    try {
+      await rebuildSpm();
+      await loadStatus();
+      alert('SPM mining started/completed.');
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to start mining.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+      <button
+        type="button"
+        className="primary-cta"
+        onClick={handleRebuild}
+        disabled={loading || status.running}
+      >
+        {status.running ? 'Mining...' : 'Mine sequences'}
+      </button>
+      <span className="muted">
+        Last run: {status.lastRunAt ? new Date(status.lastRunAt).toLocaleString() : 'Never'}
+      </span>
+    </div>
+  );
+}
+
+
 function LguStaffAnalytics() {
   const [municipalityLabel, setMunicipalityLabel] = useState('Your municipality');
   const [loading, setLoading] = useState(true);
@@ -110,6 +210,9 @@ function LguStaffAnalytics() {
   const [flows, setFlows] = useState([]);
   const [checkins, setCheckins] = useState([]);
   const [exportRange, setExportRange] = useState({ from: '', to: '' });
+
+  const [nationalities, setNationalities] = useState([]);
+
 
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
 
@@ -154,6 +257,7 @@ function LguStaffAnalytics() {
           accreditationRes,
           flowsRes,
           checkinsRes,
+          nationalitiesRes,
         ] = await Promise.all([
           fetchLguArrivals().then((res) => res.data?.trends ?? []),
           fetchMunicipalityArrivals({ limit: 12 }).then((res) => res.data?.municipalities ?? []),
@@ -161,8 +265,9 @@ function LguStaffAnalytics() {
           fetchVisitorHeatmap().then((res) => res.data?.points ?? []),
           fetchLguFeedbackSummary().then((res) => res.data?.ratings ?? []),
           fetchLguApprovalStats().then((res) => res.data?.statuses ?? []),
-          fetchLguMovements({ limit: 8 }).then((res) => res.data?.flows ?? []),
+          fetchLguMovements({ limit: 50 }).then((res) => res.data?.flows ?? []),
           fetchLguCheckins({ limit: 12 }).then((res) => res.data?.establishments ?? []),
+          fetchLguNationalities({ limit: 8 }).then(res => res.data?.nationalities ?? []),
         ]);
         if (!mounted) return;
         setTrend(trendRes);
@@ -170,6 +275,7 @@ function LguStaffAnalytics() {
         setHeatmapPoints(heatmapRes);
         setFeedbackBreakdown(feedbackRes);
         setAccreditation(accreditationRes);
+        setNationalities(nationalitiesRes);
         setFlows(flowsRes);
         setCheckins(checkinsRes);
 
@@ -237,6 +343,7 @@ function LguStaffAnalytics() {
       title={`${municipalityLabel} Quick Reports`}
       subtitle="LGU staff view of municipal analytics with exports."
     >
+      <SpmControls />
       <section className="analytics-export-bar">
         <div className="export-range">
           <label>
@@ -356,6 +463,35 @@ function LguStaffAnalytics() {
               </PieChart>
             </ResponsiveContainer>
           </article>
+          <article className="analytics-card compact-card" id="lgu-staff-nationality-card">
+            <header>
+              <h3>Visitor nationalities</h3>
+              <p>Top nationalities of visitors (unique tourists).</p>
+            </header>
+            {nationalities.length ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Tooltip />
+                  <Legend />
+                  <Pie
+                    data={nationalities}
+                    dataKey="count"
+                    nameKey="nationality"
+                    innerRadius={48}
+                    outerRadius={80}
+                    label
+                  >
+                    {nationalities.map((entry, index) => (
+                      <Cell key={entry.nationality} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="muted">No nationality data yet.</p>
+            )}
+          </article>
+
         </div>
       </section>
 

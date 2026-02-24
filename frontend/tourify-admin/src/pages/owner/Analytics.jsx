@@ -23,9 +23,42 @@ import {
   fetchOwnerCheckins,
   fetchOwnerFeedbackCategories,
   fetchOwnerTagPerformance,
+  fetchOwnerNationalities,
 } from '../../services/ownerAnalyticsApi';
 
 const pieColors = ['#2f80ed', '#56ccf2', '#f2c94c', '#f2994a', '#eb5757'];
+
+const getEstablishmentId = est =>
+  est?.businessEstablishment_id ?? est?.business_establishment_id ?? est?.id ?? '';
+
+const loadAllOwnerEstablishments = async () => {
+  const limit = 100;
+  let page = 1;
+  let total = 0;
+  const all = [];
+
+  while (true) {
+    const { data } = await fetchOwnerEstablishments({ page, limit });
+    const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+
+    if (!items.length) break;
+
+    all.push(...items);
+    total = Number(data?.total ?? all.length);
+
+    if (all.length >= total) break;
+    page += 1;
+  }
+
+  const unique = new Map();
+  all.forEach(est => {
+    const id = getEstablishmentId(est);
+    if (id && !unique.has(id)) unique.set(id, est);
+  });
+
+  return Array.from(unique.values());
+};
+
 
 function OwnerAnalytics() {
   const [establishments, setEstablishments] = useState([]);
@@ -40,45 +73,62 @@ function OwnerAnalytics() {
     const loadAnalytics = async () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: '' }));
-        const { data } = await fetchOwnerEstablishments();
-        const list = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+
+        const list = await loadAllOwnerEstablishments();
         if (!list.length) throw new Error('No establishments found for this account.');
 
         setEstablishments(list);
+
         const analytics = await Promise.all(
           list.map(async est => {
-            const id = est.businessEstablishment_id ?? est.id ?? '';
+            const id = getEstablishmentId(est);
+            if (!id) return null;
+
+            const name = est.name ?? est.establishment_name ?? id;
+
             try {
-              const [trend, reviews, checkins, categories, tags] = await Promise.all([
+              const [trend, reviews, checkins, categories, tags, nationalities] = await Promise.all([
                 fetchOwnerRatingTrend(id),
                 fetchOwnerReviewCounts(id),
                 fetchOwnerCheckins(id),
                 fetchOwnerFeedbackCategories(id),
                 fetchOwnerTagPerformance(id),
+                fetchOwnerNationalities(id, { limit: 8 }),
               ]);
+
               return {
                 id,
-                name: est.name ?? est.establishment_name ?? 'Establishment',
+                name,
                 ratingTrend: trend.data?.trend ?? [],
                 reviewCounts: reviews.data?.monthly ?? [],
                 checkins: checkins.data?.monthly ?? [],
                 categories: categories.data?.categories ?? [],
                 tags: tags.data?.tags ?? [],
+                nationalities: nationalities.data?.nationalities ?? [],
               };
             } catch (err) {
               console.error('[OwnerAnalytics] failed for', id, err);
-              return null;
+              return {
+                id,
+                name,
+                ratingTrend: [],
+                reviewCounts: [],
+                checkins: [],
+                categories: [],
+                tags: [],
+                nationalities: [],
+              };
             }
           }),
         );
 
-        const filtered = analytics.filter(Boolean);
-        const aggregateEntry = aggregateAnalytics(filtered);
+        const normalized = analytics.filter(entry => entry?.id);
+        const aggregateEntry = aggregateAnalytics(normalized);
 
         setState({
           loading: false,
           error: '',
-          analytics: aggregateEntry ? [aggregateEntry, ...filtered] : filtered,
+          analytics: aggregateEntry ? [aggregateEntry, ...normalized] : normalized,
         });
       } catch (err) {
         console.error('[OwnerAnalytics] load failed', err);
@@ -117,7 +167,7 @@ function OwnerAnalytics() {
               <select value={selectedEst} onChange={event => setSelectedEst(event.target.value)}>
                 <option value="all">All establishments (total)</option>
                 {establishments.map(est => {
-                  const id = est.businessEstablishment_id ?? est.id ?? '';
+                  const id = getEstablishmentId(est);
                   return (
                     <option key={id} value={id}>
                       {est.name ?? est.establishment_name ?? id}
@@ -148,8 +198,8 @@ function OwnerAnalytics() {
                       <LineChart data={entry.ratingTrend}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" />
-                        <YAxis domain={[3.5, 5]} />
-                        <Tooltip />
+                        <YAxis domain={[0, 5]} width={56} tickFormatter={value => Number(value).toFixed(1)}/>
+                        <Tooltip formatter={(value, name) => (name === 'rating' ? [Number(value).toFixed(2), 'rating'] : [value, name])} />
                         <Line type="monotone" dataKey="rating" stroke="#f2994a" strokeWidth={3} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -234,6 +284,35 @@ function OwnerAnalytics() {
                       <p className="muted">No tags recorded for this establishment.</p>
                     )}
                   </article>
+                  <article className="analytics-card span-2">
+                    <header>
+                      <h3>Visitor nationalities</h3>
+                      <p>Top nationalities of visitors (unique tourists).</p>
+                    </header>
+                    {entry.nationalities?.length ? (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={entry.nationalities}
+                            dataKey="count"
+                            nameKey="nationality"
+                            innerRadius={60}
+                            outerRadius={90}
+                            label
+                          >
+                            {entry.nationalities.map((item, index) => (
+                              <Cell key={`${item.nationality}-${index}`} fill={pieColors[index % pieColors.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No nationality data yet.</p>
+                    )}
+                  </article>
+
                 </div>
               </section>
             ))
@@ -272,6 +351,19 @@ function aggregateAnalytics(entries) {
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   };
 
+  const aggregateNationalities = () => {
+    const map = new Map();
+    entries.forEach(item =>
+      item.nationalities.forEach(nat => {
+        map.set(nat.nationality, (map.get(nat.nationality) ?? 0) + nat.count);
+      }),
+    );
+    return Array.from(map.entries())
+      .map(([nationality, count]) => ({ nationality, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  };
+
   const aggregateTags = () => {
     const map = new Map();
     entries.forEach(item =>
@@ -285,10 +377,34 @@ function aggregateAnalytics(entries) {
       .slice(0, 5);
   };
 
-  const mergedRating = mergeSeries('ratingTrend').map(point => ({
-    month: point.month,
-    rating: entries.length ? point.rating / entries.length : 0,
-  }));
+  const mergedRating = (() => {
+    const monthMap = new Map();
+
+    entries.forEach(item => {
+      item.ratingTrend.forEach(point => {
+        const rating = Number(point.rating);
+        if (!Number.isFinite(rating)) return;
+
+        const existing = monthMap.get(point.month) ?? {
+          month: point.month,
+          ratingSum: 0,
+          ratingCount: 0,
+        };
+
+        existing.ratingSum += rating;
+        existing.ratingCount += 1;
+        monthMap.set(point.month, existing);
+      });
+    });
+
+    return Array.from(monthMap.values())
+      .map(row => ({
+        month: row.month,
+        rating: row.ratingCount ? Number((row.ratingSum / row.ratingCount).toFixed(2)) : 0,
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+  })();
+
 
   return {
     id: 'all',
@@ -298,6 +414,7 @@ function aggregateAnalytics(entries) {
     checkins: mergeSeries('checkins'),
     categories: aggregateCategories(),
     tags: aggregateTags(),
+    nationalities: aggregateNationalities(),
   };
 }
 

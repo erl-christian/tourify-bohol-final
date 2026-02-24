@@ -8,52 +8,264 @@ import { generateEstablishmentQr } from '../../services/qrService.js';
 import { listFeedbackForEstablishment } from "../publicControllers/publicFeedbackController.js";
 import Feedback from "../../models/feedback/Feedback.js";
 import FeedbackResponse from "../../models/feedback/FeedbackResponse.js";
+import { sendMail } from '../../services/mailer.js';
+
+const escapeHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildLguAdminInviteHtml = ({
+  fullName,
+  email,
+  password,
+  municipalityName,
+  loginUrl,
+}) => `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="620" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;background:#ffffff;border:1px solid #dbe3ef;border-radius:14px;overflow:hidden;">
+            <tr>
+              <td style="padding:24px;background:linear-gradient(135deg,#0f766e,#155e75);color:#ffffff;">
+                <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.9;">Tourify Bohol</p>
+                <h1 style="margin:0;font-size:22px;line-height:1.3;">LGU Admin Account Invitation</h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
+                  Hello <strong>${escapeHtml(fullName)}</strong>,
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+                  Your LGU Admin account for <strong>${escapeHtml(municipalityName || 'your municipality')}</strong>
+                  has been created successfully.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dbe3ef;border-radius:10px;background:#f8fafc;margin:0 0 18px;">
+                  <tr>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Account Email</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#0f172a;">${escapeHtml(email)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:14px 16px;font-size:13px;color:#64748b;">Temporary Password</td>
+                    <td style="padding:14px 16px;font-size:14px;color:#0f172a;">${escapeHtml(password)}</td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 10px;font-size:14px;color:#334155;">Sign in using the button below:</p>
+                <p style="margin:0 0 18px;">
+                  <a
+                    href="${escapeHtml(loginUrl)}"
+                    style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:10px 16px;border-radius:8px;"
+                  >Open Tourify Admin Login</a>
+                </p>
+
+                <p style="margin:0 0 10px;font-size:13px;color:#64748b;">
+                  If the button does not work, copy and paste this link:
+                </p>
+                <p style="margin:0 0 16px;font-size:13px;word-break:break-all;">
+                  <a href="${escapeHtml(loginUrl)}" style="color:#0f766e;">${escapeHtml(loginUrl)}</a>
+                </p>
+
+                <p style="margin:0;padding:12px 14px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;font-size:13px;color:#9a3412;">
+                  Security reminder: change your password immediately after your first login.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:14px 24px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;text-align:center;">
+                Tourify Bohol - Automated message, please do not reply.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
+
+const getAdminLoginUrl = () => {
+  const frontendBase = (
+    process.env.FRONTEND_ADMIN_URL ||
+    process.env.APP_BASE_URL ||
+    "http://localhost:5173"
+  ).replace(/\/$/, "");
+  return `${frontendBase}/login`;
+};
+
+const buildLguManagedInviteHtml = ({
+  heading,
+  fullName,
+  email,
+  password,
+  municipalityName,
+  loginUrl,
+  createdByName,
+}) => `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="620" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;background:#ffffff;border:1px solid #dbe3ef;border-radius:14px;overflow:hidden;">
+            <tr>
+              <td style="padding:24px;background:linear-gradient(135deg,#0f766e,#155e75);color:#ffffff;">
+                <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.8px;text-transform:uppercase;opacity:0.9;">Tourify Bohol</p>
+                <h1 style="margin:0;font-size:22px;line-height:1.3;">${escapeHtml(heading)}</h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
+                  Hello <strong>${escapeHtml(fullName)}</strong>,
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+                  Your account for <strong>${escapeHtml(municipalityName || 'your municipality')}</strong>
+                  was created by <strong>${escapeHtml(createdByName || 'LGU Admin')}</strong>.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dbe3ef;border-radius:10px;background:#f8fafc;margin:0 0 18px;">
+                  <tr>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Account Email</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#0f172a;">${escapeHtml(email)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:14px 16px;font-size:13px;color:#64748b;">Temporary Password</td>
+                    <td style="padding:14px 16px;font-size:14px;color:#0f172a;">${escapeHtml(password)}</td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 10px;font-size:14px;color:#334155;">Sign in using the button below:</p>
+                <p style="margin:0 0 18px;">
+                  <a
+                    href="${escapeHtml(loginUrl)}"
+                    style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:10px 16px;border-radius:8px;"
+                  >Open Tourify Admin Login</a>
+                </p>
+
+                <p style="margin:0 0 10px;font-size:13px;color:#64748b;">If the button does not work, use this link:</p>
+                <p style="margin:0 0 16px;font-size:13px;word-break:break-all;">
+                  <a href="${escapeHtml(loginUrl)}" style="color:#0f766e;">${escapeHtml(loginUrl)}</a>
+                </p>
+
+                <p style="margin:0;padding:12px 14px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;font-size:13px;color:#9a3412;">
+                  Security reminder: you must change your password on first login.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:14px 24px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;text-align:center;">
+                Tourify Bohol - Automated message, please do not reply.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
+
+
 
 //post /api/admin/bto/create-lgu-admin
+//post /api/admin/bto/create-lgu-admin
 export const createLGUAdmin = async (req, res, next) => {
+  try {
+    const { email, password, full_name, municipality_id } = req.body;
+    if (!email || !password || !full_name || !municipality_id) {
+      res.status(400);
+      throw new Error("email, password, full_name, municipality_id are required");
+    }
+
+    const muni = await Municipality.findOne({ municipality_id });
+    if (!muni) {
+      res.status(404);
+      throw new Error("Municipality not found");
+    }
+
+    const exists = await Account.findOne({ email });
+    if (exists) {
+      res.status(409);
+      throw new Error("Email already in use");
+    }
+
+    const tempPassword = String(password);
+    const acc = await Account.create({ email, password: tempPassword, role: "lgu_admin", must_change_password: true });
+
+    const profile = await AdminStaffProfile.create({
+      account: acc._id,
+      account_id: acc.account_id,
+      municipality_id,
+      full_name,
+      position: "LGU Admin"
+    });
+
+    const frontendBase = (
+      process.env.FRONTEND_ADMIN_URL ||
+      process.env.APP_BASE_URL ||
+      "http://localhost:5173"
+    ).replace(/\/$/, "");
+    const loginUrl = `${frontendBase}/login`;
+
+    let inviteEmailSent = false;
     try {
-        const { email, password, full_name, municipality_id } = req.body;
-        if (!email || !password || !full_name || !municipality_id) { 
-            res.status(400); 
-            throw new Error("email, password, full_name, municipality_id are required"); 
-        }
+      const mailResult = await sendMail({
+        to: acc.email,
+        subject: "Your Tourify Bohol LGU Admin account",
+        html: buildLguAdminInviteHtml({
+          fullName: full_name,
+          email: acc.email,
+          password: tempPassword,
+          municipalityName: muni.name,
+          loginUrl,
+        }),
+      });
 
-        const muni = await Municipality.findOne({ municipality_id });
-        if (!muni) { 
-            res.status(404); 
-            throw new Error("Municipality not found"); 
-        }
+      inviteEmailSent = Boolean(mailResult);
+    } catch (mailErr) {
+      console.warn("[createLGUAdmin] invite email send failed:", mailErr.message);
+    }
 
-        const exists = await Account.findOne({ email });
-        if (exists) { 
-            res.status(409); 
-            throw new Error("Email already in use"); 
-        }
+    res.status(201).json({
+      message: inviteEmailSent
+        ? "LGU Admin created and invite email sent"
+        : "LGU Admin created (invite email not sent)",
+      account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
+      profile,
+      inviteEmailSent,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
-        const acc = await Account.create({ email, password, role: "lgu_admin" });
-
-        const profile = await AdminStaffProfile.create({
-            account: acc._id,
-            account_id: acc.account_id,
-            municipality_id,
-            full_name,
-            position: "LGU Admin"
-        });
-
-        res.status(201).json({
-            message: "LGU Admin created",
-            account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
-            profile
-        });
-
-    } catch (err) { next(err); }
-}
 
 //post api/admin/lgu/create-lgu-staff
 export const createLGUStaff = async (req, res, next) => {
   try {
-    //Find the LGU Admin’s profile using the token (set by auth middleware)
-    const creatorAccId = req.user?.account_id; // comes from auth.js
+    const creatorAccId = req.user?.account_id;
     if (!creatorAccId) { res.status(401); throw new Error("Unauthorized"); }
 
     const creatorProfile = await AdminStaffProfile.findOne({
@@ -66,38 +278,67 @@ export const createLGUStaff = async (req, res, next) => {
       throw new Error("Only LGU Admins with a profile can create staff");
     }
 
-    //Validate request body (no municipality_id in body)
     const { email, password, full_name } = req.body;
     if (!email || !password || !full_name) {
       res.status(400);
       throw new Error("email, password, full_name are required");
     }
 
-    //Unique email
     const exists = await Account.findOne({ email });
     if (exists) { res.status(409); throw new Error("Email already in use"); }
 
-    //Create staff account
-    const acc = await Account.create({ email, password, role: "lgu_staff" });
+    const tempPassword = String(password);
+    const acc = await Account.create({
+      email,
+      password: tempPassword,
+      role: "lgu_staff",
+      must_change_password: true
+    });
 
-    //Create staff profile inheriting municipality from creator
     const profile = await AdminStaffProfile.create({
       account: acc._id,
       account_id: acc.account_id,
-      municipality_id: creatorProfile.municipality_id, // ← auto-inherited
+      municipality_id: creatorProfile.municipality_id,
       full_name,
       position: "LGU Staff"
     });
 
+    const muni = await Municipality.findOne({ municipality_id: creatorProfile.municipality_id }).lean();
+    const loginUrl = getAdminLoginUrl();
+
+    let inviteEmailSent = false;
+    try {
+      const mailResult = await sendMail({
+        to: acc.email,
+        subject: "Your Tourify Bohol LGU Staff account",
+        html: buildLguManagedInviteHtml({
+          heading: "LGU Staff Account Invitation",
+          fullName: full_name,
+          email: acc.email,
+          password: tempPassword,
+          municipalityName: muni?.name || creatorProfile.municipality_id,
+          loginUrl,
+          createdByName: creatorProfile.full_name || "LGU Admin",
+        }),
+      });
+      inviteEmailSent = Boolean(mailResult);
+    } catch (mailErr) {
+      console.warn("[createLGUStaff] invite email send failed:", mailErr.message);
+    }
+
     res.status(201).json({
-      message: "LGU Staff created",
+      message: inviteEmailSent
+        ? "LGU Staff created and invite email sent"
+        : "LGU Staff created (invite email not sent)",
       account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
-      profile
+      profile,
+      inviteEmailSent,
     });
   } catch (err) {
     next(err);
   }
 };
+
 
 
 // GET /api/admin/bto/establishments
@@ -267,17 +508,37 @@ export const ownerCreateEstablishment = async (req, res, next) => {
     const {
       name,
       type,
+      ownership_type,
       address,
       description,
       contact_info,
       accreditation_no,
       latitude,
       longitude,
+      budget_min,
+      budget_max,
     } = req.body;
     if (!name || !type) {
       res.status(400);
       throw new Error("name and type are required");
     }
+
+    const budgetMin = budget_min === '' || budget_min == null ? undefined : Number(budget_min);
+    const budgetMax = budget_max === '' || budget_max == null ? undefined : Number(budget_max);
+
+    if (budgetMin !== undefined && (!Number.isFinite(budgetMin) || budgetMin < 0)) {
+      res.status(400);
+      throw new Error('budget_min must be a non-negative number');
+    }
+    if (budgetMax !== undefined && (!Number.isFinite(budgetMax) || budgetMax < 0)) {
+      res.status(400);
+      throw new Error('budget_max must be a non-negative number');
+    }
+    if (budgetMin !== undefined && budgetMax !== undefined && budgetMin > budgetMax) {
+      res.status(400);
+      throw new Error('budget_min must be less than or equal to budget_max');
+    }
+
 
     const est = await BusinessEstablishment.create({
       municipality_id: ownerProfile.municipality_id,
@@ -285,6 +546,7 @@ export const ownerCreateEstablishment = async (req, res, next) => {
       business_establishment_profile_id: ownerProfile.business_establishment_profile_id,
       name,
       type,
+      ownership_type,
       address,
       description,
       contact_info,
@@ -292,6 +554,8 @@ export const ownerCreateEstablishment = async (req, res, next) => {
       latitude,
       longitude,
       status: "pending",
+      budget_min: budgetMin,
+      budget_max: budgetMax,
     });
 
     const { publicUrl } = await generateEstablishmentQr(est.businessEstablishment_id);
@@ -330,12 +594,12 @@ export const regenerateEstablishmentQr = async (req, res, next) => {
 
 export const lguCreateOwnerProfile = async (req, res, next) => {
   try {
-    // must be LGU Admin
     const callerAccId = req.user?.account_id;
     if (!callerAccId) { res.status(401); throw new Error("Unauthorized"); }
 
     const lguAdmin = await AdminStaffProfile.findOne({
-      account_id: callerAccId, position: "LGU Admin"
+      account_id: callerAccId,
+      position: "LGU Admin"
     });
     if (!lguAdmin) { res.status(403); throw new Error("Only LGU Admins can create owners"); }
 
@@ -344,27 +608,61 @@ export const lguCreateOwnerProfile = async (req, res, next) => {
       res.status(400); throw new Error("email, password, full_name are required");
     }
 
-    // unique email
     const exists = await Account.findOne({ email });
     if (exists) { res.status(409); throw new Error("Email already in use"); }
 
-    // create owner account
-    const acc = await Account.create({ email, password, role: "business_establishment" });
+    const tempPassword = String(password);
+    const acc = await Account.create({
+      email,
+      password: tempPassword,
+      role: "business_establishment",
+      must_change_password: true
+    });
 
-    // create owner profile; municipality comes from the LGU Admin creating them
     const profile = await BusinessEstablishmentProfile.create({
       account_id: acc.account_id,
-      municipality_id: lguAdmin.municipality_id,  // <-- inherit
-      full_name, contact_no, role
+      municipality_id: lguAdmin.municipality_id,
+      full_name,
+      contact_no,
+      role
     });
 
+    const muni = await Municipality.findOne({ municipality_id: lguAdmin.municipality_id }).lean();
+    const loginUrl = getAdminLoginUrl();
+
+    let inviteEmailSent = false;
+    try {
+      const mailResult = await sendMail({
+        to: acc.email,
+        subject: "Your Tourify Bohol Establishment Owner account",
+        html: buildLguManagedInviteHtml({
+          heading: "Establishment Owner Account Invitation",
+          fullName: full_name,
+          email: acc.email,
+          password: tempPassword,
+          municipalityName: muni?.name || lguAdmin.municipality_id,
+          loginUrl,
+          createdByName: lguAdmin.full_name || "LGU Admin",
+        }),
+      });
+      inviteEmailSent = Boolean(mailResult);
+    } catch (mailErr) {
+      console.warn("[lguCreateOwnerProfile] invite email send failed:", mailErr.message);
+    }
+
     res.status(201).json({
-      message: "Owner profile created",
+      message: inviteEmailSent
+        ? "Owner profile created and invite email sent"
+        : "Owner profile created (invite email not sent)",
       account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
-      profile
+      profile,
+      inviteEmailSent,
     });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
+
 
 // POST /api/admin/lgu/establishments/:estId/approval
 // body: { action: "approve" | "reject" | "return", remarks?: string }
@@ -544,7 +842,7 @@ export const listMyEstablishments = async (req, res, next) => {
     const ownerProfile = await BusinessEstablishmentProfile.findOne({ account_id });
     if (!ownerProfile) { res.status(403); throw new Error("Owner profile not found"); }
 
-    const { page = 1, limit = 10, status, q } = req.query;
+    const { page = 1, limit = 50, status, q } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const filter = {
@@ -581,28 +879,61 @@ export const getEstablishmentDetails = async (req, res, next) => {
   try {
     const { estId } = req.params;
 
-    // Base doc
     const est = await BusinessEstablishment.findOne({ businessEstablishment_id: estId });
     if (!est) { res.status(404); throw new Error("Establishment not found"); }
 
-    // Owner profile (if any)
     let ownerProfile = null;
     if (est.business_establishment_profile_id) {
-      ownerProfile = await BusinessEstablishmentProfile.findOne({
-        business_establishment_profile_id: est.business_establishment_profile_id
-      }, { _id: 0, business_establishment_profile_id: 1, full_name: 1, contact_no: 1, account_id: 1 });
+      ownerProfile = await BusinessEstablishmentProfile.findOne(
+        { business_establishment_profile_id: est.business_establishment_profile_id },
+        {
+          _id: 0,
+          business_establishment_profile_id: 1,
+          full_name: 1,
+          contact_no: 1,
+          account_id: 1,
+          role: 1,
+          municipality_id: 1,
+        }
+      );
     }
 
-    // Latest approval (if any)
-    const latestApproval = await EstablishmentApproval.findOne({
-      businessEstablishment_id: est.businessEstablishment_id,
-      is_latest: true
-    }, { _id: 0, establishmentApproval_id: 1, approval_status: 1, action: 1, remarks: 1, action_date: 1, admin_staff_profile_id: 1 });
+    const latestApproval = await EstablishmentApproval.findOne(
+      {
+        businessEstablishment_id: est.businessEstablishment_id,
+        is_latest: true,
+      },
+      {
+        _id: 0,
+        establishment_approval_id: 1,
+        approval_status: 1,
+        action: 1,
+        remarks: 1,
+        action_date: 1,
+        admin_staff_profile_id: 1,
+      }
+    );
+
+    let latestApprovalActor = null;
+    if (latestApproval?.admin_staff_profile_id) {
+      latestApprovalActor = await AdminStaffProfile.findOne(
+        { admin_staff_profile_id: latestApproval.admin_staff_profile_id },
+        {
+          _id: 0,
+          admin_staff_profile_id: 1,
+          account_id: 1,
+          full_name: 1,
+          position: 1, // "LGU Admin" or "LGU Staff"
+          municipality_id: 1,
+        }
+      );
+    }
 
     res.json({
       establishment: est,
       ownerProfile,
-      latestApproval
+      latestApproval,
+      latestApprovalActor,
     });
   } catch (e) { next(e); }
 };
@@ -628,8 +959,55 @@ export const ownerUpdatePendingEstablishment = async (req, res, next) => {
     if (!est) { res.status(404); throw new Error("Establishment not found"); }
 
     const previousStatus = est.status;
+    
+    if (req.body.budget_min !== undefined) {
+    const parsedMin = req.body.budget_min === '' || req.body.budget_min == null
+      ? null
+      : Number(req.body.budget_min);
 
-    const updatable = ["name","type","address","description","contact_info","accreditation_no","latitude","longitude"];
+    if (parsedMin !== null && (!Number.isFinite(parsedMin) || parsedMin < 0)) {
+      res.status(400);
+      throw new Error('budget_min must be a non-negative number');
+    }
+    req.body.budget_min = parsedMin;
+    }
+
+    if (req.body.budget_max !== undefined) {
+      const parsedMax = req.body.budget_max === '' || req.body.budget_max == null
+        ? null
+        : Number(req.body.budget_max);
+
+      if (parsedMax !== null && (!Number.isFinite(parsedMax) || parsedMax < 0)) {
+        res.status(400);
+        throw new Error('budget_max must be a non-negative number');
+      }
+      req.body.budget_max = parsedMax;
+    }
+
+    const nextBudgetMin =
+      req.body.budget_min !== undefined ? req.body.budget_min : est.budget_min;
+    const nextBudgetMax =
+      req.body.budget_max !== undefined ? req.body.budget_max : est.budget_max;
+
+    if (nextBudgetMin != null && nextBudgetMax != null && nextBudgetMin > nextBudgetMax) {
+      res.status(400);
+      throw new Error('budget_min must be less than or equal to budget_max');
+    }
+
+
+    const updatable = [
+      "name",
+      "type",
+      "ownership_type",
+      "address",
+      "description",
+      "contact_info",
+      "accreditation_no",
+      "latitude",
+      "longitude",
+      "budget_min",
+      "budget_max",
+    ];
   let hasChanges = false;
   for (const key of updatable) {
     if (req.body[key] !== undefined) {
@@ -655,7 +1033,10 @@ export const ownerUpdatePendingEstablishment = async (req, res, next) => {
   });
 
     await est.save();
-    res.json({ message: "Establishment updated", establishment: est });
+    res.json({ message: previousStatus === "pending"
+      ? "Establishment updated."
+      : "Changes submitted. LGU will re-approve this listing.",
+       establishment: est });
   } catch (e) { next(e); }
 };
 

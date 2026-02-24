@@ -45,6 +45,8 @@ const initialForm = {
   accreditationNo: '',
   latitude: '',
   longitude: '',
+  budgetMin: '',
+  budgetMax: '',
 };
 
 const normalizeList = (raw) => {
@@ -89,7 +91,12 @@ function OwnerEstablishments() {
   const [feedback, setFeedback] = useState('');
   const [isModalOpen, setModalOpen] = useState(false);
 
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  // const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedSpotMedia, setSelectedSpotMedia] = useState([]);
+  const [selectedRequirementDocs, setSelectedRequirementDocs] = useState([]);
+  const [editSpotMediaFiles, setEditSpotMediaFiles] = useState([]);
+  const [editRequirementDocsFiles, setEditRequirementDocsFiles] = useState([]);
+
   const [mediaCache, setMediaCache] = useState({}); // { estId: media[] }
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [activeMediaEst, setActiveMediaEst] = useState(null);
@@ -103,12 +110,28 @@ function OwnerEstablishments() {
 
   const [geoStatus, setGeoStatus] = useState({ loading: false, message: '' });
 
-  const [editMediaFiles, setEditMediaFiles] = useState([]);
+  // const [editMediaFiles, setEditMediaFiles] = useState([]);
 
-  const handleEditFileSelection = event => {
-    const files = Array.from(event.target.files || []);
-    setEditMediaFiles(files);
-  };
+const handleSpotMediaSelection = (event) => {
+  setSelectedSpotMedia(Array.from(event.target.files || []));
+};
+
+const handleRequirementDocsSelection = (event) => {
+  setSelectedRequirementDocs(Array.from(event.target.files || []));
+};
+
+const handleEditSpotMediaSelection = (event) => {
+  setEditSpotMediaFiles(Array.from(event.target.files || []));
+};
+
+const handleEditRequirementDocsSelection = (event) => {
+  setEditRequirementDocsFiles(Array.from(event.target.files || []));
+};
+
+  // const handleEditFileSelection = event => {
+  //   const files = Array.from(event.target.files || []);
+  //   setEditMediaFiles(files);
+  // };
 
   const fillCoordinates = (lat, lng) => {
     setForm(prev => ({
@@ -217,7 +240,8 @@ function OwnerEstablishments() {
   const resetForm = () => {
     setForm(initialForm);
     setFeedback('');
-    setSelectedFiles([]);
+    setSelectedSpotMedia([]);
+    setSelectedRequirementDocs([]);
   };
 
   const closeModal = () => {
@@ -225,15 +249,16 @@ function OwnerEstablishments() {
     setModalOpen(false);
   };
 
-  const handleFileSelection = (event) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedFiles(files);
-  };
+  // const handleFileSelection = (event) => {
+  //   const files = Array.from(event.target.files || []);
+  //   setSelectedFiles(files);
+  // };
 
   const openEditModal = (listing) => {
     if (!listing) return;
     setEditFeedback('');
-    setEditMediaFiles([]);
+    setEditSpotMediaFiles([]);
+    setEditRequirementDocsFiles([]);
     setShowEditModal(true);
     setEditEstablishment(listing);
     setEditForm({
@@ -250,6 +275,8 @@ function OwnerEstablishments() {
       accreditationNo: listing.accreditation_no || '',
       latitude: listing.latitude ?? '',
       longitude: listing.longitude ?? '',
+      budgetMin: listing.budget_min ?? '',
+      budgetMax: listing.budget_max ?? '',
     });
     setEditFeedback('');
     setShowEditModal(true);
@@ -259,7 +286,8 @@ function OwnerEstablishments() {
     setShowEditModal(false);
     setEditEstablishment(null);
     setEditFeedback('');
-    setEditMediaFiles([]);
+    setEditSpotMediaFiles([]);
+    setEditRequirementDocsFiles([]);
   };
 
   const handleEditChange = (event) => {
@@ -284,15 +312,35 @@ function OwnerEstablishments() {
         accreditation_no: editForm.accreditationNo,
         latitude: editForm.latitude === '' ? undefined : Number(editForm.latitude),
         longitude: editForm.longitude === '' ? undefined : Number(editForm.longitude),
+        budget_min: editForm.budgetMin === '' ? undefined : Number(editForm.budgetMin),
+        budget_max: editForm.budgetMax === '' ? undefined : Number(editForm.budgetMax),
+
       });
       
-      if (editMediaFiles.length > 0) {
-        const formData = new FormData();
-        editMediaFiles.forEach(file => formData.append('files', file));
-        await uploadEstablishmentMedia(editEstablishment.businessEstablishment_id, formData);
-        setEditMediaFiles([]);          // clear queued files
-        await fetchMediaFor(editEstablishment.businessEstablishment_id); // refresh cache (optional)
+      if (editSpotMediaFiles.length > 0) {
+        const spotFormData = new FormData();
+        editSpotMediaFiles.forEach(file => spotFormData.append('files', file));
+        await uploadEstablishmentMedia(
+          editEstablishment.businessEstablishment_id,
+          spotFormData,
+          'spot_gallery'
+        );
+        setEditSpotMediaFiles([]);
       }
+
+      if (editRequirementDocsFiles.length > 0) {
+        const docsFormData = new FormData();
+        editRequirementDocsFiles.forEach(file => docsFormData.append('files', file));
+        await uploadEstablishmentMedia(
+          editEstablishment.businessEstablishment_id,
+          docsFormData,
+          'submission_requirement'
+        );
+        setEditRequirementDocsFiles([]);
+      }
+
+      await fetchMediaFor(editEstablishment.businessEstablishment_id);
+
 
       const wasPending = editEstablishment?.status === 'pending';
       setEditFeedback(    wasPending
@@ -329,18 +377,28 @@ function OwnerEstablishments() {
         accreditation_no: form.accreditationNo || undefined,
         latitude: form.latitude ? Number(form.latitude) : undefined,
         longitude: form.longitude ? Number(form.longitude) : undefined,
+        budget_min: form.budgetMin === '' ? undefined : Number(form.budgetMin),
+        budget_max: form.budgetMax === '' ? undefined : Number(form.budgetMax),
+
       });
 
       const newEst = data?.establishment || data?.data || data;
       const newEstId =
         newEst?.businessEstablishment_id || newEst?.id || newEst?.business_establishment_id;
 
-      if (newEstId && selectedFiles.length > 0) {
-        const formData = new FormData();
-        selectedFiles.forEach((file) => formData.append('files', file));
-        await uploadEstablishmentMedia(newEstId, formData);
-        await fetchMediaFor(newEstId);
+      if (newEstId && selectedSpotMedia.length > 0) {
+        const spotFormData = new FormData();
+        selectedSpotMedia.forEach((file) => spotFormData.append('files', file));
+        await uploadEstablishmentMedia(newEstId, spotFormData, 'spot_gallery');
       }
+
+      if (newEstId && selectedRequirementDocs.length > 0) {
+        const docsFormData = new FormData();
+        selectedRequirementDocs.forEach((file) => docsFormData.append('files', file));
+        await uploadEstablishmentMedia(newEstId, docsFormData, 'submission_requirement');
+      }
+
+      if (newEstId) await fetchMediaFor(newEstId);
 
       resetForm();
       setFeedback('Listing submitted. Your LGU staff will review it shortly.');
@@ -572,6 +630,35 @@ function OwnerEstablishments() {
               </div>
 
               <div className="form-row">
+                <label className="form-label" htmlFor="est-budget-min">Budget min (PHP)</label>
+                <input
+                  id="est-budget-min"
+                  name="budgetMin"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 200"
+                  value={form.budgetMin}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="form-row">
+                <label className="form-label" htmlFor="est-budget-max">Budget max (PHP)</label>
+                <input
+                  id="est-budget-max"
+                  name="budgetMax"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 1500"
+                  value={form.budgetMax}
+                  onChange={handleChange}
+                />
+              </div>
+
+
+              <div className="form-row">
                 <label className="form-label" htmlFor="est-latitude">
                   Latitude
                 </label>
@@ -617,22 +704,41 @@ function OwnerEstablishments() {
               </div>
 
               <div className="form-row full">
-                <label className="form-label" htmlFor="est-media">
-                  Media (images/videos)
+                <label className="form-label" htmlFor="est-spot-media">
+                  Spot Photos / Videos
                 </label>
                 <input
-                  id="est-media"
+                  id="est-spot-media"
                   type="file"
                   multiple
                   accept="image/*,video/*"
-                  onChange={handleFileSelection}
+                  onChange={handleSpotMediaSelection}
                 />
-                {selectedFiles.length > 0 && (
+                {selectedSpotMedia.length > 0 && (
                   <div className="muted">
-                    {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} ready to upload.
+                    {selectedSpotMedia.length} spot file{selectedSpotMedia.length > 1 ? 's' : ''} ready.
                   </div>
                 )}
               </div>
+
+              <div className="form-row full">
+                <label className="form-label" htmlFor="est-requirement-docs">
+                  Submission Documents
+                </label>
+                <input
+                  id="est-requirement-docs"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleRequirementDocsSelection}
+                />
+                {selectedRequirementDocs.length > 0 && (
+                  <div className="muted">
+                    {selectedRequirementDocs.length} document file{selectedRequirementDocs.length > 1 ? 's' : ''} ready.
+                  </div>
+                )}
+              </div>
+
 
               {feedback && (
                 <div className="muted full" role="status">
@@ -979,6 +1085,31 @@ function OwnerEstablishments() {
                 ))}
               </select>
             </div>
+            <div className="form-row">
+              <label className="form-label" htmlFor="edit-budget-min">Budget min (PHP)</label>
+              <input
+                id="edit-budget-min"
+                name="budgetMin"
+                type="number"
+                min="0"
+                step="1"
+                value={editForm.budgetMin}
+                onChange={handleEditChange}
+              />
+            </div>
+
+            <div className="form-row">
+              <label className="form-label" htmlFor="edit-budget-max">Budget max (PHP)</label>
+              <input
+                id="edit-budget-max"
+                name="budgetMax"
+                type="number"
+                min="0"
+                step="1"
+                value={editForm.budgetMax}
+                onChange={handleEditChange}
+              />
+            </div>
 
             
             {/* repeat for category, ownershipType, address, description, contactInfo, etc. */}
@@ -989,21 +1120,39 @@ function OwnerEstablishments() {
               </div>
             )}
             <div className="form-row full">
-              <label className="form-label" htmlFor="edit-media">Add media</label>
+              <label className="form-label" htmlFor="edit-spot-media">Add spot photos/videos</label>
               <input
-                id="edit-media"
+                id="edit-spot-media"
                 type="file"
                 multiple
                 accept="image/*,video/*"
-                onChange={handleEditFileSelection}
+                onChange={handleEditSpotMediaSelection}
                 disabled={editSubmitting}
               />
-              {editMediaFiles.length > 0 && (
+              {editSpotMediaFiles.length > 0 && (
                 <div className="muted">
-                  {editMediaFiles.length} file{editMediaFiles.length > 1 ? 's' : ''} will upload on save.
+                  {editSpotMediaFiles.length} spot file{editSpotMediaFiles.length > 1 ? 's' : ''} will upload on save.
                 </div>
               )}
             </div>
+
+            <div className="form-row full">
+              <label className="form-label" htmlFor="edit-requirement-docs">Add submission documents</label>
+              <input
+                id="edit-requirement-docs"
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={handleEditRequirementDocsSelection}
+                disabled={editSubmitting}
+              />
+              {editRequirementDocsFiles.length > 0 && (
+                <div className="muted">
+                  {editRequirementDocsFiles.length} document file{editRequirementDocsFiles.length > 1 ? 's' : ''} will upload on save.
+                </div>
+              )}
+            </div>
+
 
             <div className="modal-actions">
               <button

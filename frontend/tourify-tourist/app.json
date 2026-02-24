@@ -46,10 +46,7 @@
       "expo-video",
       [
         "expo-build-properties",
-        {
-          "android": {},
-          "ios": {}
-        }
+        { "android": {}, "ios": {} }
       ]
     ],
     "extra": {

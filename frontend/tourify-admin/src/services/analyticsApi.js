@@ -33,3 +33,6 @@ export const fetchSpmStatus = () =>
 export const rebuildSpm = () =>
   http.post('/admin/spm/rebuild').then(res => res.data);
 
+export const fetchVisitorNationalities = params =>
+  http.get('/admin/analytics/nationalities', { params });
+

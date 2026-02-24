@@ -28,6 +28,8 @@ export const updateManagedAccountStatus = (accountId, isActive) =>
 export const updateManagedAccount = (accountId, payload) =>
   http.patch(`/admin/lgu/accounts/${accountId}`, payload);
 
-export const fetchLguEstablishmentMedia = (estId) =>
-  http.get(`/admin/establishments/${estId}/media`);
+export const fetchLguEstablishmentMedia = (estId, mediaKind) =>
+  http.get(`/admin/establishments/${estId}/media`, {
+    params: mediaKind ? { media_kind: mediaKind } : undefined,
+  });
 

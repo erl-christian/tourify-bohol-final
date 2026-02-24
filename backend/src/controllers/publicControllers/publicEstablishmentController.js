@@ -14,7 +14,15 @@ const enrichWithMedia = async payload => {
   const estIds = list.map(item => item?.businessEstablishment_id).filter(Boolean);
   if (!estIds.length) return payload;
 
-  const mediaRows = await Media.find({ business_establishment_id: { $in: estIds } })
+  const mediaRows = await Media.find({
+    business_establishment_id: { $in: estIds },
+    file_type: { $in: ['image', 'video'] }, // block documents from public/tourist
+    $or: [
+      { media_kind: 'spot_gallery' },
+      { media_kind: { $exists: false } }, // legacy rows before migration
+      { media_kind: null },               // legacy rows before migration
+    ],
+  })
     .sort({ createdAt: -1 })
     .select(selectFields)
     .lean();
@@ -38,8 +46,37 @@ const enrichWithMedia = async payload => {
   });
 
   const enriched = list.map(attach);
-  return Array.isArray(payload) ? enriched : enriched[0];
-};
+    return Array.isArray(payload) ? enriched : enriched[0];
+  };
+
+  const formatPhp = (value) =>
+    `PHP ${Number(value).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+
+  const attachBudgetMeta = (est) => {
+    if (!est) return est;
+
+    const min = Number(est.budget_min);
+    const max = Number(est.budget_max);
+    const hasMin = Number.isFinite(min);
+    const hasMax = Number.isFinite(max);
+
+    let priceRange = est.price_range || null;
+    let averageSpend = est.average_spend || null;
+
+    if (hasMin && hasMax) {
+      priceRange = `${formatPhp(min)} - ${formatPhp(max)}`;
+      averageSpend = formatPhp(Math.round((min + max) / 2));
+    } else if (hasMin) {
+      priceRange = `${formatPhp(min)} and up`;
+      averageSpend = formatPhp(min);
+    } else if (hasMax) {
+      priceRange = `Up to ${formatPhp(max)}`;
+      averageSpend = formatPhp(max);
+    }
+
+    return { ...est, price_range: priceRange, average_spend: averageSpend };
+  };
+
 
 export const getEstablishments = async (req, res, next) => {
   try {
@@ -130,8 +167,9 @@ export const getEstablishments = async (req, res, next) => {
     ]);
 
     const itemsWithMedia = await enrichWithMedia(items);
+    const itemsWithBudget = (itemsWithMedia || []).map(attachBudgetMeta);
+    res.json({ page: p, pageSize: ps, pages: Math.ceil(total / ps), total, items: itemsWithBudget });
 
-    res.json({ page: p, pageSize: ps, pages: Math.ceil(total / ps), total, items: itemsWithMedia });
   } catch (e) { next(e); }
 };
 
@@ -141,7 +179,7 @@ export const getEstablishmentDetails = async (req, res, next) => {
     const est = await BusinessEstablishment.findOne({ businessEstablishment_id: estId }).lean();
     if (!est || est.status !== 'approved') return res.status(404).json({ message: 'Establishment not found' });
 
-    const establishment = await enrichWithMedia(est);
+    const establishment = attachBudgetMeta(await enrichWithMedia(est));
 
     const agg = await Feedback.aggregate([
       { $match: { business_establishment_id: estId } },

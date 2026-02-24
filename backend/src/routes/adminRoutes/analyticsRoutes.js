@@ -10,6 +10,7 @@ import {
   getVisitorHeatmap,
   getFeedbackDistribution,
   getAccreditationSummary,
+  getVisitorNationalities,
 } from '../../controllers/adminControllers/analyticsControllers.js';
 import { exportAnalyticsExcel, exportAnalyticsPdf } from '../../controllers/adminControllers/exportController.js';
 import { exportLguAnalyticsExcel, exportLguAnalyticsPdf } from '../../controllers/adminControllers/lguExportController.js';
@@ -93,11 +94,20 @@ router.get(
   getAccreditationSummary
 );
 
+router.get(
+  '/nationalities',
+  auth,
+  requireRoles('bto_admin'),
+  getVisitorNationalities
+);
+
 
 router.get('/export/excel', auth, requireRoles('bto_admin'), exportAnalyticsExcel);
 router.get('/export/pdf', auth, requireRoles('bto_admin'), exportAnalyticsPdf);
 
 router.get('/lgu/export/excel', auth, requireRoles('lgu_admin', 'lgu_staff'), exportLguAnalyticsExcel);
 router.get('/lgu/export/pdf', auth, requireRoles('lgu_admin', 'lgu_staff'), exportLguAnalyticsPdf);
+
+router.get('/movements', auth, requireRoles('bto_admin', 'lgu_admin'), getMovementAnalytics);
 
 export default router;

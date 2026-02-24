@@ -703,7 +703,7 @@ function Accounts() {
                 onClick={closeEditModal}
                 disabled={editModal.saving}
               >
-                A-
+                x
               </button>
             </header>
             {editModal.error && <div className="modal-error">{editModal.error}</div>}

@@ -6,6 +6,7 @@ import {
   getCheckins,
   getTagPerformanceSummary,
   getFeedbackCategoryBreakdown,
+   getOwnerNationalities,
 } from '../../controllers/ownerControllers/analyticsController.js';
 
 const router = express.Router();
@@ -15,5 +16,6 @@ router.get('/:estId/review-counts', auth, requireRoles('business_establishment')
 router.get('/:estId/checkins', auth, requireRoles('business_establishment'), getCheckins);
 router.get('/:estId/tag-performance', auth, requireRoles('business_establishment'), getTagPerformanceSummary);
 router.get('/:estId/feedback-categories', auth, requireRoles('business_establishment'), getFeedbackCategoryBreakdown);
+router.get('/:estId/nationalities', auth, requireRoles('business_establishment'), getOwnerNationalities);
 
 export default router;

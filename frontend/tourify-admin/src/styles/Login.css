@@ -374,6 +374,33 @@ input:focus {
   }
 }
 
+.login-modal-change-password {
+  width: min(480px, 100%);
+}
+
+.login-modal-form {
+  gap: 14px;
+}
+
+.login-modal-change-password .form-field {
+  gap: 8px;
+}
+
+.login-modal-change-password .form-field input {
+  height: 48px;
+}
+
+.login-modal-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.login-modal-change-password .primary-button:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
 
 @media (max-width: 1024px) {
   .login-card {
