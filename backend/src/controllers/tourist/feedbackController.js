@@ -17,26 +17,34 @@ export const createFeedback = async (req, res, next) => {
     if (!tourist) { res.status(404); throw new Error("Tourist profile not found"); }
 
     const { itinerary_id, business_establishment_id, rating, review_text } = req.body;
-    if (!itinerary_id || !business_establishment_id || !rating) {
-      res.status(400); throw new Error("itinerary_id, business_establishment_id, rating are required");
+    if (!business_establishment_id || !rating) {
+      res.status(400); throw new Error("business_establishment_id and rating are required");
     }
+
+    const normalizedItineraryId =
+      typeof itinerary_id === "string" && itinerary_id.trim().length
+        ? itinerary_id.trim()
+        : `WALKIN-${Date.now()}`;
+    const isWalkInReview = normalizedItineraryId.toUpperCase().startsWith("WALKIN-");
 
     // ensure establishment exists
     const est = await BusinessEstablishment.findOne({ businessEstablishment_id: business_establishment_id });
     if (!est) { res.status(404); throw new Error("Business establishment not found"); }
 
-    // must have a visited stop in TravelHistory
-    const visited = await TravelHistory.findOne({
-      itinerary_id,
-      tourist_profile_id: tourist.tourist_profile_id,
-      business_establishment_id,
-      status: "visited"
-    });
-    if (!visited) { res.status(400); throw new Error("You can only rate after visiting this establishment"); }
+    if (!isWalkInReview) {
+      // For itinerary-linked reviews, require a visited stop in TravelHistory.
+      const visited = await TravelHistory.findOne({
+        itinerary_id: normalizedItineraryId,
+        tourist_profile_id: tourist.tourist_profile_id,
+        business_establishment_id,
+        status: "visited"
+      });
+      if (!visited) { res.status(400); throw new Error("You can only rate after visiting this establishment"); }
+    }
 
     const fb = await Feedback.create({
       tourist_profile_id: tourist.tourist_profile_id,
-      itinerary_id,
+      itinerary_id: normalizedItineraryId,
       business_establishment_id,
       rating,
       review_text

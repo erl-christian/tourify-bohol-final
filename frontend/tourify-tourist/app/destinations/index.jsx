@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -8,7 +7,7 @@ import {
   TouchableOpacity,
   View,
   ImageBackground,
-  TextInput, 
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,19 +18,49 @@ import { colors, spacing, radii } from '../../constants/theme';
 import { buildEstablishmentCard } from '../../lib/establishments';
 import { getPublicDestinations } from '../../lib/tourist';
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 200;
+const POPULAR_SIZE = 12;
 const HERO_IMAGE = require('../../assets/auth-hero.jpg');
 
-const filters = ['All', 'Beach', 'Nature', 'Heritage', 'Food', 'Adventure'];
+const toTagLabel = value =>
+  String(value ?? '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
 
-const toCardEntry = (est, index) => ({
-  establishment: est,
-  card: buildEstablishmentCard({ establishment: est }, index),
-});
+const toCardEntry = (est, index, { popular = false } = {}) => {
+  const base = buildEstablishmentCard({ establishment: est }, index);
+
+  if (!popular) {
+    return { establishment: est, card: base };
+  }
+
+  const spmValue = Number(est?.spm_support_total) || 0;
+  return {
+    establishment: est,
+    card: {
+      ...base,
+      metricType: 'spm',
+      metricValue: spmValue,
+      reason:
+        spmValue > 0
+          ? `SPM support ${spmValue} from mined next-stop sequences`
+          : 'No strong SPM signal yet',
+    },
+  };
+};
+
+const getEntryId = entry =>
+  entry?.establishment?.businessEstablishment_id ??
+  entry?.establishment?.business_establishment_id ??
+  entry?.card?.id ??
+  null;
 
 export default function DestinationDirectory() {
   const router = useRouter();
   const [entries, setEntries] = useState([]);
+  const [popularEntries, setPopularEntries] = useState([]);
   const [activeFilter, setActiveFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,9 +72,13 @@ export default function DestinationDirectory() {
   const loadDestinations = useCallback(async () => {
     setError('');
     try {
-      const items = await getPublicDestinations({ pageSize: PAGE_SIZE, sort: 'rating_desc' });
-      const formatted = (items ?? []).map(toCardEntry);
-      setEntries(formatted);
+      const [popularItems, allItems] = await Promise.all([
+        getPublicDestinations({ pageSize: POPULAR_SIZE, sort: 'spm_desc' }),
+        getPublicDestinations({ pageSize: PAGE_SIZE, sort: 'rating_desc' }),
+      ]);
+
+      setPopularEntries((popularItems ?? []).map((est, idx) => toCardEntry(est, idx, { popular: true })));
+      setEntries((allItems ?? []).map((est, idx) => toCardEntry(est, idx)));
     } catch (err) {
       console.warn('Failed to load destinations', err);
       setError('Unable to fetch destinations. Pull to refresh.');
@@ -64,37 +97,93 @@ export default function DestinationDirectory() {
     loadDestinations();
   };
 
-  const filteredEntries = useMemo(() => {
-    let list = entries;
+  const filterOptions = useMemo(() => {
+    const set = new Set();
 
-    if (activeFilter !== 'All') {
-      const tag = activeFilter.toLowerCase();
-      list = list.filter(entry => {
-        const tags = entry.establishment?.tag_names ?? entry.card.tags ?? [];
-        return tags.some(t => t?.toLowerCase?.().includes(tag));
+    [...entries, ...popularEntries].forEach(entry => {
+      const est = entry?.establishment ?? {};
+      const tags = Array.isArray(est.tag_names) ? est.tag_names : [];
+
+      tags.forEach(tag => {
+        const label = toTagLabel(tag);
+        if (label) set.add(label);
       });
-    }
 
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return list;
-
-    return list.filter(entry => {
-      const est = entry.establishment ?? {};
-      const name = est.name ?? entry.card.title ?? '';
-      const location = est.address ?? est.municipality_id ?? '';
-      const tags = Array.isArray(est.tag_names) ? est.tag_names.join(' ') : '';
-      return `${name} ${location} ${tags}`.toLowerCase().includes(query);
+      if (!tags.length && est.type) {
+        const label = toTagLabel(est.type);
+        if (label) set.add(label);
+      }
     });
-  }, [entries, activeFilter, searchQuery]);
 
-  const featured = filteredEntries.slice(0, 5);
-  const rest = filteredEntries.slice(5);
+    return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [entries, popularEntries]);
+
+  useEffect(() => {
+    if (!filterOptions.includes(activeFilter)) {
+      setActiveFilter('All');
+    }
+  }, [filterOptions, activeFilter]);
+
+  const applyFilterSearch = useCallback(
+    source => {
+      let list = Array.isArray(source) ? source : [];
+
+      if (activeFilter !== 'All') {
+        const active = activeFilter.trim().toLowerCase();
+
+        list = list.filter(entry => {
+          const est = entry.establishment ?? {};
+          const tagPool = [
+            ...(Array.isArray(est.tag_names) ? est.tag_names : []),
+            est.type,
+            ...(Array.isArray(entry.card?.tags) ? entry.card.tags : []),
+          ]
+            .map(v => String(v ?? '').trim().toLowerCase())
+            .filter(Boolean);
+
+          return tagPool.some(tag => tag.includes(active));
+        });
+      }
+
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return list;
+
+      return list.filter(entry => {
+        const est = entry.establishment ?? {};
+        const name = est.name ?? entry.card.title ?? '';
+        const location = est.address ?? est.municipality_id ?? '';
+        const tags = Array.isArray(est.tag_names) ? est.tag_names.join(' ') : '';
+        return `${name} ${location} ${tags}`.toLowerCase().includes(query);
+      });
+    },
+    [activeFilter, searchQuery],
+  );
+
+  const filteredEntries = useMemo(() => applyFilterSearch(entries), [entries, applyFilterSearch]);
+  const filteredPopularEntries = useMemo(
+    () => applyFilterSearch(popularEntries),
+    [popularEntries, applyFilterSearch],
+  );
+
+  const featuredSource = filteredPopularEntries.length ? filteredPopularEntries : filteredEntries;
+  const featured = featuredSource.slice(0, 5);
+
+  const featuredIdSet = useMemo(() => new Set(featured.map(getEntryId).filter(Boolean)), [featured]);
+
+  const rest = useMemo(
+    () =>
+      filteredEntries.filter(entry => {
+        const id = getEntryId(entry);
+        return !id || !featuredIdSet.has(id);
+      }),
+    [filteredEntries, featuredIdSet],
+  );
 
   const openDestination = est => {
     const estId =
-      est.businessEstablishment_id ??
-      est.business_establishment_id ??
-      est._id ??
+      est?.businessEstablishment_id ??
+      est?.business_establishment_id ??
+      est?._id ??
       null;
     if (!estId) return;
     router.push({ pathname: '/destinations/[id]', params: { id: estId } });
@@ -129,21 +218,23 @@ export default function DestinationDirectory() {
         </ImageBackground>
 
         <View style={styles.searchRow}>
-            <Ionicons name="search-outline" size={16} color={colors.muted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search destinations"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <Ionicons name="search-outline" size={16} color={colors.muted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search destinations"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
 
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
+          nestedScrollEnabled
+          directionalLockEnabled
         >
-          {filters.map(label => {
+          {filterOptions.map(label => {
             const active = label === activeFilter;
             return (
               <TouchableOpacity
@@ -159,7 +250,7 @@ export default function DestinationDirectory() {
 
         <SectionHeader
           title="Popular right now"
-          subtitle="Swipe through the most loved destinations this week."
+          subtitle="Mined from actual next-stop travel sequences."
           actionLabel="See all"
           onPressAction={() => setActiveFilter('All')}
         />
@@ -235,9 +326,9 @@ export default function DestinationDirectory() {
 
             <View style={styles.list}>
               {rest.map(entry => {
-                const est = entry.establishment;
-                const key =
-                  est.businessEstablishment_id ?? est.business_establishment_id ?? entry.card.id;
+                const est = entry.establishment ?? {};
+                const key = getEntryId(entry) ?? entry.card.id;
+
                 return (
                   <TouchableOpacity
                     key={key}
@@ -291,260 +382,259 @@ export default function DestinationDirectory() {
 }
 
 const styles = StyleSheet.create({
-    safe: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
-    content: {
-        paddingBottom: spacing(4),
-        paddingHorizontal: spacing(1.5), // new
-        gap: spacing(1.5),
-    },
-    topBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing(1),
-        width: '100%',
-        paddingTop: spacing(0.5),
-    },
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: 'rgba(108,92,231,0.15)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.white,
-        shadowColor: '#0f172a',
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 2,
-    },
-    topCopy: { flex: 1, gap: spacing(0.15) },
-    topTitle: {
-        fontFamily: 'Inter_700Bold',
-        fontSize: 20,
-        color: colors.text,
-    },
-    topSubtitle: {
-        fontFamily: 'Inter_400Regular',
-        color: colors.muted,
-    },
-    hero: {
-        marginHorizontal: spacing(1.5),
-        height: 220,
-        borderRadius: radii.xl,
-        overflow: 'hidden',
-    },
-    heroImage: { borderRadius: radii.xl },
-    heroOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,23,42,0.5)',
-    },
-    heroContent: {
-        flex: 1,
-        justifyContent: 'center',
-        padding: spacing(2),
-        gap: spacing(0.5),
-    },
-    heroEyebrow: {
-        fontFamily: 'Inter_600SemiBold',
-        color: 'rgba(255,255,255,0.8)',
-        letterSpacing: 1, 
-        fontSize: 12,
-    },
-    heroTitle: {
-        fontFamily: 'Inter_700Bold',
-        fontSize: 24,
-        color: colors.white,
-    },
-    heroSubtitle: {
-        fontFamily: 'Inter_400Regular',
-        color: 'rgba(255,255,255,0.9)',
-    },
-    filterRow: {
-        width: '100%',
-        gap: spacing(0.75),
-    },
-    filterChip: {
-        paddingHorizontal: spacing(1.25),
-        paddingVertical: spacing(0.5),
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(108,92,231,0.2)',
-        backgroundColor: colors.white,
-    },
-    filterChipActive: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
-    filterText: {
-        fontFamily: 'Inter_500Medium',
-        color: colors.text,
-    },
-    filterTextActive: { color: colors.white },
-    featuredRow: {
-        paddingHorizontal: spacing(1.5),
-        gap: spacing(1),
-    },
-    stateCard: {
-        marginHorizontal: spacing(1.5),
-        padding: spacing(1.5),
-        borderRadius: spacing(1),
-        backgroundColor: colors.white,
-        borderColor: 'rgba(108,92,231,0.15)',
-        borderWidth: 1,
-        alignItems: 'center',
-        gap: spacing(0.5),
-    },
-    stateText: {
-        fontFamily: 'Inter_500Medium',
-        color: colors.text,
-        textAlign: 'center',
-    },
-    list: {
-        paddingHorizontal: spacing(1.5),
-        gap: spacing(1),
-    },
-    listCard: {
-        borderRadius: radii.lg,
-        backgroundColor: colors.white,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(148,163,184,0.2)',
-    },
-    listImage: {
-        height: 160,
-        width: '100%',
-    },
-    listImageRadius: {
-        borderTopLeftRadius: radii.lg,
-        borderTopRightRadius: radii.lg,
-    },
-    listGradient: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,23,42,0.15)',
-    },
-    listBody: {
-        padding: spacing(1.25),
-        gap: spacing(0.5),
-    },
-    listHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        gap: spacing(1),
-    },
-    listTitle: {
-        flex: 1,
-        fontFamily: 'Inter_700Bold',
-        fontSize: 16,
-        color: colors.text,
-    },
-    ratingTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing(0.25),
-        backgroundColor: 'rgba(250,204,21,0.12)',
-        borderRadius: radii.md,
-        paddingHorizontal: spacing(0.75),
-        paddingVertical: spacing(0.25),
-    },
-    ratingValue: {
-        fontFamily: 'Inter_600SemiBold',
-        color: '#854d0e',
-    },
-    listMeta: {
-        fontFamily: 'Inter_400Regular',
-        color: colors.muted,
-    },
-    tagRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing(0.5),
-        marginTop: spacing(0.5),
-    },
-    tagChip: {
-        borderRadius: radii.md,
-        paddingHorizontal: spacing(0.75),
-        paddingVertical: spacing(0.25),
-        backgroundColor: 'rgba(108,92,231,0.1)',
-    },
-    tagChipText: {
-        fontFamily: 'Inter_500Medium',
-        color: colors.primary,
-        fontSize: 12,
-    },
-    searchRow: {
-      marginHorizontal: spacing(1.5),
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing(0.75),
-      borderWidth: 1,
-      borderColor: 'rgba(108,92,231,0.2)',
-      borderRadius: 999,
-      paddingHorizontal: spacing(1.25),
-      backgroundColor: colors.white,
-    },
-    searchInput: {
-      flex: 1,
-      height: 40,
-      fontFamily: 'Inter_500Medium',
-      color: colors.text,
-    },
-    skeletonFeaturedCard: {
-      width: 240,
-      borderRadius: radii.lg,
-      backgroundColor: colors.white,
-      padding: spacing(1),
-      marginRight: spacing(1),
-      borderWidth: 1,
-      borderColor: 'rgba(108,92,231,0.12)',
-      gap: spacing(0.75),
-    },
-    skeletonFeaturedImage: {
-      height: 140,
-      borderRadius: radii.md,
-      backgroundColor: 'rgba(15,23,42,0.08)',
-    },
-    skeletonListCard: {
-      borderRadius: radii.lg,
-      backgroundColor: colors.white,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: 'rgba(148,163,184,0.2)',
-    },
-    skeletonListImage: {
-      height: 160,
-      backgroundColor: 'rgba(15,23,42,0.08)',
-    },
-    skeletonListBody: {
-      padding: spacing(1.25),
-      gap: spacing(0.5),
-    },
-    skeletonLineWide: {
-      height: 14,
-      borderRadius: 7,
-      backgroundColor: 'rgba(15,23,42,0.08)',
-    },
-    skeletonLineSmall: {
-      height: 10,
-      width: '60%',
-      borderRadius: 5,
-      backgroundColor: 'rgba(15,23,42,0.08)',
-    },
-    skeletonTagRow: {
-      flexDirection: 'row',
-      gap: spacing(0.5),
-      marginTop: spacing(0.5),
-    },
-    skeletonTag: {
-      width: 50,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: 'rgba(15,23,42,0.08)',
-    },
-
-
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    paddingBottom: spacing(4),
+    paddingHorizontal: spacing(1.5),
+    gap: spacing(1.5),
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+    width: '100%',
+    paddingTop: spacing(0.5),
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  topCopy: { flex: 1, gap: spacing(0.15) },
+  topTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 20,
+    color: colors.text,
+  },
+  topSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    color: colors.muted,
+  },
+  hero: {
+    marginHorizontal: spacing(1.5),
+    height: 220,
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+  },
+  heroImage: { borderRadius: radii.xl },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.5)',
+  },
+  heroContent: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing(2),
+    gap: spacing(0.5),
+  },
+  heroEyebrow: {
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 1,
+    fontSize: 12,
+  },
+  heroTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 24,
+    color: colors.white,
+  },
+  heroSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  filterRow: {
+    paddingHorizontal: spacing(1.5),
+    gap: spacing(0.75),
+    alignItems: 'center',
+  },
+  filterChip: {
+    paddingHorizontal: spacing(1.25),
+    paddingVertical: spacing(0.5),
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.2)',
+    backgroundColor: colors.white,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+  },
+  filterTextActive: { color: colors.white },
+  featuredRow: {
+    paddingHorizontal: spacing(1.5),
+    gap: spacing(1),
+  },
+  stateCard: {
+    marginHorizontal: spacing(1.5),
+    padding: spacing(1.5),
+    borderRadius: spacing(1),
+    backgroundColor: colors.white,
+    borderColor: 'rgba(108,92,231,0.15)',
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: spacing(0.5),
+  },
+  stateText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  list: {
+    paddingHorizontal: spacing(1.5),
+    gap: spacing(1),
+  },
+  listCard: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  listImage: {
+    height: 160,
+    width: '100%',
+  },
+  listImageRadius: {
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+  },
+  listGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.15)',
+  },
+  listBody: {
+    padding: spacing(1.25),
+    gap: spacing(0.5),
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  listTitle: {
+    flex: 1,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    color: colors.text,
+  },
+  ratingTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.25),
+    backgroundColor: 'rgba(250,204,21,0.12)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing(0.75),
+    paddingVertical: spacing(0.25),
+  },
+  ratingValue: {
+    fontFamily: 'Inter_600SemiBold',
+    color: '#854d0e',
+  },
+  listMeta: {
+    fontFamily: 'Inter_400Regular',
+    color: colors.muted,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing(0.5),
+    marginTop: spacing(0.5),
+  },
+  tagChip: {
+    borderRadius: radii.md,
+    paddingHorizontal: spacing(0.75),
+    paddingVertical: spacing(0.25),
+    backgroundColor: 'rgba(108,92,231,0.1)',
+  },
+  tagChipText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.primary,
+    fontSize: 12,
+  },
+  searchRow: {
+    marginHorizontal: spacing(1.5),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.75),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.2)',
+    borderRadius: 999,
+    paddingHorizontal: spacing(1.25),
+    backgroundColor: colors.white,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+  },
+  skeletonFeaturedCard: {
+    width: 240,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    padding: spacing(1),
+    marginRight: spacing(1),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.12)',
+    gap: spacing(0.75),
+  },
+  skeletonFeaturedImage: {
+    height: 140,
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonListCard: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  skeletonListImage: {
+    height: 160,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonListBody: {
+    padding: spacing(1.25),
+    gap: spacing(0.5),
+  },
+  skeletonLineWide: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonLineSmall: {
+    height: 10,
+    width: '60%',
+    borderRadius: 5,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
+  skeletonTagRow: {
+    flexDirection: 'row',
+    gap: spacing(0.5),
+    marginTop: spacing(0.5),
+  },
+  skeletonTag: {
+    width: 50,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(15,23,42,0.08)',
+  },
 });

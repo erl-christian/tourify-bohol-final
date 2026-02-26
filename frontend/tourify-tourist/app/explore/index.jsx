@@ -40,6 +40,8 @@ import {
 
 const PENDING_KEY = '@tourify/pending_itinerary_stops';
 const DEFAULT_INTEREST_VALUES = ['beach', 'heritage', 'adventure', 'nature', 'food'];
+const BUNDLE_MAX_COUNT = 4;
+const BUNDLE_MEMBER_LIMIT = 5;
 
 const makeInterestOption = value => {
   const trimmed = value.trim();
@@ -75,35 +77,144 @@ const buildMarkers = items =>
     })
     .filter(Boolean);
 
+const parseFinite = value => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const normaliseTagKey = value =>
+  String(value ?? '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const deriveSpmValue = recommendation => {
+  const est = recommendation?.establishment ?? {};
+  const supportFromEst = parseFinite(est.spm_support_total);
+  const supportFromRec = parseFinite(recommendation?.spm_support_total);
+  const confidence = parseFinite(recommendation?.params?.spm?.confidence);
+  const lift = parseFinite(recommendation?.params?.spm?.lift);
+  const confidenceLiftScore = confidence > 0 ? confidence * Math.max(1, lift) * 100 : 0;
+  return Math.max(supportFromEst, supportFromRec, confidenceLiftScore);
+};
+
 const buildBundlesFrom = items => {
-  const buckets = new Map();
+  const prepared = (items ?? [])
+    .map(source => normaliseEstablishmentSource(source))
+    .filter(Boolean)
+    .map(rec => {
+      const est = rec.establishment ?? {};
+      const estId = extractEstablishmentId(rec);
+      if (!estId) return null;
 
-  (items ?? []).forEach(rec => {
-    const est = rec.establishment ?? {};
-    const tags = Array.isArray(est.tag_names) ? est.tag_names : [];
-    const keyTag = tags[0] ?? est.type ?? 'Featured';
-    if (!keyTag) return;
+      const rawTags = Array.isArray(est.tag_names) ? est.tag_names : [];
+      const tags = [...new Set([...rawTags, est.type].map(normaliseTagKey).filter(Boolean))];
+      const bundleTags = tags.length ? tags : ['featured'];
 
-    const id = keyTag.toLowerCase();
-    if (!buckets.has(id)) {
-      const title = `${toTitle(keyTag)} Highlights`;
-      buckets.set(id, {
-        id,
-        title,
-        description: `Destinations tagged ${toTitle(keyTag)} curated for your trip.`,
-        tags: [toTitle(keyTag)],
-        count: 0,
-      });
-    }
-    buckets.get(id).count += 1;
+      return {
+        recommendation: rec,
+        estId,
+        tags: bundleTags,
+        rating: Math.max(0, Math.min(5, parseFinite(est.rating_avg))),
+        spm: deriveSpmValue(rec),
+      };
+    })
+    .filter(Boolean);
+
+  if (!prepared.length) return [];
+
+  const maxSpm = Math.max(...prepared.map(item => item.spm), 1);
+  const totalPrepared = prepared.length;
+  const tagFrequency = new Map();
+
+  prepared.forEach(item => {
+    item.tags.forEach(tag => {
+      tagFrequency.set(tag, (tagFrequency.get(tag) ?? 0) + 1);
+    });
   });
 
-  return Array.from(buckets.values())
-    .map(entry => ({
-      ...entry,
-      tags: [...entry.tags, `${entry.count} spots`],
-    }))
-    .slice(0, 4);
+  const buckets = new Map();
+  prepared.forEach(item => {
+    const destinationScore = (item.rating / 5) * 0.55 + (item.spm / maxSpm) * 0.45;
+
+    item.tags.forEach(tag => {
+      const coverage = Math.min((tagFrequency.get(tag) ?? 0) / totalPrepared, 1);
+      const weightedScore = destinationScore * (0.75 + coverage * 0.25);
+
+      if (!buckets.has(tag)) {
+        buckets.set(tag, {
+          tag,
+          members: [],
+          score: 0,
+          ratingTotal: 0,
+          spmTotal: 0,
+        });
+      }
+
+      const bucket = buckets.get(tag);
+      bucket.members.push({ ...item, destinationScore });
+      bucket.score += weightedScore;
+      bucket.ratingTotal += item.rating;
+      bucket.spmTotal += item.spm;
+    });
+  });
+
+  const rawBundles = Array.from(buckets.values())
+    .map(bucket => {
+      const uniqueMemberMap = new Map();
+
+      bucket.members.forEach(member => {
+        const existing = uniqueMemberMap.get(member.estId);
+        if (!existing || member.destinationScore > existing.destinationScore) {
+          uniqueMemberMap.set(member.estId, member);
+        }
+      });
+
+      const members = Array.from(uniqueMemberMap.values()).sort(
+        (a, b) => b.destinationScore - a.destinationScore
+      );
+      if (!members.length) return null;
+
+      const count = members.length;
+      const avgRating = bucket.ratingTotal / bucket.members.length;
+      const totalSpm = bucket.spmTotal;
+      const bundleScore = bucket.score / bucket.members.length + Math.min(count / 5, 1) * 0.2;
+      const label = toTitle(bucket.tag) || 'Featured';
+      const rankedMembers = members
+        .slice(0, BUNDLE_MEMBER_LIMIT)
+        .map(member => member.recommendation);
+
+      return {
+        id: bucket.tag.replace(/\s+/g, '-'),
+        title: `${label} Smart Route`,
+        description: `${count} stops prioritised by rating and SPM travel flow support.`,
+        tags: [
+          label,
+          `${count} spots`,
+          `Rating ${avgRating.toFixed(1)}`,
+          `SPM ${Math.round(totalSpm)}`,
+        ],
+        members: rankedMembers,
+        count,
+        score: bundleScore,
+      };
+    })
+    .filter(Boolean);
+
+  const multiStopBundles = rawBundles.filter(bundle => bundle.count >= 2);
+  const base = multiStopBundles.length ? multiStopBundles : rawBundles;
+
+  return base
+    .sort((a, b) => b.score - a.score)
+    .slice(0, BUNDLE_MAX_COUNT)
+    .map(bundle => ({
+      id: bundle.id,
+      title: bundle.title,
+      description: bundle.description,
+      tags: bundle.tags,
+      members: bundle.members,
+    }));
 };
 
 export default function Explore() {
@@ -449,15 +560,15 @@ export default function Explore() {
     Alert.alert('Location unavailable', 'Generate recommendations to plot destinations.');
   };
 
-  const addToPlanner = async source => {
+  const buildPlannerPayload = source => {
     const normalised = normaliseEstablishmentSource(source);
-    if (!normalised) return;
+    if (!normalised) return null;
 
     const est = normalised.establishment ?? {};
     const latitude = est.latitude ?? est.location?.coordinates?.[1];
     const longitude = est.longitude ?? est.location?.coordinates?.[0];
 
-    const payload = {
+    return {
       id:
         normalised.travel_recommendation_id ??
         est.businessEstablishment_id ??
@@ -474,35 +585,62 @@ export default function Explore() {
       latitude,
       longitude,
     };
+  };
 
+  const queueIdentity = item =>
+    item?.id ??
+    item?.travel_recommendation_id ??
+    item?.business_establishment_id ??
+    item?.establishment?.business_establishment_id ??
+    item?.establishment?.businessEstablishment_id ??
+    null;
+
+  const queuePlannerSources = async sources => {
+    const payloads = (Array.isArray(sources) ? sources : [sources])
+      .map(buildPlannerPayload)
+      .filter(Boolean);
+
+    if (!payloads.length) {
+      return { added: 0, skipped: 0, total: 0 };
+    }
+
+    const raw = await AsyncStorage.getItem(PENDING_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const current = Array.isArray(list) ? list : [];
+    const currentIds = new Set(current.map(queueIdentity).filter(Boolean));
+
+    const updated = [...current];
+    let added = 0;
+    let skipped = 0;
+
+    payloads.forEach(payload => {
+      const incomingId = queueIdentity(payload);
+      if (incomingId && currentIds.has(incomingId)) {
+        skipped += 1;
+        return;
+      }
+      if (incomingId) currentIds.add(incomingId);
+      updated.push(payload);
+      added += 1;
+    });
+
+    if (added > 0) {
+      await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(updated));
+      setPendingCount(updated.length);
+    }
+
+    return { added, skipped, total: payloads.length };
+  };
+
+  const addToPlanner = async source => {
     try {
-      const raw = await AsyncStorage.getItem(PENDING_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      const array = Array.isArray(list) ? list : [];
+      const { added } = await queuePlannerSources([source]);
 
-      const incomingId =
-        payload.id ??
-        payload.travel_recommendation_id ??
-        payload.business_establishment_id ??
-        payload.establishment?.business_establishment_id;
-
-      const exists = array.some(item => {
-        const existingId =
-          item.id ??
-          item.travel_recommendation_id ??
-          item.business_establishment_id ??
-          item.establishment?.business_establishment_id;
-        return existingId && incomingId && existingId === incomingId;
-      });
-
-      if (exists) {
+      if (added === 0) {
         Alert.alert('Already saved', 'This destination is already queued for route planning.');
         return;
       }
 
-      const updated = [...array, payload];
-      await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(updated));
-      setPendingCount(updated.length);
       Alert.alert('Itinerary updated', 'Destination saved for route planning.');
 
       if (selectedDestination) {
@@ -512,6 +650,29 @@ export default function Explore() {
     } catch (err) {
       console.warn('Unable to queue itinerary stop', err);
       Alert.alert('Oops', 'Could not save this destination. Please try again.');
+    }
+  };
+
+  const addBundleToPlanner = async bundle => {
+    const members = Array.isArray(bundle?.members) ? bundle.members : [];
+    if (!members.length) {
+      Alert.alert('Bundle unavailable', 'No destinations were found for this bundle.');
+      return;
+    }
+
+    try {
+      const { added, skipped } = await queuePlannerSources(members);
+
+      if (added === 0) {
+        Alert.alert('Already saved', 'All destinations in this bundle are already queued.');
+        return;
+      }
+
+      const detail = skipped > 0 ? ` ${skipped} were already queued.` : '';
+      Alert.alert('Itinerary updated', `${added} destination(s) added from bundle.${detail}`);
+    } catch (err) {
+      console.warn('Unable to queue bundle stops', err);
+      Alert.alert('Oops', 'Could not save this bundle. Please try again.');
     }
   };
 
@@ -744,7 +905,7 @@ export default function Explore() {
           <>
             <SectionHeader
               title='Smart bundles'
-              subtitle='ACO combines similar spots into themed day trips.'
+              subtitle='Auto-ranked by tags, ratings, and SPM travel flow strength.'
               actionSlot={
                 <TouchableOpacity onPress={handleSmartSuggest}>
                   <Text style={styles.linkText}>Refresh</Text>
@@ -765,9 +926,7 @@ export default function Explore() {
                   </View>
                   <TouchableOpacity
                     style={styles.bundleButton}
-                    onPress={() =>
-                      Alert.alert('Coming soon', 'Bundle itinerary builder in progress.')
-                    }
+                    onPress={() => addBundleToPlanner(bundle)}
                     activeOpacity={0.85}
                   >
                     <Ionicons name='add-circle-outline' size={16} color={colors.primary} />

@@ -1,0 +1,1076 @@
+
+{
+  "seedId": "defend-demo-v1",
+  "createdAt": "2026-02-24T13:44:23.208Z",
+  "defaultPassword": "Defend@123",
+  "created": {
+    "accountIds": [
+      "2026-02-24-0005",
+      "2026-02-24-0006",
+      "2026-02-24-0007",
+      "2026-02-24-0008",
+      "2026-02-24-0009",
+      "2026-02-24-0010",
+      "2026-02-24-0011",
+      "2026-02-24-0012",
+      "2026-02-24-0013",
+      "2026-02-24-0014",
+      "2026-02-24-0015",
+      "2026-02-24-0016",
+      "2026-02-24-0017",
+      "2026-02-24-0018",
+      "2026-02-24-0019",
+      "2026-02-24-0020",
+      "2026-02-24-0021",
+      "2026-02-24-0022",
+      "2026-02-24-0023",
+      "2026-02-24-0024",
+      "2026-02-24-0025",
+      "2026-02-24-0026",
+      "2026-02-24-0027",
+      "2026-02-24-0028",
+      "2026-02-24-0029",
+      "2026-02-24-0030",
+      "2026-02-24-0031",
+      "2026-02-24-0032",
+      "2026-02-24-0033",
+      "2026-02-24-0034",
+      "2026-02-24-0035",
+      "2026-02-24-0036",
+      "2026-02-24-0037",
+      "2026-02-24-0038",
+      "2026-02-24-0039",
+      "2026-02-24-0040",
+      "2026-02-24-0041",
+      "2026-02-24-0042",
+      "2026-02-24-0043",
+      "2026-02-24-0044",
+      "2026-02-24-0045",
+      "2026-02-24-0046",
+      "2026-02-24-0047",
+      "2026-02-24-0048",
+      "2026-02-24-0049",
+      "2026-02-24-0050",
+      "2026-02-24-0051",
+      "2026-02-24-0052",
+      "2026-02-24-0053",
+      "2026-02-24-0054",
+      "2026-02-24-0055",
+      "2026-02-24-0056",
+      "2026-02-24-0057",
+      "2026-02-24-0058",
+      "2026-02-24-0059",
+      "2026-02-24-0060",
+      "2026-02-24-0061",
+      "2026-02-24-0062",
+      "2026-02-24-0063",
+      "2026-02-24-0064",
+      "2026-02-24-0065",
+      "2026-02-24-0066",
+      "2026-02-24-0067",
+      "2026-02-24-0068",
+      "2026-02-24-0069",
+      "2026-02-24-0070",
+      "2026-02-24-0071",
+      "2026-02-24-0072",
+      "2026-02-24-0073",
+      "2026-02-24-0074",
+      "2026-02-24-0075",
+      "2026-02-24-0076",
+      "2026-02-24-0077",
+      "2026-02-24-0078",
+      "2026-02-24-0079",
+      "2026-02-24-0080",
+      "2026-02-24-0081",
+      "2026-02-24-0082",
+      "2026-02-24-0083",
+      "2026-02-24-0084",
+      "2026-02-24-0085",
+      "2026-02-24-0086",
+      "2026-02-24-0087",
+      "2026-02-24-0088",
+      "2026-02-24-0089",
+      "2026-02-24-0090",
+      "2026-02-24-0091",
+      "2026-02-24-0092",
+      "2026-02-24-0093",
+      "2026-02-24-0094",
+      "2026-02-24-0095",
+      "2026-02-24-0096",
+      "2026-02-24-0097",
+      "2026-02-24-0098",
+      "2026-02-24-0099",
+      "2026-02-24-0100",
+      "2026-02-24-0101",
+      "2026-02-24-0102",
+      "2026-02-24-0103",
+      "2026-02-24-0104",
+      "2026-02-24-0105",
+      "2026-02-24-0106",
+      "2026-02-24-0107",
+      "2026-02-24-0108",
+      "2026-02-24-0109",
+      "2026-02-24-0110",
+      "2026-02-24-0111",
+      "2026-02-24-0112",
+      "2026-02-24-0113",
+      "2026-02-24-0114",
+      "2026-02-24-0115",
+      "2026-02-24-0116",
+      "2026-02-24-0117",
+      "2026-02-24-0118",
+      "2026-02-24-0119",
+      "2026-02-24-0120",
+      "2026-02-24-0121",
+      "2026-02-24-0122",
+      "2026-02-24-0123",
+      "2026-02-24-0124"
+    ],
+    "adminProfileIds": [
+      "ADM-0028",
+      "ADM-0029",
+      "ADM-0030",
+      "ADM-0031",
+      "ADM-0032",
+      "ADM-0033",
+      "ADM-0034",
+      "ADM-0035",
+      "ADM-0036",
+      "ADM-0037",
+      "ADM-0038",
+      "ADM-0039",
+      "ADM-0040",
+      "ADM-0041",
+      "ADM-0042",
+      "ADM-0043",
+      "ADM-0044",
+      "ADM-0045",
+      "ADM-0046",
+      "ADM-0047",
+      "ADM-0048",
+      "ADM-0049",
+      "ADM-0050",
+      "ADM-0051",
+      "ADM-0052",
+      "ADM-0053",
+      "ADM-0054",
+      "ADM-0055",
+      "ADM-0056",
+      "ADM-0057",
+      "ADM-0058",
+      "ADM-0059",
+      "ADM-0060",
+      "ADM-0061",
+      "ADM-0062",
+      "ADM-0063",
+      "ADM-0064",
+      "ADM-0065",
+      "ADM-0066",
+      "ADM-0067",
+      "ADM-0068",
+      "ADM-0069",
+      "ADM-0070",
+      "ADM-0071",
+      "ADM-0072",
+      "ADM-0073",
+      "ADM-0074",
+      "ADM-0075",
+      "ADM-0076",
+      "ADM-0077",
+      "ADM-0078",
+      "ADM-0079",
+      "ADM-0080",
+      "ADM-0081",
+      "ADM-0082",
+      "ADM-0083",
+      "ADM-0084",
+      "ADM-0085",
+      "ADM-0086",
+      "ADM-0087",
+      "ADM-0088",
+      "ADM-0089",
+      "ADM-0090",
+      "ADM-0091",
+      "ADM-0092",
+      "ADM-0093",
+      "ADM-0094",
+      "ADM-0095",
+      "ADM-0096",
+      "ADM-0097",
+      "ADM-0098",
+      "ADM-0099",
+      "ADM-0100",
+      "ADM-0101",
+      "ADM-0102",
+      "ADM-0103",
+      "ADM-0104",
+      "ADM-0105",
+      "ADM-0106",
+      "ADM-0107",
+      "ADM-0108",
+      "ADM-0109",
+      "ADM-0110",
+      "ADM-0111",
+      "ADM-0112",
+      "ADM-0113",
+      "ADM-0114",
+      "ADM-0115",
+      "ADM-0116",
+      "ADM-0117",
+      "ADM-0118",
+      "ADM-0119",
+      "ADM-0120",
+      "ADM-0121",
+      "ADM-0122",
+      "ADM-0123"
+    ],
+    "ownerProfileIds": [
+      "BEP-0009",
+      "BEP-0010",
+      "BEP-0011",
+      "BEP-0012",
+      "BEP-0013",
+      "BEP-0014",
+      "BEP-0015",
+      "BEP-0016",
+      "BEP-0017",
+      "BEP-0018",
+      "BEP-0019",
+      "BEP-0020",
+      "BEP-0021",
+      "BEP-0022",
+      "BEP-0023",
+      "BEP-0024",
+      "BEP-0025",
+      "BEP-0026",
+      "BEP-0027",
+      "BEP-0028",
+      "BEP-0029",
+      "BEP-0030",
+      "BEP-0031",
+      "BEP-0032"
+    ],
+    "establishmentIds": [
+      "EST-0034",
+      "EST-0035",
+      "EST-0036",
+      "EST-0037",
+      "EST-0038",
+      "EST-0039",
+      "EST-0040",
+      "EST-0041",
+      "EST-0042",
+      "EST-0043",
+      "EST-0044",
+      "EST-0045",
+      "EST-0046",
+      "EST-0047",
+      "EST-0048",
+      "EST-0049",
+      "EST-0050",
+      "EST-0051",
+      "EST-0052",
+      "EST-0053",
+      "EST-0054",
+      "EST-0055",
+      "EST-0056",
+      "EST-0057"
+    ],
+    "approvalIds": [
+      "EAPP-0054",
+      "EAPP-0055",
+      "EAPP-0056",
+      "EAPP-0057",
+      "EAPP-0058",
+      "EAPP-0059",
+      "EAPP-0060",
+      "EAPP-0061",
+      "EAPP-0062",
+      "EAPP-0063",
+      "EAPP-0064",
+      "EAPP-0065",
+      "EAPP-0066",
+      "EAPP-0067",
+      "EAPP-0068",
+      "EAPP-0069",
+      "EAPP-0070",
+      "EAPP-0071",
+      "EAPP-0072",
+      "EAPP-0073",
+      "EAPP-0074",
+      "EAPP-0075",
+      "EAPP-0076",
+      "EAPP-0077"
+    ],
+    "mediaIds": [
+      "MED-2026-02-24-0002",
+      "MED-2026-02-24-0003",
+      "MED-2026-02-24-0004",
+      "MED-2026-02-24-0005",
+      "MED-2026-02-24-0006",
+      "MED-2026-02-24-0007",
+      "MED-2026-02-24-0008",
+      "MED-2026-02-24-0009",
+      "MED-2026-02-24-0010",
+      "MED-2026-02-24-0011",
+      "MED-2026-02-24-0012",
+      "MED-2026-02-24-0013",
+      "MED-2026-02-24-0014",
+      "MED-2026-02-24-0015",
+      "MED-2026-02-24-0016",
+      "MED-2026-02-24-0017",
+      "MED-2026-02-24-0018",
+      "MED-2026-02-24-0019",
+      "MED-2026-02-24-0020",
+      "MED-2026-02-24-0021",
+      "MED-2026-02-24-0022",
+      "MED-2026-02-24-0023",
+      "MED-2026-02-24-0024",
+      "MED-2026-02-24-0025"
+    ]
+  },
+  "credentials": {
+    "lgu_admins": [
+      {
+        "municipality_id": "ALBU-001",
+        "municipality_name": "Alburquerque",
+        "email": "defend-demo-v1.lgu.admin.albu-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ALIC-001",
+        "municipality_name": "Alicia",
+        "email": "defend-demo-v1.lgu.admin.alic-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ANDA-001",
+        "municipality_name": "Anda",
+        "email": "defend-demo-v1.lgu.admin.anda-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ANTE-001",
+        "municipality_name": "Antequera",
+        "email": "defend-demo-v1.lgu.admin.ante-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BACL-001",
+        "municipality_name": "Baclayon",
+        "email": "defend-demo-v1.lgu.admin.bacl-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BALI-001",
+        "municipality_name": "Balilihan",
+        "email": "defend-demo-v1.lgu.admin.bali-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BATU-001",
+        "municipality_name": "Batuan",
+        "email": "defend-demo-v1.lgu.admin.batu-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BIEN-001",
+        "municipality_name": "Bien Unido",
+        "email": "defend-demo-v1.lgu.admin.bien-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BILA-001",
+        "municipality_name": "Bilar",
+        "email": "defend-demo-v1.lgu.admin.bila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BUEN-001",
+        "municipality_name": "Buenavista",
+        "email": "defend-demo-v1.lgu.admin.buen-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CALA-001",
+        "municipality_name": "Calape",
+        "email": "defend-demo-v1.lgu.admin.cala-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CAND-001",
+        "municipality_name": "Candijay",
+        "email": "defend-demo-v1.lgu.admin.cand-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CARM-001",
+        "municipality_name": "Carmen",
+        "email": "defend-demo-v1.lgu.admin.carm-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CATI-001",
+        "municipality_name": "Catigbian",
+        "email": "defend-demo-v1.lgu.admin.cati-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CLAR-001",
+        "municipality_name": "Clarin",
+        "email": "defend-demo-v1.lgu.admin.clar-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CORE-001",
+        "municipality_name": "Corella",
+        "email": "defend-demo-v1.lgu.admin.core-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CORT-001",
+        "municipality_name": "Cortes",
+        "email": "defend-demo-v1.lgu.admin.cort-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DAGO-001",
+        "municipality_name": "Dagohoy",
+        "email": "defend-demo-v1.lgu.admin.dago-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DANA-001",
+        "municipality_name": "Danao",
+        "email": "defend-demo-v1.lgu.admin.dana-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DAUI-001",
+        "municipality_name": "Dauis",
+        "email": "defend-demo-v1.lgu.admin.daui-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DIMI-001",
+        "municipality_name": "Dimiao",
+        "email": "defend-demo-v1.lgu.admin.dimi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DUER-001",
+        "municipality_name": "Duero",
+        "email": "defend-demo-v1.lgu.admin.duer-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GARC-001",
+        "municipality_name": "Garcia Hernandez",
+        "email": "defend-demo-v1.lgu.admin.garc-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GETA-001",
+        "municipality_name": "Getafe",
+        "email": "defend-demo-v1.lgu.admin.geta-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GUIN-001",
+        "municipality_name": "Guindulman",
+        "email": "defend-demo-v1.lgu.admin.guin-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "INAB-001",
+        "municipality_name": "Inabanga",
+        "email": "defend-demo-v1.lgu.admin.inab-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "JAGN-001",
+        "municipality_name": "Jagna",
+        "email": "defend-demo-v1.lgu.admin.jagn-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LILA-001",
+        "municipality_name": "Lila",
+        "email": "defend-demo-v1.lgu.admin.lila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOAY-001",
+        "municipality_name": "Loay",
+        "email": "defend-demo-v1.lgu.admin.loay-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOBO-001",
+        "municipality_name": "Loboc",
+        "email": "defend-demo-v1.lgu.admin.lobo-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOON-001",
+        "municipality_name": "Loon",
+        "email": "defend-demo-v1.lgu.admin.loon-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "MABI-001",
+        "municipality_name": "Mabini",
+        "email": "defend-demo-v1.lgu.admin.mabi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "MARI-001",
+        "municipality_name": "Maribojoc",
+        "email": "defend-demo-v1.lgu.admin.mari-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PANG-001",
+        "municipality_name": "Panglao",
+        "email": "defend-demo-v1.lgu.admin.pang-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PILA-001",
+        "municipality_name": "Pilar",
+        "email": "defend-demo-v1.lgu.admin.pila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PRES-001",
+        "municipality_name": "President Carlos P. Garcia",
+        "email": "defend-demo-v1.lgu.admin.pres-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAGB-001",
+        "municipality_name": "Sagbayan",
+        "email": "defend-demo-v1.lgu.admin.sagb-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAN -001",
+        "municipality_name": "San Isidro",
+        "email": "defend-demo-v1.lgu.admin.san-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAN -002",
+        "municipality_name": "San Miguel",
+        "email": "defend-demo-v1.lgu.admin.san-002@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SEVI-001",
+        "municipality_name": "Sevilla",
+        "email": "defend-demo-v1.lgu.admin.sevi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SIER-001",
+        "municipality_name": "Sierra Bullones",
+        "email": "defend-demo-v1.lgu.admin.sier-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SIKA-001",
+        "municipality_name": "Sikatuna",
+        "email": "defend-demo-v1.lgu.admin.sika-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TAGB-003",
+        "municipality_name": "Tagbilaran City",
+        "email": "defend-demo-v1.lgu.admin.tagb-003@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TALI-001",
+        "municipality_name": "Talibon",
+        "email": "defend-demo-v1.lgu.admin.tali-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TRIN-001",
+        "municipality_name": "Trinidad",
+        "email": "defend-demo-v1.lgu.admin.trin-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TUBI-001",
+        "municipality_name": "Tubigon",
+        "email": "defend-demo-v1.lgu.admin.tubi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "UBAY-001",
+        "municipality_name": "Ubay",
+        "email": "defend-demo-v1.lgu.admin.ubay-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "VALE-001",
+        "municipality_name": "Valencia",
+        "email": "defend-demo-v1.lgu.admin.vale-001@tourify.local",
+        "password": "Defend@123"
+      }
+    ],
+    "lgu_staffs": [
+      {
+        "municipality_id": "ALBU-001",
+        "municipality_name": "Alburquerque",
+        "email": "defend-demo-v1.lgu.staff.albu-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ALIC-001",
+        "municipality_name": "Alicia",
+        "email": "defend-demo-v1.lgu.staff.alic-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ANDA-001",
+        "municipality_name": "Anda",
+        "email": "defend-demo-v1.lgu.staff.anda-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "ANTE-001",
+        "municipality_name": "Antequera",
+        "email": "defend-demo-v1.lgu.staff.ante-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BACL-001",
+        "municipality_name": "Baclayon",
+        "email": "defend-demo-v1.lgu.staff.bacl-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BALI-001",
+        "municipality_name": "Balilihan",
+        "email": "defend-demo-v1.lgu.staff.bali-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BATU-001",
+        "municipality_name": "Batuan",
+        "email": "defend-demo-v1.lgu.staff.batu-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BIEN-001",
+        "municipality_name": "Bien Unido",
+        "email": "defend-demo-v1.lgu.staff.bien-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BILA-001",
+        "municipality_name": "Bilar",
+        "email": "defend-demo-v1.lgu.staff.bila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "BUEN-001",
+        "municipality_name": "Buenavista",
+        "email": "defend-demo-v1.lgu.staff.buen-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CALA-001",
+        "municipality_name": "Calape",
+        "email": "defend-demo-v1.lgu.staff.cala-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CAND-001",
+        "municipality_name": "Candijay",
+        "email": "defend-demo-v1.lgu.staff.cand-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CARM-001",
+        "municipality_name": "Carmen",
+        "email": "defend-demo-v1.lgu.staff.carm-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CATI-001",
+        "municipality_name": "Catigbian",
+        "email": "defend-demo-v1.lgu.staff.cati-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CLAR-001",
+        "municipality_name": "Clarin",
+        "email": "defend-demo-v1.lgu.staff.clar-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CORE-001",
+        "municipality_name": "Corella",
+        "email": "defend-demo-v1.lgu.staff.core-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "CORT-001",
+        "municipality_name": "Cortes",
+        "email": "defend-demo-v1.lgu.staff.cort-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DAGO-001",
+        "municipality_name": "Dagohoy",
+        "email": "defend-demo-v1.lgu.staff.dago-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DANA-001",
+        "municipality_name": "Danao",
+        "email": "defend-demo-v1.lgu.staff.dana-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DAUI-001",
+        "municipality_name": "Dauis",
+        "email": "defend-demo-v1.lgu.staff.daui-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DIMI-001",
+        "municipality_name": "Dimiao",
+        "email": "defend-demo-v1.lgu.staff.dimi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "DUER-001",
+        "municipality_name": "Duero",
+        "email": "defend-demo-v1.lgu.staff.duer-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GARC-001",
+        "municipality_name": "Garcia Hernandez",
+        "email": "defend-demo-v1.lgu.staff.garc-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GETA-001",
+        "municipality_name": "Getafe",
+        "email": "defend-demo-v1.lgu.staff.geta-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "GUIN-001",
+        "municipality_name": "Guindulman",
+        "email": "defend-demo-v1.lgu.staff.guin-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "INAB-001",
+        "municipality_name": "Inabanga",
+        "email": "defend-demo-v1.lgu.staff.inab-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "JAGN-001",
+        "municipality_name": "Jagna",
+        "email": "defend-demo-v1.lgu.staff.jagn-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LILA-001",
+        "municipality_name": "Lila",
+        "email": "defend-demo-v1.lgu.staff.lila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOAY-001",
+        "municipality_name": "Loay",
+        "email": "defend-demo-v1.lgu.staff.loay-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOBO-001",
+        "municipality_name": "Loboc",
+        "email": "defend-demo-v1.lgu.staff.lobo-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "LOON-001",
+        "municipality_name": "Loon",
+        "email": "defend-demo-v1.lgu.staff.loon-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "MABI-001",
+        "municipality_name": "Mabini",
+        "email": "defend-demo-v1.lgu.staff.mabi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "MARI-001",
+        "municipality_name": "Maribojoc",
+        "email": "defend-demo-v1.lgu.staff.mari-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PANG-001",
+        "municipality_name": "Panglao",
+        "email": "defend-demo-v1.lgu.staff.pang-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PILA-001",
+        "municipality_name": "Pilar",
+        "email": "defend-demo-v1.lgu.staff.pila-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "PRES-001",
+        "municipality_name": "President Carlos P. Garcia",
+        "email": "defend-demo-v1.lgu.staff.pres-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAGB-001",
+        "municipality_name": "Sagbayan",
+        "email": "defend-demo-v1.lgu.staff.sagb-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAN -001",
+        "municipality_name": "San Isidro",
+        "email": "defend-demo-v1.lgu.staff.san-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SAN -002",
+        "municipality_name": "San Miguel",
+        "email": "defend-demo-v1.lgu.staff.san-002@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SEVI-001",
+        "municipality_name": "Sevilla",
+        "email": "defend-demo-v1.lgu.staff.sevi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SIER-001",
+        "municipality_name": "Sierra Bullones",
+        "email": "defend-demo-v1.lgu.staff.sier-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "SIKA-001",
+        "municipality_name": "Sikatuna",
+        "email": "defend-demo-v1.lgu.staff.sika-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TAGB-003",
+        "municipality_name": "Tagbilaran City",
+        "email": "defend-demo-v1.lgu.staff.tagb-003@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TALI-001",
+        "municipality_name": "Talibon",
+        "email": "defend-demo-v1.lgu.staff.tali-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TRIN-001",
+        "municipality_name": "Trinidad",
+        "email": "defend-demo-v1.lgu.staff.trin-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "TUBI-001",
+        "municipality_name": "Tubigon",
+        "email": "defend-demo-v1.lgu.staff.tubi-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "UBAY-001",
+        "municipality_name": "Ubay",
+        "email": "defend-demo-v1.lgu.staff.ubay-001@tourify.local",
+        "password": "Defend@123"
+      },
+      {
+        "municipality_id": "VALE-001",
+        "municipality_name": "Valencia",
+        "email": "defend-demo-v1.lgu.staff.vale-001@tourify.local",
+        "password": "Defend@123"
+      }
+    ],
+    "owners": [
+      {
+        "email": "defend-demo-v1.owner.001@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Tagbilaran Heritage Food Hub",
+        "municipality_id": "TAGB-003"
+      },
+      {
+        "email": "defend-demo-v1.owner.002@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Tagbilaran Riverfront Stay",
+        "municipality_id": "TAGB-003"
+      },
+      {
+        "email": "defend-demo-v1.owner.003@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Tagbilaran Culture Walk Center",
+        "municipality_id": "TAGB-003"
+      },
+      {
+        "email": "defend-demo-v1.owner.004@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Island Gateway Transport Lounge",
+        "municipality_id": "TAGB-003"
+      },
+      {
+        "email": "defend-demo-v1.owner.005@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Panglao Coral Dive Center",
+        "municipality_id": "PANG-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.006@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Alona Sunset Bistro",
+        "municipality_id": "PANG-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.007@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Panglao Marine Adventure Park",
+        "municipality_id": "PANG-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.008@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Panglao Seaside Suites",
+        "municipality_id": "PANG-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.009@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Baclayon Heritage Chapel Tour Base",
+        "municipality_id": "BACL-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.010@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Baclayon Craft and Pasalubong House",
+        "municipality_id": "BACL-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.011@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Baclayon Riverside Cafe",
+        "municipality_id": "BACL-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.012@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Loboc Floating Lunch Wharf",
+        "municipality_id": "LOBO-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.013@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Loboc Eco Zip Camp",
+        "municipality_id": "LOBO-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.014@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Carmen Chocolate View Deck",
+        "municipality_id": "CARM-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.015@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Carmen ATV Trail Base",
+        "municipality_id": "CARM-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.016@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Anda White Beach Camp",
+        "municipality_id": "ANDA-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.017@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Anda Cliffside Cafe",
+        "municipality_id": "ANDA-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.018@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Dauis Churchfront Gallery",
+        "municipality_id": "DAUI-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.019@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Dauis Mangrove Paddle Spot",
+        "municipality_id": "DAUI-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.020@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Jagna Portside Seafood Grill",
+        "municipality_id": "JAGN-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.021@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Jagna Heritage Homestay",
+        "municipality_id": "JAGN-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.022@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Ubay Farm and Market Village",
+        "municipality_id": "UBAY-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.023@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Tubigon Bay Boardwalk Hub",
+        "municipality_id": "TUBI-001"
+      },
+      {
+        "email": "defend-demo-v1.owner.024@tourify.local",
+        "password": "Defend@123",
+        "establishment": "Loon Cliff View Deck",
+        "municipality_id": "LOON-001"
+      }
+    ]
+  },
+  "counterSnapshot": {
+    "2026-02-24": 4,
+    "admin_staff_profile": 27,
+    "business_establishment_profile": 8,
+    "businessEstablishment": 33,
+    "establishmentApproval": 53,
+    "media_2026-02-24": 1
+  },
+  "counterDeltas": {
+    "2026-02-24": 120,
+    "admin_staff_profile": 96,
+    "business_establishment_profile": 24,
+    "businessEstablishment": 24,
+    "establishmentApproval": 24,
+    "media_2026-02-24": 24
+  }
+}

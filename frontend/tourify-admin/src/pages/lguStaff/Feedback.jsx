@@ -598,9 +598,13 @@ function LguStaffFeedback() {
                           <strong>
                             {reply.bto_account_id
                               ? 'BTO response'
+                              : reply.tourist_profile_id
+                              ? 'Tourist response'
                               : reply.business_establishment_profile_id
                               ? 'Owner response'
-                              : 'LGU response'}
+                              : reply.admin_staff_profile_id
+                              ? 'LGU response'
+                              : 'Response'}
                           </strong>
                           <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleString() : ''}</span>
                           <p>{reply.response_text || reply.message}</p>

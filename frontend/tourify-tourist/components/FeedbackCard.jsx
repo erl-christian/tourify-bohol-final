@@ -26,6 +26,13 @@ const starIcons = rating =>
 export default function FeedbackCard({ feedback }) {
   const replies = Array.isArray(feedback.replies) ? feedback.replies : [];
   const media = Array.isArray(feedback.media) ? feedback.media : [];
+  const getReplyLabel = reply => {
+    if (reply?.tourist_profile_id) return 'Traveler Response';
+    if (reply?.business_establishment_profile_id) return 'Owner Response';
+    if (reply?.bto_account_id) return 'BTO Response';
+    if (reply?.admin_staff_profile_id) return 'LGU Response';
+    return 'Response';
+  };
 
   const { width: screenWidth } = useWindowDimensions();
   const slideWidth = Math.min(screenWidth - spacing(2), 420);
@@ -102,7 +109,7 @@ export default function FeedbackCard({ feedback }) {
               <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.replyMeta}>
-                  {reply.admin_staff_profile_id ? 'LGU Response' : 'Owner Response'} -{' '}
+                  {getReplyLabel(reply)} -{' '}
                   {new Date(reply.createdAt).toLocaleDateString()}
                 </Text>
                 <Text style={styles.replyText}>{reply.response_text}</Text>

@@ -64,17 +64,20 @@ const normaliseTags = tags => {
   return [];
 };
 
+const resolveTags = ({ item, est }) => {
+  const candidates = [item?.tags, est?.tag_names, est?.tags, est?.type ? [est.type] : []];
+  for (const source of candidates) {
+    const parsed = normaliseTags(source);
+    if (parsed.length) return parsed;
+  }
+  return [];
+};
+
 const buildCardModel = ({ item, establishment }) => {
   const est = establishment ?? item?.establishment ?? {};
   const fallbackSource = resolveImageSource(item?.image ?? pullEstablishmentImage(est));
   const gallery = buildMediaGallery(est);
   const slides = gallery.length ? gallery : [{ id: 'fallback', source: fallbackSource }];
-
-  const tags =
-    normaliseTags(item?.tags) ||
-    normaliseTags(est.tag_names) ||
-    normaliseTags(est.tags) ||
-    (est.type ? [est.type] : []);
 
   const rating =
     typeof item?.rating === 'number'
@@ -83,13 +86,18 @@ const buildCardModel = ({ item, establishment }) => {
       ? est.rating_avg
       : 0;
 
+  const metricType = item?.metricType === 'spm' ? 'spm' : 'rating';
+  const metricValue = typeof item?.metricValue === 'number' ? item.metricValue : rating;
+
   return {
     image: slides[0].source,
     gallery: slides,
     title: item?.title ?? est.name ?? 'Discover Bohol',
     municipality: item?.municipality ?? est.municipality_id ?? est.address ?? 'Bohol',
-    tags,
+    tags: resolveTags({ item, est }),
     rating: Number.isFinite(rating) ? rating : 0,
+    metricType,
+    metricValue: Number.isFinite(metricValue) ? metricValue : 0,
     reason: item?.reason ?? est.reason ?? '',
   };
 };
@@ -98,6 +106,11 @@ export default function DestinationCard({ item, establishment, actionSlot }) {
   const data = buildCardModel({ item, establishment });
   const slides = data.gallery?.length ? data.gallery : [{ id: 'fallback', source: data.image }];
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const metricIsSpm = data.metricType === 'spm';
+  const metricIcon = metricIsSpm ? 'analytics-outline' : 'star';
+  const metricColor = metricIsSpm ? '#38bdf8' : '#facc15';
+  const metricText = metricIsSpm ? `SPM ${Math.round(data.metricValue)}` : data.rating.toFixed(1);
 
   useEffect(() => {
     setCurrentSlide(0);
@@ -145,8 +158,8 @@ export default function DestinationCard({ item, establishment, actionSlot }) {
 
           <View style={styles.footer}>
             <View style={styles.rating}>
-              <Ionicons name="star" size={16} color="#facc15" />
-              <Text style={styles.ratingText}>{data.rating.toFixed(1)}</Text>
+              <Ionicons name={metricIcon} size={16} color={metricColor} />
+              <Text style={styles.ratingText}>{metricText}</Text>
             </View>
             {actionSlot ? <View style={styles.actionSlot}>{actionSlot}</View> : null}
           </View>

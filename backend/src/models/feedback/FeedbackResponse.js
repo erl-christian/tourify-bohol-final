@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 import Counter from "../Counter.js";
 
@@ -18,9 +19,10 @@ const feedbackResponseSchema = new mongoose.Schema({
   feedback_response_id:       { type: String, required: true, unique: true, index: true },
   feedback_id:                { type: String, required: true, index: true },
 
-  // responder (either LGU admin staff profile OR business owner profile)
+  // responder (exactly one role owner)
   admin_staff_profile_id:             { type: String },
   business_establishment_profile_id:  { type: String },
+  tourist_profile_id:                 { type: String },
   bto_account_id:                     { type: String }, 
 
   response_text: { type: String, required: true, trim: true }
@@ -36,6 +38,7 @@ feedbackResponseSchema.pre("validate", function(next){
   const owners = [
     !!this.admin_staff_profile_id,
     !!this.business_establishment_profile_id,
+    !!this.tourist_profile_id, // add this
     !!this.bto_account_id,
   ].filter(Boolean).length;
   if (owners !== 1) return next(new Error("FeedbackResponse must have exactly one responder type"));

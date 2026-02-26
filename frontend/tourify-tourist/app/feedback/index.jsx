@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -12,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { colors, spacing, radii } from '../../constants/theme';
-import { getMyFeedback } from '../../lib/feedback';
+import { getMyFeedback, replyToFeedback } from '../../lib/feedback';
 
 const sorters = {
   newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
@@ -36,6 +38,8 @@ const RatingRow = ({ rating }) => (
 export default function TouristFeedback() {
   const router = useRouter();
   const [state, setState] = useState({ loading: true, items: [], sort: 'newest' });
+  const [replyDrafts, setReplyDrafts] = useState({});
+  const [replyingById, setReplyingById] = useState({});
 
   const fetchFeedback = async (showRefreshing = false) => {
     try {
@@ -82,6 +86,42 @@ export default function TouristFeedback() {
       return acc;
     }, new Map());
   }, [state.items, state.sort]);
+
+  const getReplyLabel = reply => {
+    if (reply?.tourist_profile_id) return 'Traveler Response';
+    if (reply?.business_establishment_profile_id) return 'Owner Response';
+    if (reply?.bto_account_id) return 'BTO Response';
+    if (reply?.admin_staff_profile_id) return 'LGU Response';
+    return 'Response';
+  };
+
+  const handleReplyChange = (feedbackId, text) => {
+    setReplyDrafts(prev => ({ ...prev, [feedbackId]: text }));
+  };
+
+  const handleReplySubmit = async feedbackId => {
+    const draft = String(replyDrafts[feedbackId] ?? '').trim();
+    if (!draft) {
+      Alert.alert('Write a reply', 'Please enter a message before sending.');
+      return;
+    }
+
+    setReplyingById(prev => ({ ...prev, [feedbackId]: true }));
+    try {
+      await replyToFeedback(feedbackId, { response_text: draft });
+      setReplyDrafts(prev => ({ ...prev, [feedbackId]: '' }));
+      await fetchFeedback(true);
+      Alert.alert('Reply sent', 'Your reply was added to this feedback thread.');
+    } catch (err) {
+      const message =
+        err?.message ??
+        err?.error ??
+        'Unable to send your reply right now. Please try again.';
+      Alert.alert('Reply failed', message);
+    } finally {
+      setReplyingById(prev => ({ ...prev, [feedbackId]: false }));
+    }
+  };
 
   if (state.loading) {
     return (
@@ -183,7 +223,7 @@ export default function TouristFeedback() {
                           <View style={styles.replyHeader}>
                             <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.primary} />
                             <Text style={styles.replyLabel}>
-                              {reply.business_establishment_profile_id ? 'Owner response' : 'LGU response'}
+                              {getReplyLabel(reply)}
                             </Text>
                             <Text style={styles.replyDate}>
                               {new Date(reply.createdAt).toLocaleDateString()}
@@ -199,6 +239,36 @@ export default function TouristFeedback() {
                       <Text style={styles.replyPlaceholderText}>Awaiting a response</Text>
                     </View>
                   )}
+
+                  <View style={styles.replyComposer}>
+                    <TextInput
+                      style={styles.replyInput}
+                      value={replyDrafts[item.feedback_id] ?? ''}
+                      onChangeText={text => handleReplyChange(item.feedback_id, text)}
+                      placeholder="Reply to this feedback thread"
+                      placeholderTextColor={colors.muted}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.replySendButton,
+                        replyingById[item.feedback_id] && styles.replySendButtonDisabled,
+                      ]}
+                      onPress={() => handleReplySubmit(item.feedback_id)}
+                      disabled={Boolean(replyingById[item.feedback_id])}
+                      activeOpacity={0.85}
+                    >
+                      {replyingById[item.feedback_id] ? (
+                        <ActivityIndicator size="small" color={colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons name="send" size={14} color={colors.white} />
+                          <Text style={styles.replySendText}>Send</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>
@@ -305,6 +375,43 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(148,163,184,0.15)',
   },
   replyPlaceholderText: { fontFamily: 'Inter_500Medium', color: colors.muted },
+  replyComposer: {
+    marginTop: spacing(0.5),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.18)',
+    borderRadius: radii.md,
+    backgroundColor: colors.white,
+    padding: spacing(0.75),
+    gap: spacing(0.6),
+  },
+  replyInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing(0.75),
+    paddingVertical: spacing(0.6),
+    fontFamily: 'Inter_400Regular',
+    color: colors.text,
+  },
+  replySendButton: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.35),
+    borderRadius: radii.full,
+    paddingHorizontal: spacing(1),
+    paddingVertical: spacing(0.45),
+    backgroundColor: colors.primary,
+  },
+  replySendButtonDisabled: {
+    opacity: 0.7,
+  },
+  replySendText: {
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.white,
+    fontSize: 12,
+  },
   starRow: { flexDirection: 'row', gap: 2 },
   empty: {
     flex: 1,

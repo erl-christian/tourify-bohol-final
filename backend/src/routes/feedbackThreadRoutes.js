@@ -14,7 +14,7 @@ router.get(
 router.post(
   '/:feedbackId/reply',
   auth,
-  requireRoles('business_establishment', 'lgu_admin', 'lgu_staff', 'bto_admin'),
+  requireRoles('tourist', 'business_establishment', 'lgu_admin', 'lgu_staff', 'bto_admin'),
   replyToFeedback
 );
 
