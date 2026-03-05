@@ -31,3 +31,7 @@ export const fetchEstablishmentMediaForAdmin = (estId, mediaKind) =>
   http.get(`/admin/establishments/${estId}/media`, {
     params: mediaKind ? { media_kind: mediaKind } : undefined,
 });
+
+export const createBtoStaff = (payload) =>
+  http.post('/admin/bto/create-bto-staff', payload);
+

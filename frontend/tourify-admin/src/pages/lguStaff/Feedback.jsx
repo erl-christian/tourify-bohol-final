@@ -15,6 +15,7 @@ import {
   fetchLatestFeedbackSummary,
   generateFeedbackSummary,
 } from '../../services/feedbackApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const stripMarkdown = (text) => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
 
@@ -54,6 +55,7 @@ const ratingLabels = {
 };
 
 function LguStaffFeedback() {
+  const { showLoading, showSuccess, showError } = useActionStatus();
   const [establishments, setEstablishments] = useState([]);
   const [selectedEst, setSelectedEst] = useState('');
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
@@ -233,6 +235,7 @@ function LguStaffFeedback() {
 
     try {
       setSummaryState((prev) => ({ ...prev, loading: true }));
+      showLoading('Generating AI summary...');
       await generateFeedbackSummary(selectedEst, {
         from: from.toISOString(),
         to: to.toISOString(),
@@ -243,10 +246,11 @@ function LguStaffFeedback() {
         latest: data,
         parsedSummary: parseAiSummary(data?.ai_summary),
       });
+      showSuccess('AI summary generated successfully.');
     } catch (err) {
       console.error('Failed to generate summary', err);
       setSummaryState((prev) => ({ ...prev, loading: false }));
-      alert('Unable to generate summary right now.');
+      showError('Unable to generate summary right now.');
     }
   };
 
@@ -625,3 +629,4 @@ function LguStaffFeedback() {
 }
 
 export default LguStaffFeedback;
+

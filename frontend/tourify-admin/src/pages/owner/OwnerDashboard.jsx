@@ -8,8 +8,10 @@ import {
   fetchOwnerCheckins,
 } from '../../services/ownerAnalyticsApi';
 import { fetchOwnerFeedback, ownerReplyToFeedback } from '../../services/feedbackApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 function OwnerDashboard() {
+  const { showLoading, showSuccess, showError } = useActionStatus();
   const [businessName, setBusinessName] = useState('Your Establishment');
   const [establishmentId, setEstablishmentId] = useState('');
   const [analyticsState, setAnalyticsState] = useState({
@@ -137,12 +139,14 @@ function OwnerDashboard() {
     const draft = replyDrafts[feedbackId]?.trim();
     if (!draft) return;
     try {
+      showLoading('Sending reply...');
       await ownerReplyToFeedback(feedbackId, { reply: draft });
       setReplyDrafts(prev => ({ ...prev, [feedbackId]: '' }));
       await loadFeedback();
+      showSuccess('Reply sent successfully.');
     } catch (err) {
       console.error('[OwnerDashboard] reply failed', err);
-      alert('Unable to send reply right now.');
+      showError('Unable to send reply right now.');
     }
   };
 
@@ -289,3 +293,4 @@ function OwnerDashboard() {
 }
 
 export default OwnerDashboard;
+

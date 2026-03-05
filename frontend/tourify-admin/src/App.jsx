@@ -22,18 +22,28 @@ import AdminFeedback from './pages/admin/Feedback';
 import LguStaffFeedback from './pages/lguStaff/Feedback.jsx';
 import OwnerAnalytics from './pages/owner/Analytics.jsx'
 import LguStaffAnalytics from './pages/lguStaff/Analytics.jsx';
+import AccountSettings from './pages/AccountSettings.jsx'
 
 function App() {
 return (
   <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
+    <Route
+      path="/account/settings"
+      element={
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff', 'lgu_admin', 'lgu_staff', 'business_establishment']}>
+          <AccountSettings />
+        </ProtectedRoute>
+      }
+    />
     <Route path="/login" element={<Login />} />
     {/* admin */}
     <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
     <Route
       path="/admin/dashboard"
       element={
-        <ProtectedRoute allowedRoles={['bto_admin']}>
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+
           <BtoDashboard />
         </ProtectedRoute>
       }
@@ -41,18 +51,42 @@ return (
     <Route
         path="/admin/analytics"
         element={
-          <ProtectedRoute allowedRoles={['bto_admin']}>
+          <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+
             <AdminAnalytics />
           </ProtectedRoute>
         }
       />
-    <Route path="/admin/accounts" element={<Accounts />} />
-    <Route path="/admin/municipalities" element={<Municipalities />} />
-    <Route path="/admin/establishments" element={<Establishments />} />
+    <Route
+      path="/admin/accounts"
+      element={
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+          <Accounts />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/municipalities"
+      element={
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+          <Municipalities />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/establishments"
+      element={
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+          <Establishments />
+        </ProtectedRoute>
+      }
+    />
+
         <Route
       path="/admin/feedback"
       element={
-        <ProtectedRoute allowedRoles={['bto_admin']}>
+        <ProtectedRoute allowedRoles={['bto_admin', 'bto_staff']}>
+
           <AdminFeedback />
         </ProtectedRoute>
       }

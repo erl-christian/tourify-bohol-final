@@ -4,6 +4,7 @@ import {
   FaLeaf,
   FaCommentDots,
   FaChartBar,
+  FaUserCog
 } from 'react-icons/fa';
 
 export const lguStaffNavSections = [
@@ -20,6 +21,7 @@ export const lguStaffNavSections = [
       { id: 'activities', label: 'Tourism Activity Log', icon: FaLeaf, path: '/lgu-staff/activities' },
       { id: 'feedback', label: 'Feedback & Comments', icon: FaCommentDots, path: '/lgu-staff/feedback' },
       { id: 'reports', label: 'Quick Reports', icon: FaChartBar, path: '/lgu-staff/reports' },
+      { id: 'my-account', label: 'My Account', icon: FaUserCog, path: '/account/settings' },
     ],
   },
 ];

@@ -33,6 +33,7 @@ import {
   fetchVisitorNationalities,
   rebuildSpm
 } from '../../services/analyticsApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const transformMunicipalitySeries = municipalities =>
   municipalities.map(item => {
@@ -164,6 +165,7 @@ function HeatmapLayer({ points, radius = 20, blur = 25 }) {
 function SpmControls() {
   const [status, setStatus] = useState({ running: false, lastRunAt: null });
   const [loading, setLoading] = useState(false);
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const loadStatus = async () => {
     try {
@@ -180,12 +182,13 @@ function SpmControls() {
 
   const handleRebuild = async () => {
     setLoading(true);
+    showLoading('Running sequence mining...');
     try {
       await rebuildSpm();
       await loadStatus();
-      alert('SPM mining started/completed.');
+      showSuccess('SPM mining started/completed.');
     } catch (err) {
-      alert(err?.response?.data?.message || err?.message || 'Failed to start mining.');
+      showError(err?.response?.data?.message || err?.message || 'Failed to start mining.');
     } finally {
       setLoading(false);
     }
@@ -262,6 +265,7 @@ function AdminAnalytics() {
   const [exportRange, setExportRange] = useState({ from: '', to: '' });
 
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const handleExport = async type => {
   const params = new URLSearchParams();
@@ -270,11 +274,12 @@ function AdminAnalytics() {
 
     const token = sessionStorage.getItem('accessToken');
     if (!token) {
-      alert('You need to be logged in to export data.');
+      showError('You need to be logged in to export data.');
       return;
     }
 
     try {
+      showLoading('Preparing export file...');
       const response = await fetch(
         `${apiBase}/admin/analytics/export/${type}?${params.toString()}`,
         {
@@ -298,9 +303,10 @@ function AdminAnalytics() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
+      showSuccess((type === 'excel' ? 'Excel' : 'PDF') + ' export is ready.');
     } catch (err) {
       console.error('[Export] failed', err);
-      alert(err.message || 'Unable to export analytics right now.');
+      showError(err.message || 'Unable to export analytics right now.');
     }
   };
 
@@ -609,3 +615,6 @@ function AdminAnalytics() {
 }
 
 export default AdminAnalytics;
+
+
+

@@ -6,8 +6,9 @@ import {
   createLguStaff,
   createOwnerProfile,
   updateManagedAccountStatus,
-  updateManagedAccount,
+  // updateManagedAccount,
 } from '../../services/lguApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const accountTabs = [
   { id: 'all', label: 'All Accounts' },
@@ -15,8 +16,8 @@ const accountTabs = [
   { id: 'business_establishment', label: 'Establishment Owners' },
 ];
 
-const initialStaffForm = { fullName: '', email: '', password: '', phone: '' };
-const initialOwnerForm = { fullName: '', email: '', password: '', contactNo: '' };
+const initialStaffForm = { fullName: '', username: '', email: '', phone: '' };
+const initialOwnerForm = { fullName: '', username: '', email: '', contactNo: '' };
 
 function Accounts() {
   const [accounts, setAccounts] = useState([]);
@@ -36,11 +37,7 @@ function Accounts() {
   const [page, setPage] = useState(1);
 
 
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    status: 'success',
-    message: '',
-  });
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const [statusModal, setStatusModal] = useState({
     open: false,
@@ -50,13 +47,13 @@ function Accounts() {
     error: '',
   });
 
-  const [editModal, setEditModal] = useState({
-    open: false,
-    target: null,
-    form: { fullName: '', email: '', contactNo: '' },
-    saving: false,
-    error: '',
-  });
+  // const [editModal, setEditModal] = useState({
+  //   open: false,
+  //   target: null,
+  //   form: { fullName: '', email: '', contactNo: '' },
+  //   saving: false,
+  //   error: '',
+  // });
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
 
@@ -84,8 +81,8 @@ function Accounts() {
         const isActive = account?.is_active !== false;
         return {
           id: account?.account_id,
-          name: profile?.full_name || account?.email,
-          email: account?.email,
+          name: profile?.full_name || account?.username || account?.email,
+          email: account?.username || account?.email,
           roleId: account?.role,
           role:
             account?.role === 'lgu_staff'
@@ -165,28 +162,19 @@ function Accounts() {
   const handleCreateStaff = async (event) => {
     event.preventDefault();
     setSubmittingStaff(true);
+    showLoading('Creating LGU staff account...');
     try {
       await createLguStaff({
+        username: staffForm.username,
         email: staffForm.email,
-        password: staffForm.password,
         full_name: staffForm.fullName,
       });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `LGU staff ${staffForm.fullName} has been created.`,
-      });
+      showSuccess(`LGU staff ${staffForm.fullName} has been created.`);
       setStaffForm(initialStaffForm);
       setStaffModalOpen(false);
       await loadAccounts();
     } catch (err) {
-      setFeedbackModal({
-        open: true,
-        status: 'error',
-        message:
-          err.response?.data?.message ||
-          'Unable to create LGU staff. Please try again.',
-      });
+      showError(err.response?.data?.message || 'Unable to create LGU staff. Please try again.');
     } finally {
       setSubmittingStaff(false);
     }
@@ -195,29 +183,20 @@ function Accounts() {
   const handleCreateOwner = async (event) => {
     event.preventDefault();
     setSubmittingOwner(true);
+    showLoading('Creating owner account...');
     try {
       await createOwnerProfile({
+        username: ownerForm.username,
         email: ownerForm.email,
-        password: ownerForm.password,
         full_name: ownerForm.fullName,
         contact_no: ownerForm.contactNo,
       });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `Owner ${ownerForm.fullName} has been created.`,
-      });
+      showSuccess(`Owner ${ownerForm.fullName} has been created.`);
       setOwnerForm(initialOwnerForm);
       setOwnerModalOpen(false);
       await loadAccounts();
     } catch (err) {
-      setFeedbackModal({
-        open: true,
-        status: 'error',
-        message:
-          err.response?.data?.message ||
-          'Unable to create owner. Please try again.',
-      });
+      showError(err.response?.data?.message || 'Unable to create owner. Please try again.');
     } finally {
       setSubmittingOwner(false);
     }
@@ -246,6 +225,7 @@ function Accounts() {
   const handleStatusSubmit = async () => {
     if (!statusModal.target) return;
     setStatusModal((prev) => ({ ...prev, loading: true, error: '' }));
+    showLoading('Updating account status...');
     try {
       await updateManagedAccountStatus(statusModal.target.id, statusModal.nextState);
       setStatusModal({
@@ -255,13 +235,9 @@ function Accounts() {
         loading: false,
         error: '',
       });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `${statusModal.target.name} has been ${
+      showSuccess(`${statusModal.target.name} has been ${
           statusModal.nextState ? 'reactivated' : 'deactivated'
-        }.`,
-      });
+        }.`);
       await loadAccounts();
     } catch (err) {
       setStatusModal((prev) => ({
@@ -274,62 +250,62 @@ function Accounts() {
     }
   };
 
-  const openEditModal = (account) => {
-  setEditModal({
-    open: true,
-    target: account,
-    form: {
-      fullName: account.name || '',
-      email: account.email || '',
-      contactNo: account.roleId === 'business_establishment' ? account.contactNo || '' : '',
-    },
-    saving: false,
-    error: '',
-  });
-};
+  // const openEditModal = (account) => {
+  // setEditModal({
+  //   open: true,
+  //   target: account,
+  //   form: {
+  //     fullName: account.name || '',
+  //     email: account.email || '',
+  //     contactNo: account.roleId === 'business_establishment' ? account.contactNo || '' : '',
+  //   },
+  //   saving: false,
+  //   error: '',
+  // });
+// };
 
-  const closeEditModal = () =>
-    setEditModal({
-      open: false,
-      target: null,
-      form: { fullName: '', email: '', contactNo: '' },
-      saving: false,
-      error: '',
-    });
+  // const closeEditModal = () =>
+  //   setEditModal({
+  //     open: false,
+  //     target: null,
+  //     form: { fullName: '', email: '', contactNo: '' },
+  //     saving: false,
+  //     error: '',
+  //   });
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
-  };
+  // const handleEditChange = (e) => {
+  //   const { name, value } = e.target;
+  //   setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
+  // };
 
-  const handleUpdateAccount = async (e) => {
-    e.preventDefault();
-    if (!editModal.target) return;
-    setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
-    try {
-      await updateManagedAccount(editModal.target.id, {
-        email: editModal.form.email,
-        full_name: editModal.form.fullName,
-        contact_no:
-          editModal.target.roleId === 'business_establishment'
-            ? editModal.form.contactNo
-            : undefined,
-      });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `${editModal.target.name} has been updated.`,
-      });
-      closeEditModal();
-      await loadAccounts();
-    } catch (err) {
-      setEditModal((prev) => ({
-        ...prev,
-        saving: false,
-        error: err.response?.data?.message || 'Unable to update account. Please try again.',
-      }));
-    }
-  };
+  // const handleUpdateAccount = async (e) => {
+  //   e.preventDefault();
+  //   if (!editModal.target) return;
+  //   setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
+  //   try {
+  //     await updateManagedAccount(editModal.target.id, {
+  //       email: editModal.form.email,
+  //       full_name: editModal.form.fullName,
+  //       contact_no:
+  //         editModal.target.roleId === 'business_establishment'
+  //           ? editModal.form.contactNo
+  //           : undefined,
+  //     });
+  //     setFeedbackModal({
+  //       open: true,
+  //       status: 'success',
+  //       message: `${editModal.target.name} has been updated.`,
+  //     });
+  //     closeEditModal();
+  //     await loadAccounts();
+  //   } catch (err) {
+  //     setEditModal((prev) => ({
+  //       ...prev,
+  //       saving: false,
+  //       error: err.response?.data?.message || 'Unable to update account. Please try again.',
+  //     }));
+  //   }
+  // };
 
 
   return (
@@ -452,24 +428,15 @@ function Accounts() {
                     <div>Updated: {formatDateTime(account.updatedAt)}</div>
                   </div>
                   <div className="table-actions">
-                    {account.roleId === 'lgu_staff' || account.roleId === 'business_establishment' ? (
-                      <>
-                        <button
-                          type="button"
-                          className="table-action-button"
-                          onClick={() => openEditModal(account)}
-                        >
-                          Update
-                        </button>
-                        <button
-                          type="button"
-                          className={`table-action-button ${account.isActive ? 'deactivate' : 'activate'}`}
-                          onClick={() => openStatusModalForAccount(account, !account.isActive)}
-                          disabled={statusModal.loading && statusModal.target?.id === account.id}
-                        >
-                          {account.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
-                      </>
+                    {account.roleId === 'lgu_admin' ? (
+                      <button
+                        type="button"
+                        className={`table-action-button ${account.isActive ? 'deactivate' : 'activate'}`}
+                        onClick={() => openStatusModalForAccount(account, !account.isActive)}
+                        disabled={statusModal.loading && statusModal.target?.id === account.id}
+                      >
+                        {account.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
                     ) : (
                       <span className="muted">—</span>
                     )}
@@ -527,22 +494,36 @@ function Accounts() {
             <div className="modal-content">
               <form className="modal-form" onSubmit={handleCreateStaff}>
                 <div className="form-row">
-                  <label className="form-label" htmlFor="staff-fullName">
-                    Full name
+                  <label className="form-label" htmlFor="staff-username">Username</label>
+                    <input
+                      id="staff-username"
+                      name="username"
+                      type="text"
+                      required
+                      placeholder="lgu.staff001"
+                      value={staffForm.username}
+                      onChange={handleStaffFormChange}
+                    />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="owner-email">
+                    Email
                   </label>
                   <input
-                    id="staff-fullName"
-                    name="fullName"
-                    type="text"
+                    id="owner-email"
+                    name="email"
+                    type="email"
                     required
-                    placeholder="Juan Dela Cruz"
-                    value={staffForm.fullName}
-                    onChange={handleStaffFormChange}
+                    placeholder="owner@example.com"
+                    value={ownerForm.email}
+                    onChange={handleOwnerFormChange}
                   />
                 </div>
 
+
                 <div className="form-row form-grid">
-                  <div>
+                  {/* <div>
                     <label className="form-label" htmlFor="staff-email">
                       Government email
                     </label>
@@ -555,8 +536,8 @@ function Accounts() {
                       value={staffForm.email}
                       onChange={handleStaffFormChange}
                     />
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <label className="form-label" htmlFor="staff-password">
                       Temporary password
                     </label>
@@ -569,7 +550,7 @@ function Accounts() {
                       value={staffForm.password}
                       onChange={handleStaffFormChange}
                     />
-                  </div>
+                  </div> */}
                 </div>
 
                 <div className="modal-actions">
@@ -581,7 +562,7 @@ function Accounts() {
                     Cancel
                   </button>
                   <button type="submit" className="primary-cta" disabled={submittingStaff}>
-                    {submittingStaff ? 'Sending…' : 'Send Invitation'}
+                    {submittingStaff ? 'Creating…' : 'Create LGU Staff'}
                   </button>
                 </div>
               </form>
@@ -626,21 +607,19 @@ function Accounts() {
                 </div>
 
                 <div className="form-row">
-                  <label className="form-label" htmlFor="owner-email">
-                    Email
-                  </label>
+                  <label className="form-label" htmlFor="owner-username">Username</label>
                   <input
-                    id="owner-email"
-                    name="email"
-                    type="email"
+                    id="owner-username"
+                    name="username"
+                    type="text"
                     required
-                    placeholder="owner@example.com"
-                    value={ownerForm.email}
+                    placeholder="owner.alona01"
+                    value={ownerForm.username}
                     onChange={handleOwnerFormChange}
                   />
                 </div>
 
-                <div className="form-row">
+                {/* <div className="form-row">
                   <label className="form-label" htmlFor="owner-password">
                     Temporary password
                   </label>
@@ -653,7 +632,7 @@ function Accounts() {
                     value={ownerForm.password}
                     onChange={handleOwnerFormChange}
                   />
-                </div>
+                </div> */}
 
                 <div className="form-row">
                   <label className="form-label" htmlFor="owner-contactNo">
@@ -678,7 +657,7 @@ function Accounts() {
                     Cancel
                   </button>
                   <button type="submit" className="primary-cta" disabled={submittingOwner}>
-                    {submittingOwner ? 'Saving…' : 'Save Owner'}
+                    {submittingOwner ? 'Creating…' : 'Create Owner'}
                   </button>
                 </div>
               </form>
@@ -740,45 +719,7 @@ function Accounts() {
         </div>
       )}
 
-      {feedbackModal.open && (
-        <div className="modal-backdrop" role="alertdialog" aria-modal="true">
-          <div className="modal-card">
-            <header className="modal-header">
-              <div>
-                <h3>
-                  {feedbackModal.status === 'success'
-                    ? 'Success'
-                    : 'Something went wrong'}
-                </h3>
-                <p>{feedbackModal.message}</p>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                aria-label="Close"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                ×
-              </button>
-            </header>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary-cta"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editModal.open && (
+      {/* {editModal.open && (
   <div className="modal-backdrop" role="dialog" aria-modal="true">
     <div className="modal-card">
       <header className="modal-header">
@@ -849,10 +790,13 @@ function Accounts() {
         </div>
       </div>
     </div>
-  )}
+  )} */}
 
     </LguLayout>
   );
 }
 
 export default Accounts;
+
+
+

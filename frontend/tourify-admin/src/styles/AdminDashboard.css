@@ -2601,3 +2601,169 @@ body.bto-fixed .dashboard-content {
 .split-dropdown-menu button:hover {
   background: var(--surface-muted);
 }
+
+.status-modal-backdrop {
+  z-index: 2000;
+}
+
+.status-modal-card {
+  max-width: 420px;
+  text-align: center;
+  padding: 1.75rem 1.5rem 1.5rem;
+  align-items: center;
+}
+
+.status-modal-visual {
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+
+.status-modal-visual--loading {
+  background: rgba(1, 77, 78, 0.1);
+}
+
+.status-modal-visual--success {
+  background: rgba(88, 129, 87, 0.14);
+}
+
+.status-modal-visual--error {
+  background: rgba(178, 58, 72, 0.14);
+}
+
+.status-modal-spinner span {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 4px solid rgba(1, 77, 78, 0.2);
+  border-top-color: var(--accent-primary);
+  display: block;
+  animation: status-spin 0.9s linear infinite;
+}
+
+.status-modal-check {
+  width: 42px;
+  height: 26px;
+  position: relative;
+  transform: rotate(-45deg) scale(0.75);
+  animation: status-pop 0.28s ease-out forwards;
+}
+
+.status-modal-check span {
+  position: absolute;
+  background: var(--accent-positive);
+  border-radius: 999px;
+  transform-origin: left center;
+}
+
+.status-modal-check span:first-child {
+  width: 0;
+  height: 6px;
+  left: 0;
+  bottom: 0;
+  animation: status-draw-short 0.18s ease-out 0.15s forwards;
+}
+
+.status-modal-check span:last-child {
+  width: 0;
+  height: 6px;
+  left: 9px;
+  bottom: 0;
+  animation: status-draw-long 0.24s ease-out 0.28s forwards;
+}
+
+.status-modal-error-icon svg {
+  width: 38px;
+  height: 38px;
+  color: var(--accent-danger);
+}
+
+.status-modal-text h3 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 1.2rem;
+}
+
+.status-modal-text p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.status-modal-actions {
+  margin-top: 0.25rem;
+  width: 100%;
+  justify-content: center;
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes status-pop {
+  to {
+    transform: rotate(-45deg) scale(1);
+  }
+}
+
+@keyframes status-draw-short {
+  to {
+    width: 14px;
+  }
+}
+
+@keyframes status-draw-long {
+  to {
+    width: 30px;
+  }
+}
+
+.account-loading-modal {
+  max-width: 420px;
+  text-align: center;
+  align-items: center;
+  padding: 1.75rem 1.5rem 1.5rem;
+}
+
+.account-loading-visual {
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(1, 77, 78, 0.1);
+  margin-bottom: 0.75rem;
+}
+
+.account-loading-spinner span {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 4px solid rgba(1, 77, 78, 0.2);
+  border-top-color: var(--accent-primary);
+  display: block;
+  animation: account-loading-spin 0.9s linear infinite;
+}
+
+.account-loading-modal .muted {
+  animation: account-loading-fade 1.1s ease-in-out infinite;
+}
+
+@keyframes account-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes account-loading-fade {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}

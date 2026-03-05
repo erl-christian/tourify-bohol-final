@@ -6,14 +6,15 @@ import {
   fetchAllEstablishments,
   createLguAdmin,
   fetchMunicipalities,
-  updateLguAdmin,
+  // updateLguAdmin,
 } from '../services/btoApi';
+import { useActionStatus } from '../context/ActionStatusContext';
 
 
 const quickActions = [
   {
     id: 'add-admin',
-    title: 'Pre-register LGU Admin',
+    title: 'Pre-register Accounts',
     description: 'Issue provincial access to a municipal tourism lead.',
     enabled: true,
   },
@@ -79,22 +80,25 @@ function BtoDashboard() {
   const [establishmentsError, setEstablishmentsError] = useState('');
 
   const [submittingAdmin, setSubmittingAdmin] = useState(false);
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    status: 'success',
-    message: '',
-  });
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const [municipalities, setMunicipalities] = useState([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(true);
 
-  const [editModal, setEditModal] = useState({
-    open: false,
-    target: null,
-    form: { fullName: '', email: '', municipalityId: '' },
-    saving: false,
-    error: '',
-  });
+  // const [editModal, setEditModal] = useState({
+  //   open: false,
+  //   target: null,
+  //   form: { fullName: '', email: '', municipalityId: '' },
+  //   saving: false,
+  //   error: '',
+  // });
+
+  const displayInitials = (() => {
+    const name = sessionStorage.getItem('mockDisplayName') || 'BTO';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'BT';
+    return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
+  })();
 
   const normalizeMunicipalityPayload = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -231,6 +235,7 @@ function BtoDashboard() {
   const handleCreateAdmin = async (event) => {
     event.preventDefault();
     setSubmittingAdmin(true);
+    showLoading('Creating LGU admin account...');
 
     try {
       await createLguAdmin({
@@ -240,83 +245,73 @@ function BtoDashboard() {
         municipality_id: adminForm.municipalityId,
       });
 
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `LGU admin ${adminForm.fullName} has been created.`,
-      });
+      showSuccess(`LGU admin ${adminForm.fullName} has been created.`);
 
       setAdminForm(initialAdminForm);
       setCreateModalOpen(false);
       await loadData();
     } catch (error) {
-      setFeedbackModal({
-        open: true,
-        status: 'error',
-        message:
-          error.response?.data?.message ||
-          'Unable to create LGU admin. Please try again.',
-      });
+      showError(error.response?.data?.message || 'Unable to create LGU admin. Please try again.');
     } finally {
       setSubmittingAdmin(false);
     }
   };
 
-  const openEditModal = (account) => {
-  setEditModal({
-    open: true,
-    target: account,
-    form: {
-      fullName: account.name || '',
-      email: account.email || '',
-      municipalityId: account.municipalityId || '',
-    },
-    saving: false,
-    error: '',
-  });
-};
+//   const openEditModal = (account) => {
+//   setEditModal({
+//     open: true,
+//     target: account,
+//     form: {
+//       fullName: account.name || '',
+//       email: account.email || '',
+//       municipalityId: account.municipalityId || '',
+//     },
+//     saving: false,
+//     error: '',
+//   });
+// };
 
-const closeEditModal = () =>
-  setEditModal({
-    open: false,
-    target: null,
-    form: { fullName: '', email: '', municipalityId: '' },
-    saving: false,
-    error: '',
-  });
+// const closeEditModal = () =>
+//   setEditModal({
+//     open: false,
+//     target: null,
+//     form: { fullName: '', email: '', municipalityId: '' },
+//     saving: false,
+//     error: '',
+//   });
 
-const handleEditChange = (event) => {
-  const { name, value } = event.target;
-  setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
-};
+// const handleEditChange = (event) => {
+//   const { name, value } = event.target;
+//   setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
+// };
 
-const handleUpdateAccount = async (event) => {
-  event.preventDefault();
-  if (!editModal.target) return;
-  setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
-  try {
-    await updateLguAdmin(editModal.target.id, {
-      email: editModal.form.email,
-      full_name: editModal.form.fullName,
-      municipality_id: editModal.form.municipalityId,
-    });
-    setFeedbackModal({
-      open: true,
-      status: 'success',
-      message: `LGU admin ${editModal.form.fullName} has been updated.`,
-    });
-    closeEditModal();
-    await loadData();
-  } catch (error) {
-    setEditModal((prev) => ({
-      ...prev,
-      saving: false,
-      error:
-        error.response?.data?.message ||
-        'Unable to update account. Please try again.',
-    }));
-  }
-};
+// const handleUpdateAccount = async (event) => {
+//   event.preventDefault();
+//   if (!editModal.target) return;
+//   setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
+//   try {
+//     await updateLguAdmin(editModal.target.id, {
+//       email: editModal.form.email,
+//       full_name: editModal.form.fullName,
+//       municipality_id: editModal.form.municipalityId,
+//     });
+//     setFeedbackModal({
+//       open: true,
+//       status: 'success',
+//       message: `LGU admin ${editModal.form.fullName} has been updated.`,
+//     });
+//     closeEditModal();
+//     await loadData();
+//   } catch (error) {
+//     setEditModal((prev) => ({
+//       ...prev,
+//       saving: false,
+//       error:
+//         error.response?.data?.message ||
+//         'Unable to update account. Please try again.',
+//     }));
+//   }
+// };
 
 
   return (
@@ -330,7 +325,7 @@ const handleUpdateAccount = async (event) => {
           <button type="button" className="icon-pill" aria-label="Notifications">
             🔔
           </button>
-          <div className="header-avatar">AC</div>
+          <div className="header-avatar">{displayInitials}</div>
         </>
       }
     >
@@ -437,7 +432,7 @@ const handleUpdateAccount = async (event) => {
                       </span>
                     </div>
                     <div className="muted">{account.lastSeen}</div>
-                    <div className="table-actions">
+                    {/* <div className="table-actions">
                       {account.roleId === 'lgu_admin' && (
                         <button
                           type="button"
@@ -447,7 +442,7 @@ const handleUpdateAccount = async (event) => {
                           Update
                         </button>
                       )}
-                    </div>
+                    </div> */}
                   </li>
                   
                 ))
@@ -668,45 +663,7 @@ const handleUpdateAccount = async (event) => {
         </div>
       )}
 
-      {feedbackModal.open && (
-        <div className="modal-backdrop" role="alertdialog" aria-modal="true">
-          <div className="modal-card">
-            <header className="modal-header">
-              <div>
-                <h3>
-                  {feedbackModal.status === 'success'
-                    ? 'Success'
-                    : 'Something went wrong'}
-                </h3>
-                <p>{feedbackModal.message}</p>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                aria-label="Close"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                ×
-              </button>
-            </header>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary-cta"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editModal.open && (
+      {/* {editModal.open && (
   <div className="modal-backdrop" role="dialog" aria-modal="true">
     <div className="modal-card">
       <header className="modal-header">
@@ -804,10 +761,14 @@ const handleUpdateAccount = async (event) => {
           </div>
         </div>
       </div>
-    )}
+    )} */}
 
     </AdminLayout>
   );
 }
 
 export default BtoDashboard;
+
+
+
+

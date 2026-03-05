@@ -36,6 +36,7 @@ import {
   fetchSpmStatus,
   rebuildSpm,
 } from '../../services/analyticsApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const wrapTickLabel = text => {
   if (!text) return ['—'];
@@ -181,6 +182,7 @@ function HeatmapLayer({ points, radius = 20, blur = 25 }) {
 function SpmControls() {
   const [status, setStatus] = useState({ running: false, lastRunAt: null });
   const [loading, setLoading] = useState(false);
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const loadStatus = async () => {
     try {
@@ -197,12 +199,13 @@ function SpmControls() {
 
   const handleRebuild = async () => {
     setLoading(true);
+    showLoading('Running sequence mining...');
     try {
       await rebuildSpm();
       await loadStatus();
-      alert('SPM mining started/completed.');
+      showSuccess('SPM mining started/completed.');
     } catch (err) {
-      alert(err?.response?.data?.message || err?.message || 'Failed to start mining.');
+      showError(err?.response?.data?.message || err?.message || 'Failed to start mining.');
     } finally {
       setLoading(false);
     }
@@ -247,6 +250,7 @@ function LguAnalytics() {
 
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
   const [exportRange, setExportRange] = useState({ from: '', to: '' });
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const handleLguExport = async type => {
     const params = new URLSearchParams();
@@ -255,11 +259,12 @@ function LguAnalytics() {
 
     const token = sessionStorage.getItem('accessToken');
     if (!token) {
-      alert('Please log in to export data.');
+      showError('Please log in to export data.');
       return;
     }
 
     try {
+      showLoading('Preparing export file...');
       const response = await fetch(
         `${apiBase}/admin/analytics/lgu/export/${type}?${params.toString()}`,
         {
@@ -277,9 +282,10 @@ function LguAnalytics() {
       anchor.click();
       anchor.remove();
       window.URL.revokeObjectURL(url);
+      showSuccess((type === 'excel' ? 'Excel' : 'PDF') + ' export is ready.');
     } catch (err) {
       console.error('[LGU export] failed', err);
-      alert(err.message || 'Unable to export LGU analytics.');
+      showError(err.message || 'Unable to export LGU analytics.');
     }
   };
 
@@ -649,3 +655,4 @@ function LguAnalytics() {
 }
 
 export default LguAnalytics;
+

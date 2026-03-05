@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, changePasswordFirstLogin } from '../services/authApi';
 import heroImage from '../assets/react.svg';
@@ -6,7 +6,7 @@ import '../styles/Login.css';
 
 function Login() {
   const [isPasswordVisible, setPasswordVisible] = useState(false);
-  const [email, setEmail] = useState('');
+  // const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const [error, setError] = useState('');
@@ -22,6 +22,7 @@ function Login() {
   const [changePasswordError, setChangePasswordError] = useState('');
   const [changePasswordSaving, setChangePasswordSaving] = useState(false);
   const [pendingLogin, setPendingLogin] = useState(null);
+  const [identifier, setIdentifier] = useState('');
 
   const navigate = useNavigate();
 
@@ -43,6 +44,7 @@ function Login() {
   const resolveNextRoute = (normalizedRole) => {
     switch (normalizedRole) {
       case 'bto_admin':
+      case 'bto_staff':
         return '/admin/dashboard';
       case 'lgu_admin':
         return '/lgu/dashboard';
@@ -55,15 +57,18 @@ function Login() {
     }
   };
 
-  const persistSession = ({ token, normalizedRole, municipality, businessName }) => {
+
+  const persistSession = ({ token, normalizedRole, municipality, businessName, displayName, displayRole }) => {
     sessionStorage.setItem('accessToken', token);
     sessionStorage.setItem('mockRole', normalizedRole);
     if (municipality) sessionStorage.setItem('mockMunicipality', municipality);
     if (businessName) sessionStorage.setItem('mockBusiness', businessName);
+    if (displayName) sessionStorage.setItem('mockDisplayName', displayName);
+    if (displayRole) sessionStorage.setItem('mockDisplayRole', displayRole);
   };
 
-  const completeLogin = ({ token, normalizedRole, municipality, businessName, nextRoute }) => {
-    persistSession({ token, normalizedRole, municipality, businessName });
+  const completeLogin = ({ token, normalizedRole, municipality, businessName, displayName, displayRole, nextRoute }) => {
+    persistSession({ token, normalizedRole, municipality, businessName, displayName, displayRole });
 
     setShowSuccessModal(true);
     setModalStep('loading');
@@ -80,19 +85,33 @@ function Login() {
     setShowErrorModal(false);
 
     try {
-      const { data } = await login({ email, password });
+      const { data } = await login({ identifier, password });
 
       const { token, account } = data || {};
       const apiRole = account?.role;
 
       const roleMap = {
         BTO_ADMIN: 'bto_admin',
+        BTO_STAFF: 'bto_staff',
         LGU_ADMIN: 'lgu_admin',
         LGU_STAFF: 'lgu_staff',
         BUSINESS_ESTABLISHMENT: 'business_establishment',
       };
 
       const normalizedRole = roleMap[apiRole] || apiRole;
+      const displayName = account?.full_name || account?.username || account?.email || 'User';
+      const displayRole =
+        normalizedRole === 'bto_staff'
+          ? 'BTO Staff'
+          : normalizedRole === 'bto_admin'
+          ? 'BTO Admin'
+          : normalizedRole === 'lgu_admin'
+          ? 'LGU Admin'
+          : normalizedRole === 'lgu_staff'
+          ? 'LGU Staff'
+          : normalizedRole === 'business_establishment'
+          ? 'Establishment Owner'
+          : 'User';
 
       if (!token || !normalizedRole) {
         throw new Error('Invalid login response.');
@@ -107,6 +126,8 @@ function Login() {
           normalizedRole,
           municipality: data.municipality,
           businessName: data.businessName,
+          displayName,
+          displayRole,
           nextRoute,
         });
         setChangePasswordForm({ newPassword: '', confirmPassword: '' });
@@ -120,6 +141,8 @@ function Login() {
         normalizedRole,
         municipality: data.municipality,
         businessName: data.businessName,
+        displayName,
+        displayRole,
         nextRoute,
       });
     } catch (err) {
@@ -188,14 +211,14 @@ function Login() {
 
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="form-field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="identifier">Username</label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                id="identifier"
+                name="identifier"
+                type="text"
+                placeholder="Enter your username"
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
               />
             </div>
 
@@ -347,3 +370,4 @@ function Login() {
 }
 
 export default Login;
+

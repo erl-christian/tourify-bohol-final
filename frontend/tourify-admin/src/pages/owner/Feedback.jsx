@@ -17,6 +17,7 @@ import {
   ownerReplyToFeedback,
   fetchFeedbackDetails,
 } from '../../services/feedbackApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const sortOptions = [
   { value: 'newest', label: 'Most recent' },
@@ -36,6 +37,7 @@ const RatingStars = ({ value }) => (
 );
 
 function OwnerFeedback() {
+  const { showLoading, showSuccess, showError } = useActionStatus();
   const [establishments, setEstablishments] = useState([]);
   const [selectedEst, setSelectedEst] = useState('');
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
@@ -136,12 +138,14 @@ function OwnerFeedback() {
     if (!message) return;
     try {
       setReplySubmitting(feedbackId);
+      showLoading('Sending reply...');
       await ownerReplyToFeedback(feedbackId, { response_text: message });
       setReplyDrafts(prev => ({ ...prev, [feedbackId]: '' }));
       await loadFeedback();
+      showSuccess('Reply sent successfully.');
     } catch (err) {
       console.error('Failed to send reply', err);
-      alert('Unable to send reply. Please try again.');
+      showError('Unable to send reply. Please try again.');
     } finally {
       setReplySubmitting('');
     }
@@ -533,3 +537,4 @@ function OwnerFeedback() {
 }
 
 export default OwnerFeedback;
+

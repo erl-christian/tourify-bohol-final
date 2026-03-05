@@ -5,6 +5,7 @@ import {
   fetchMunicipalities,
   createMunicipality,
 } from '../../services/btoApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const initialForm = {
   name: '',
@@ -21,11 +22,7 @@ function Municipalities() {
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
 
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    status: 'success',
-    message: '',
-  });
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const normalizePayload = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -84,27 +81,18 @@ function Municipalities() {
   const handleCreateMunicipality = async (event) => {
     event.preventDefault();
     setSubmitting(true);
+    showLoading('Saving municipality...');
 
     try {
       await createMunicipality(form);
 
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `Municipality ${form.name} has been added.`,
-      });
+      showSuccess(`Municipality ${form.name} has been added.`);
 
       setForm(initialForm);
       setModalOpen(false);
       await loadMunicipalities();
     } catch (err) {
-      setFeedbackModal({
-        open: true,
-        status: 'error',
-        message:
-          err.response?.data?.message ||
-          'Unable to add municipality. Please try again.',
-      });
+      showError(err.response?.data?.message || 'Unable to add municipality. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -276,46 +264,9 @@ function Municipalities() {
           </div>
         </div>
       )}
-
-      {feedbackModal.open && (
-        <div className="modal-backdrop" role="alertdialog" aria-modal="true">
-          <div className="modal-card">
-            <header className="modal-header">
-              <div>
-                <h3>
-                  {feedbackModal.status === 'success'
-                    ? 'Success'
-                    : 'Something went wrong'}
-                </h3>
-                <p>{feedbackModal.message}</p>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                aria-label="Close"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                ×
-              </button>
-            </header>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary-cta"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminLayout>
   );
 }
 
 export default Municipalities;
+

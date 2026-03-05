@@ -7,21 +7,30 @@ import {
   fetchMunicipalities,
   updateLguAdminStatus,
   updateLguAdmin,
+  createBtoStaff
 } from '../../services/btoApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const accountTabs = [
   { id: 'all', label: 'All Accounts' },
   { id: 'lgu_admin', label: 'LGU Admins' },
+  { id: 'bto_staff', label: 'BTO Staff' },
   { id: 'lgu_staff', label: 'LGU Staff' },
 ];
 
 const initialAdminForm = {
   fullName: '',
+  username: '',
   email: '',
-  password: '',
   municipalityId: '',
   phone: '',
   notes: '',
+};
+
+const initialBtoStaffForm = {
+  fullName: '',
+  username: '',
+  email: '',
 };
 
 function Accounts() {
@@ -36,16 +45,17 @@ function Accounts() {
   const [municipalities, setMunicipalities] = useState([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(true);
 
+  const [isBtoStaffModalOpen, setBtoStaffModalOpen] = useState(false);
+  const [btoStaffForm, setBtoStaffForm] = useState(initialBtoStaffForm);
+  const [submittingBtoStaff, setSubmittingBtoStaff] = useState(false);
+
+
   const pageSize = 10;
   const [page, setPage] = useState(1);
 
 
   const [submittingAdmin, setSubmittingAdmin] = useState(false);
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    status: 'success',
-    message: '',
-  });
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -124,6 +134,8 @@ function Accounts() {
               ? 'LGU Admin'
               : account.role === 'lgu_staff'
               ? 'LGU Staff'
+              : account.role === 'bto_staff'
+              ? 'BTO Staff'
               : account.role,
           status: isActive ? 'Active' : 'Deactivated',
           isActive,
@@ -199,36 +211,65 @@ function Accounts() {
   const handleCreateAdmin = async (event) => {
     event.preventDefault();
     setSubmittingAdmin(true);
+    showLoading('Creating LGU admin account...');
 
     try {
       await createLguAdmin({
+        username: adminForm.username,
         email: adminForm.email,
-        password: adminForm.password,
         full_name: adminForm.fullName,
         municipality_id: adminForm.municipalityId,
       });
 
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `LGU admin ${adminForm.fullName} has been created.`,
-      });
+      showSuccess('LGU admin ' + adminForm.fullName + ' has been created.');
 
       setAdminForm(initialAdminForm);
       setModalOpen(false);
       await loadData();
     } catch (error) {
-      setFeedbackModal({
-        open: true,
-        status: 'error',
-        message:
-          error.response?.data?.message ||
-          'Unable to create LGU admin. Please try again.',
-      });
+      showError(error.response?.data?.message || 'Unable to create LGU admin. Please try again.');
     } finally {
       setSubmittingAdmin(false);
     }
   };
+
+  const openBtoStaffModal = () => {
+  setBtoStaffForm(initialBtoStaffForm);
+  setBtoStaffModalOpen(true);
+};
+
+const closeBtoStaffModal = () => {
+  setBtoStaffModalOpen(false);
+};
+
+const handleBtoStaffFormChange = (event) => {
+  const { name, value } = event.target;
+  setBtoStaffForm((prev) => ({ ...prev, [name]: value }));
+};
+
+const handleCreateBtoStaff = async (event) => {
+  event.preventDefault();
+  setSubmittingBtoStaff(true);
+  showLoading('Creating BTO staff account...');
+
+  try {
+    await createBtoStaff({
+      username: btoStaffForm.username,
+      email: btoStaffForm.email,
+      full_name: btoStaffForm.fullName,
+    });
+
+    showSuccess('BTO staff ' + btoStaffForm.fullName + ' has been created.');
+
+    setBtoStaffForm(initialBtoStaffForm);
+    setBtoStaffModalOpen(false);
+    await loadData();
+  } catch (error) {
+    showError(error.response?.data?.message || 'Unable to create BTO staff. Please try again.');
+  } finally {
+    setSubmittingBtoStaff(false);
+  }
+};
 
   const openStatusModalForAccount = (account, nextState) => {
     setStatusModal({
@@ -253,6 +294,7 @@ function Accounts() {
   const handleStatusSubmit = async () => {
     if (!statusModal.target) return;
     setStatusModal((prev) => ({ ...prev, loading: true, error: '' }));
+    showLoading('Updating account status...');
     try {
       await updateLguAdminStatus(statusModal.target.id, statusModal.nextState);
       setStatusModal({
@@ -262,13 +304,7 @@ function Accounts() {
         loading: false,
         error: '',
       });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `LGU admin ${statusModal.target.name} has been ${
-          statusModal.nextState ? 'reactivated' : 'deactivated'
-        }.`,
-      });
+      showSuccess('LGU admin ' + statusModal.target.name + ' has been ' + (statusModal.nextState ? 'reactivated' : 'deactivated') + '.');
       await loadData();
     } catch (error) {
       setStatusModal((prev) => ({
@@ -313,17 +349,14 @@ function Accounts() {
     event.preventDefault();
     if (!editModal.target) return;
     setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
+    showLoading('Updating account...');
     try {
       await updateLguAdmin(editModal.target.id, {
         email: editModal.form.email,
         full_name: editModal.form.fullName,
         municipality_id: editModal.form.municipalityId,
       });
-      setFeedbackModal({
-        open: true,
-        status: 'success',
-        message: `LGU admin ${editModal.form.fullName} has been updated.`,
-      });
+      showSuccess('LGU admin ' + editModal.form.fullName + ' has been updated.');
       closeEditModal();
       await loadData();
     } catch (error) {
@@ -344,11 +377,16 @@ function Accounts() {
       subtitle="Manage LGU admins and staff across the province."
       searchPlaceholder="Search accounts..."
       onSearchSubmit={(value) => console.log('search', value)}
-      headerActions={
-        <button type="button" className="primary-cta" onClick={openModal}>
-          Invite LGU Admin
-        </button>
-      }
+        headerActions={
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" className="primary-cta" onClick={openModal}>
+              Create LGU Admin
+            </button>
+            <button type="button" className="ghost-cta" onClick={openBtoStaffModal}>
+              Create BTO Staff
+            </button>
+          </div>
+        }
     >
       <section className="account-management">
         <div className="section-heading">
@@ -461,31 +499,110 @@ function Accounts() {
           </ul>
           
         </div>
-        <div className="pagination-bar">
-  <div className="pagination-info">
-    Showing {filteredAccounts.length ? `${pageStart}–${pageEnd}` : '0'} of {filteredAccounts.length}
-  </div>
-  <div className="pagination-controls">
-    <button
-      type="button"
-      className="pagination-button"
-      onClick={() => setPage((p) => Math.max(1, p - 1))}
-      disabled={page === 1 || !filteredAccounts.length}
-    >
-      Previous
-    </button>
-    <span className="pagination-page">Page {page} of {totalPages}</span>
-    <button
-      type="button"
-      className="pagination-button"
-      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-      disabled={page === totalPages || !filteredAccounts.length}
-    >
-      Next
-    </button>
-  </div>
-</div>
 
+        {isBtoStaffModalOpen && (
+            <div className="modal-backdrop" role="dialog" aria-modal="true">
+              <div className="modal-card">
+                <header className="modal-header">
+                  <div>
+                    <h3>Create BTO Staff</h3>
+                    <p>Create a BTO staff account with temporary credentials.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="modal-close"
+                    aria-label="Close"
+                    onClick={closeBtoStaffModal}
+                  >
+                    ×
+                  </button>
+                </header>
+
+                <div className="modal-content">
+                  <form className="modal-form" onSubmit={handleCreateBtoStaff}>
+                    <div className="form-row">
+                      <label className="form-label" htmlFor="bto-staff-fullName">
+                        Full name
+                      </label>
+                      <input
+                        id="bto-staff-fullName"
+                        name="fullName"
+                        type="text"
+                        required
+                        placeholder="Juan Dela Cruz"
+                        value={btoStaffForm.fullName}
+                        onChange={handleBtoStaffFormChange}
+                      />
+                    </div>
+
+                    <div className="form-row">
+                      <label className="form-label" htmlFor="bto-staff-username">
+                        Username
+                      </label>
+                      <input
+                        id="bto-staff-username"
+                        name="username"
+                        type="text"
+                        required
+                        placeholder="bto.staff001"
+                        value={btoStaffForm.username}
+                        onChange={handleBtoStaffFormChange}
+                      />
+                    </div>
+
+                    <div className="form-row">
+                      <label className="form-label" htmlFor="bto-staff-email">
+                        Email
+                      </label>
+                      <input
+                        id="bto-staff-email"
+                        name="email"
+                        type="email"
+                        required
+                        placeholder="staff@tourifybohol.gov.ph"
+                        value={btoStaffForm.email}
+                        onChange={handleBtoStaffFormChange}
+                      />
+                    </div>
+
+                    <div className="modal-actions">
+                      <button type="button" className="ghost-cta" onClick={closeBtoStaffModal}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="primary-cta" disabled={submittingBtoStaff}>
+                        {submittingBtoStaff ? 'Creating…' : 'Create BTO Staff'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+        <div className="pagination-bar">
+          <div className="pagination-info">
+            Showing {filteredAccounts.length ? `${pageStart}–${pageEnd}` : '0'} of {filteredAccounts.length}
+          </div>
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="pagination-button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1 || !filteredAccounts.length}
+            >
+              Previous
+            </button>
+            <span className="pagination-page">Page {page} of {totalPages}</span>
+            <button
+              type="button"
+              className="pagination-button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages || !filteredAccounts.length}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </section>
 
       {isModalOpen && (
@@ -525,6 +642,20 @@ function Accounts() {
 
                 <div className="form-row form-grid">
                   <div>
+                    <label className="form-label" htmlFor="admin-username">
+                      Username
+                    </label>
+                    <input
+                      id="admin-username"
+                      name="username"
+                      type="text"
+                      required
+                      placeholder="lgu.tagbilaran.admin"
+                      value={adminForm.username}
+                      onChange={handleAdminFormChange}
+                    />
+                  </div>
+                  <div>
                     <label className="form-label" htmlFor="admin-email">
                       Government email
                     </label>
@@ -535,20 +666,6 @@ function Accounts() {
                       required
                       placeholder="firstname.lastname@municipality.gov.ph"
                       value={adminForm.email}
-                      onChange={handleAdminFormChange}
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label" htmlFor="admin-password">
-                      Temporary password
-                    </label>
-                    <input
-                      id="admin-password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="At least 8 characters"
-                      value={adminForm.password}
                       onChange={handleAdminFormChange}
                     />
                   </div>
@@ -588,7 +705,7 @@ function Accounts() {
                     Cancel
                   </button>
                   <button type="submit" className="primary-cta" disabled={submittingAdmin}>
-                    {submittingAdmin ? 'Sending…' : 'Send Invitation'}
+                    {submittingAdmin ? 'Creating…' : 'Create LGU Admin'}
                   </button>
                 </div>
               </form>
@@ -644,44 +761,6 @@ function Accounts() {
                   : statusModal.nextState
                   ? 'Activate'
                   : 'Deactivate'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {feedbackModal.open && (
-        <div className="modal-backdrop" role="alertdialog" aria-modal="true">
-          <div className="modal-card">
-            <header className="modal-header">
-              <div>
-                <h3>
-                  {feedbackModal.status === 'success'
-                    ? 'Success'
-                    : 'Something went wrong'}
-                </h3>
-                <p>{feedbackModal.message}</p>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                aria-label="Close"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                ×
-              </button>
-            </header>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary-cta"
-                onClick={() =>
-                  setFeedbackModal({ open: false, status: 'success', message: '' })
-                }
-              >
-                OK
               </button>
             </div>
           </div>
@@ -795,3 +874,8 @@ function Accounts() {
 }
 
 export default Accounts;
+
+
+
+
+

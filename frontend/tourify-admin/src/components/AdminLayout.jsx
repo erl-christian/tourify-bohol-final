@@ -1,4 +1,4 @@
-import PropTypes from 'prop-types';
+﻿import PropTypes from 'prop-types';
 import { NavLink } from 'react-router-dom';
 import { adminNavSections } from '../data/adminNavigation';
 import '../styles/AdminDashboard.css';
@@ -23,6 +23,21 @@ const handleSearchSubmit = (event) => {
 
 const navigate = useNavigate();
 const handleSignOut = () => signOut(navigate);
+const getInitials = (name = '') => {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'TB';
+  return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
+};
+
+const sessionRole = sessionStorage.getItem('mockRole') || '';
+const displayName =
+  sessionStorage.getItem('mockDisplayName') ||
+  (sessionRole === 'bto_staff' ? 'BTO Staff' : 'BTO Admin');
+const displayRole =
+  sessionStorage.getItem('mockDisplayRole') ||
+  (sessionRole === 'bto_staff' ? 'BTO Staff' : 'BTO Head Administrator');
+
+const avatarInitials = getInitials(displayName);
 
 return (
     <div className="dashboard-shell">
@@ -57,10 +72,10 @@ return (
 
         <div className="nav-footer">
           <div className="footer-user">
-            <div className="avatar">AC</div>
+            <div className="avatar">{avatarInitials}</div>
             <div>
-              <p className="user-name">Anita Cruz</p>
-              <p className="user-role">BTO Head Administrator</p>
+              <p className="user-name">{displayName}</p>
+              <p className="user-role">{displayRole}</p>
             </div>
           </div>
           <button type="button" className="logout-cta" onClick={handleSignOut}>
@@ -81,7 +96,7 @@ return (
             <form className="search-field" role="search" onSubmit={handleSearchSubmit}>
               <input name="search" type="search" placeholder={searchPlaceholder} />
               <button type="submit" aria-label="Search">
-                🔍
+                ðŸ”
               </button>
             </form>
           ) : (
@@ -92,9 +107,9 @@ return (
             {headerActions ?? (
               <>
                 <button type="button" className="icon-pill" aria-label="Notifications">
-                  🔔
+                  ðŸ””
                 </button>
-                <div className="header-avatar">AC</div>
+                <div className="header-avatar">{avatarInitials}</div>
               </>
             )}
           </div>
@@ -117,3 +132,4 @@ AdminLayout.propTypes = {
 };
 
 export default AdminLayout;
+

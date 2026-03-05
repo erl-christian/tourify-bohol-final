@@ -11,6 +11,7 @@ import {
   btoModerateFeedback,
   btoReplyToFeedback,
 } from '../../services/feedbackApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const stripMarkdown = text => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
 
@@ -71,6 +72,7 @@ const getEstablishmentId = est =>
   '';
 
 function BtoFeedback() {
+  const { showLoading, showSuccess, showError } = useActionStatus();
   const [establishments, setEstablishments] = useState([]);
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
   const [estError, setEstError] = useState('');
@@ -215,14 +217,16 @@ function BtoFeedback() {
     from.setDate(to.getDate() - 30);
     try {
       setSummaryState(prev => ({ ...prev, loading: true }));
+      showLoading('Generating AI summary...');
       await generateFeedbackSummary(selectedEst, {
         from: from.toISOString(),
         to: to.toISOString(),
       });
       await loadSummary();
+      showSuccess('AI summary generated successfully.');
     } catch (err) {
       console.error('[BTO Feedback] summary generation failed', err);
-      alert('Unable to generate summary. Please try again later.');
+      showError('Unable to generate summary. Please try again later.');
       setSummaryState(prev => ({ ...prev, loading: false }));
     }
   };
@@ -761,3 +765,5 @@ const closeThreadModal = () =>
 }
 
 export default BtoFeedback;
+
+

@@ -24,6 +24,7 @@ import {
   fetchSpmStatus,
   rebuildSpm,
 } from '../../services/analyticsApi';
+import { useActionStatus } from '../../context/ActionStatusContext';
 
 const pieColors = ['#2f80ed', '#56ccf2', '#f2c94c', '#f2994a', '#eb5757'];
 
@@ -153,6 +154,7 @@ function HeatmapLayer({ points, radius = 20, blur = 25 }) {
 function SpmControls() {
   const [status, setStatus] = useState({ running: false, lastRunAt: null });
   const [loading, setLoading] = useState(false);
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const loadStatus = async () => {
     try {
@@ -169,12 +171,13 @@ function SpmControls() {
 
   const handleRebuild = async () => {
     setLoading(true);
+    showLoading('Running sequence mining...');
     try {
       await rebuildSpm();
       await loadStatus();
-      alert('SPM mining started/completed.');
+      showSuccess('SPM mining started/completed.');
     } catch (err) {
-      alert(err?.response?.data?.message || err?.message || 'Failed to start mining.');
+      showError(err?.response?.data?.message || err?.message || 'Failed to start mining.');
     } finally {
       setLoading(false);
     }
@@ -215,14 +218,19 @@ function LguStaffAnalytics() {
 
 
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+  const { showLoading, showSuccess, showError } = useActionStatus();
 
   const handleExport = async (type) => {
     const params = new URLSearchParams();
     if (exportRange.from) params.append('from', `${exportRange.from}-01`);
     if (exportRange.to) params.append('to', `${exportRange.to}-28`);
     const token = sessionStorage.getItem('accessToken');
-    if (!token) return alert('Please log in to export.');
+    if (!token) {
+      showError('Please log in to export.');
+      return;
+    }
     try {
+      showLoading('Preparing export file...');
       const resp = await fetch(
         `${apiBase}/admin/analytics/lgu/export/${type}?${params.toString()}`,
         { headers: { Authorization: `Bearer ${token}` } },
@@ -237,9 +245,10 @@ function LguStaffAnalytics() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      showSuccess((type === 'excel' ? 'Excel' : 'PDF') + ' export is ready.');
     } catch (err) {
       console.error('[LGU Staff export] failed', err);
-      alert(err.message || 'Unable to export.');
+      showError(err.message || 'Unable to export.');
     }
   };
 
@@ -590,3 +599,4 @@ function LguStaffAnalytics() {
 }
 
 export default LguStaffAnalytics;
+

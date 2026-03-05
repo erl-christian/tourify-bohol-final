@@ -22,6 +22,7 @@ export const lguNavSections = [
       { id: 'approvals', label: 'Approvals', icon: FaClipboardCheck, path: '/lgu/approvals' },
       { id: 'feedback', label: 'Feedback', icon: FaCommentDots, path: '/lgu/feedback' },
       { id: 'reports', label: 'Analytics', icon: FaChartBar, path: '/lgu/analytics' },
+      { id: 'my-account', label: 'My Account', icon: FaUserCog, path: '/account/settings' },
     ],
   },
 ];
