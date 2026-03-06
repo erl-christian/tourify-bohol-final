@@ -5,7 +5,7 @@ import { runSpmMining, getSpmStatus } from '../../services/spmService.js';
 const router = express.Router();
 
 // Cooldown: block if already running; you can add timestamps to enforce min interval if desired.
-router.post('/spm/rebuild', auth, requireRoles('bto_admin', 'lgu_admin', 'lgu_staff'), async (req, res, next) => {
+router.post('/spm/rebuild', auth, requireRoles('bto_admin', 'bto_staff', 'lgu_admin', 'lgu_staff'), async (req, res, next) => {
   try {
     const status = getSpmStatus();
     if (status.running) {
@@ -19,7 +19,7 @@ router.post('/spm/rebuild', auth, requireRoles('bto_admin', 'lgu_admin', 'lgu_st
   }
 });
 
-router.get('/spm/status', auth, requireRoles('bto_admin', 'lgu_admin', 'lgu_staff'), (req, res) => {
+router.get('/spm/status', auth, requireRoles('bto_admin', 'bto_staff', 'lgu_admin', 'lgu_staff'), (req, res) => {
   res.json(getSpmStatus());
 });
 

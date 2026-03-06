@@ -1,20 +1,22 @@
 import {
   FaTachometerAlt,
-  FaChartLine,
   FaUsers,
   FaLandmark,
   FaBuilding,
   FaComments,
-  FaFileInvoice,
-  FaUserCog
+  FaUserCog,
 } from 'react-icons/fa';
 
 export const adminNavSections = [
   {
     title: 'Overview',
     items: [
-      { id: 'dashboard', label: 'Dashboard', icon: FaTachometerAlt, path: '/admin/dashboard' },
-      { id: 'analytics', label: 'Analytics', icon: FaChartLine, path: '/admin/analytics' },
+      {
+        id: 'dashboard',
+        label: 'Dashboard & Analytics',
+        icon: FaTachometerAlt,
+        path: '/admin/dashboard',
+      },
     ],
   },
   {

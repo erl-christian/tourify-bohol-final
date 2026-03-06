@@ -1,8 +1,16 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, changePasswordFirstLogin } from '../services/authApi';
-import heroImage from '../assets/react.svg';
 import '../styles/Login.css';
+
+import boholBgVideo from '../assets/LOVE Bohol - Tourism Philippines (720p, h264).mp4';
+
+const BOHOL_LOGO_URL =
+  'https://tourism.bohol.gov.ph/wp-content/uploads/2025/01/Behold-Bohol-Logo-HD-small-1.png';
+
+const BOHOL_HERO_IMAGE =
+  'https://tourism.bohol.gov.ph/wp-content/uploads/2025/02/Travel-Highlights-Collage-2025.webp';
+
 
 function Login() {
   const [isPasswordVisible, setPasswordVisible] = useState(false);
@@ -200,14 +208,31 @@ function Login() {
 
   return (
     <div className="login-root">
+      <div
+        className="login-bg-pan"
+        aria-hidden="true"
+        style={{ '--bg-url': `url(${BOHOL_HERO_IMAGE})` }}
+      >
+      <div className="login-bg-track">
+          <span className="login-bg-half login-bg-half--normal" />
+          <span className="login-bg-half login-bg-half--mirror" />
+        </div>
+      </div>
       <div className="login-card">
         <section className="login-form-area">
           <header className="form-header">
-            <h1>Login</h1>
-            <p className="form-subtitle">
-              BTO-admin managed access for LGU portals across Bohol.
-            </p>
-          </header>
+          <div className="brand-row">
+            <img src={BOHOL_LOGO_URL} alt="Behold Bohol logo" className="brand-logo" />
+            <div>
+              <p className="brand-kicker">Provincial Government of Bohol</p>
+              <h1>Tourism Staff Portal</h1>
+            </div>
+          </div>
+          <p className="form-subtitle">
+            Secure access for BTO and LGU tourism staff to manage operations, accounts, analytics,
+            and feedback.
+          </p>
+        </header>
 
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="form-field">
@@ -256,19 +281,26 @@ function Login() {
         </section>
 
         <aside className="login-hero">
+          <video className="hero-bg-video" autoPlay loop muted playsInline preload="metadata">
+            <source src={boholBgVideo} type="video/mp4" />
+          </video>
+          <div className="hero-overlay" />
+
           <div className="hero-content">
-            <p className="hero-tag">Welcome back</p>
-            <h2>Very good works are waiting for you</h2>
+            <p className="hero-tag">Behold Bohol</p>
+            <h2>Your command center for destination management</h2>
             <p className="hero-copy">
-              Review tourism requests, manage LGU accounts, and keep Bohol&apos;s
-              experiences running smoothly.
+              Review tourism activity, support local destinations, and coordinate staff from one
+              unified admin portal.
             </p>
           </div>
 
-          <div className="hero-figure">
-            <img src={heroImage} alt="Tourism officer greeting the viewer" />
-          </div>
+          {/* <div className="hero-figure">
+            <img src={BOHOL_LOGO_URL} alt="Behold Bohol Tourism logo" />
+            <p>Official Tourism Office Branding</p>
+          </div> */}
         </aside>
+
       </div>
 
       {showErrorModal && (
@@ -281,7 +313,7 @@ function Login() {
           <div className="login-modal-card" onClick={(event) => event.stopPropagation()}>
             <header className="login-modal-header">
               <h3>Invalid credentials</h3>
-              <p>{error || 'Please double-check your email and password.'}</p>
+              <p>{error || 'Please double-check your username and password.'}</p>
             </header>
             <div className="login-modal-actions">
               <button type="button" className="primary-button" onClick={dismissErrorModal}>

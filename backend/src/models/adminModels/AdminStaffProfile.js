@@ -11,9 +11,10 @@ const adminStaffProfileSchema = new mongoose.Schema(
         municipality_id:        { type: String, required: true, index: true },
 
         full_name:              { type: String, required: true, trim: true },
+        contact_no:             { type: String, trim: true }, // optional, editable by account owner
 
-        //"BTO Admin" "LGU Admin" "LGU Staff"
-        position:               { type: String, required: true, trim: true }
+        // "BTO Admin" "BTO Staff" "LGU Admin" "LGU Staff"
+        position:                   { type: String, required: true, trim: true }
 
     },{timestamps: true}
 

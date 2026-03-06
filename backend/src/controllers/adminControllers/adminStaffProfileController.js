@@ -9,6 +9,7 @@ import { listFeedbackForEstablishment } from "../publicControllers/publicFeedbac
 import Feedback from "../../models/feedback/Feedback.js";
 import FeedbackResponse from "../../models/feedback/FeedbackResponse.js";
 import { sendMail } from '../../services/mailer.js';
+import crypto from "crypto";
 
 const escapeHtml = (value = '') =>
   String(value)
@@ -55,7 +56,7 @@ const buildLguAdminInviteHtml = ({
 
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dbe3ef;border-radius:10px;background:#f8fafc;margin:0 0 18px;">
                   <tr>
-                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Account Email</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Username</td>
                     <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#0f172a;">${escapeHtml(email)}</td>
                   </tr>
                   <tr>
@@ -97,6 +98,14 @@ const buildLguAdminInviteHtml = ({
   </body>
 </html>
 `;
+
+const USERNAME_REGEX = /^[a-z0-9._-]{4,32}$/;
+
+const generateTempPassword = (length = 12) => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  return Array.from({ length }, () => chars[crypto.randomInt(0, chars.length)]).join("");
+};
+
 
 const getAdminLoginUrl = () => {
   const frontendBase = (
@@ -146,7 +155,7 @@ const buildLguManagedInviteHtml = ({
 
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dbe3ef;border-radius:10px;background:#f8fafc;margin:0 0 18px;">
                   <tr>
-                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Account Email</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#64748b;">Username</td>
                     <td style="padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#0f172a;">${escapeHtml(email)}</td>
                   </tr>
                   <tr>
@@ -193,10 +202,18 @@ const buildLguManagedInviteHtml = ({
 //post /api/admin/bto/create-lgu-admin
 export const createLGUAdmin = async (req, res, next) => {
   try {
-    const { email, password, full_name, municipality_id } = req.body;
-    if (!email || !password || !full_name || !municipality_id) {
+    const { email, username, full_name, municipality_id } = req.body;
+    if (!email || !username || !full_name || !municipality_id) {
       res.status(400);
-      throw new Error("email, password, full_name, municipality_id are required");
+      throw new Error("email, username, full_name, municipality_id are required");
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim().toLowerCase();
+
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      res.status(400);
+      throw new Error("Invalid username format");
     }
 
     const muni = await Municipality.findOne({ municipality_id });
@@ -205,29 +222,31 @@ export const createLGUAdmin = async (req, res, next) => {
       throw new Error("Municipality not found");
     }
 
-    const exists = await Account.findOne({ email });
+    const exists = await Account.findOne({ username: normalizedUsername });
     if (exists) {
       res.status(409);
-      throw new Error("Email already in use");
+      throw new Error("Username already in use");
     }
 
-    const tempPassword = String(password);
-    const acc = await Account.create({ email, password: tempPassword, role: "lgu_admin", must_change_password: true });
+    const tempPassword = generateTempPassword();
+
+    const acc = await Account.create({
+      email: normalizedEmail,
+      username: normalizedUsername,
+      password: tempPassword,
+      role: "lgu_admin",
+      must_change_password: true,
+    });
 
     const profile = await AdminStaffProfile.create({
       account: acc._id,
       account_id: acc.account_id,
       municipality_id,
       full_name,
-      position: "LGU Admin"
+      position: "LGU Admin",
     });
 
-    const frontendBase = (
-      process.env.FRONTEND_ADMIN_URL ||
-      process.env.APP_BASE_URL ||
-      "http://localhost:5173"
-    ).replace(/\/$/, "");
-    const loginUrl = `${frontendBase}/login`;
+    const loginUrl = getAdminLoginUrl();
 
     let inviteEmailSent = false;
     try {
@@ -236,7 +255,7 @@ export const createLGUAdmin = async (req, res, next) => {
         subject: "Your Tourify Bohol LGU Admin account",
         html: buildLguAdminInviteHtml({
           fullName: full_name,
-          email: acc.email,
+          email: acc.username,
           password: tempPassword,
           municipalityName: muni.name,
           loginUrl,
@@ -252,7 +271,95 @@ export const createLGUAdmin = async (req, res, next) => {
       message: inviteEmailSent
         ? "LGU Admin created and invite email sent"
         : "LGU Admin created (invite email not sent)",
-      account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
+      account: {
+        id: acc._id,
+        account_id: acc.account_id,
+        email: acc.email,
+        username: acc.username,
+        role: acc.role,
+      },
+      profile,
+      inviteEmailSent,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+//post api/admin/bto/create-bto-staff
+export const createBTOStaff = async (req, res, next) => {
+  try {
+    const { email, username, full_name } = req.body;
+    if (!email || !username || !full_name) {
+      res.status(400);
+      throw new Error("email, username, full_name are required");
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim().toLowerCase();
+
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      res.status(400);
+      throw new Error("Invalid username format");
+    }
+
+    const exists = await Account.findOne({ username: normalizedUsername });
+    if (exists) {
+      res.status(409);
+      throw new Error("Username already in use");
+    }
+
+    const tempPassword = generateTempPassword();
+
+    const acc = await Account.create({
+      email: normalizedEmail,
+      username: normalizedUsername,
+      password: tempPassword,
+      role: "bto_staff",
+      must_change_password: true,
+    });
+
+    const profile = await AdminStaffProfile.create({
+      account: acc._id,
+      account_id: acc.account_id,
+      municipality_id: "BTO",
+      full_name,
+      position: "BTO Staff",
+    });
+
+    const loginUrl = getAdminLoginUrl();
+
+    let inviteEmailSent = false;
+    try {
+      const mailResult = await sendMail({
+        to: acc.email,
+        subject: "Your Tourify Bohol BTO Staff account",
+        html: buildLguManagedInviteHtml({
+          heading: "BTO Staff Account Invitation",
+          fullName: full_name,
+          email: acc.username,
+          password: tempPassword,
+          municipalityName: "Bohol Province",
+          loginUrl,
+          createdByName: "BTO Admin",
+        }),
+      });
+      inviteEmailSent = Boolean(mailResult);
+    } catch (mailErr) {
+      console.warn("[createBTOStaff] invite email send failed:", mailErr.message);
+    }
+
+    res.status(201).json({
+      message: inviteEmailSent
+        ? "BTO Staff created and invite email sent"
+        : "BTO Staff created (invite email not sent)",
+      account: {
+        id: acc._id,
+        account_id: acc.account_id,
+        email: acc.email,
+        username: acc.username,
+        role: acc.role,
+      },
       profile,
       inviteEmailSent,
     });
@@ -262,15 +369,19 @@ export const createLGUAdmin = async (req, res, next) => {
 };
 
 
+
 //post api/admin/lgu/create-lgu-staff
 export const createLGUStaff = async (req, res, next) => {
   try {
     const creatorAccId = req.user?.account_id;
-    if (!creatorAccId) { res.status(401); throw new Error("Unauthorized"); }
+    if (!creatorAccId) {
+      res.status(401);
+      throw new Error("Unauthorized");
+    }
 
     const creatorProfile = await AdminStaffProfile.findOne({
       account_id: creatorAccId,
-      position: "LGU Admin"
+      position: "LGU Admin",
     });
 
     if (!creatorProfile) {
@@ -278,21 +389,34 @@ export const createLGUStaff = async (req, res, next) => {
       throw new Error("Only LGU Admins with a profile can create staff");
     }
 
-    const { email, password, full_name } = req.body;
-    if (!email || !password || !full_name) {
+    const { email, username, full_name } = req.body;
+    if (!email || !username || !full_name) {
       res.status(400);
-      throw new Error("email, password, full_name are required");
+      throw new Error("email, username, full_name are required");
     }
 
-    const exists = await Account.findOne({ email });
-    if (exists) { res.status(409); throw new Error("Email already in use"); }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim().toLowerCase();
 
-    const tempPassword = String(password);
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      res.status(400);
+      throw new Error("Invalid username format");
+    }
+
+    const exists = await Account.findOne({ username: normalizedUsername });
+    if (exists) {
+      res.status(409);
+      throw new Error("Username already in use");
+    }
+
+    const tempPassword = generateTempPassword();
+
     const acc = await Account.create({
-      email,
+      email: normalizedEmail, // contact only
+      username: normalizedUsername, // login ID
       password: tempPassword,
       role: "lgu_staff",
-      must_change_password: true
+      must_change_password: true,
     });
 
     const profile = await AdminStaffProfile.create({
@@ -300,10 +424,13 @@ export const createLGUStaff = async (req, res, next) => {
       account_id: acc.account_id,
       municipality_id: creatorProfile.municipality_id,
       full_name,
-      position: "LGU Staff"
+      position: "LGU Staff",
     });
 
-    const muni = await Municipality.findOne({ municipality_id: creatorProfile.municipality_id }).lean();
+    const muni = await Municipality.findOne({
+      municipality_id: creatorProfile.municipality_id,
+    }).lean();
+
     const loginUrl = getAdminLoginUrl();
 
     let inviteEmailSent = false;
@@ -314,7 +441,7 @@ export const createLGUStaff = async (req, res, next) => {
         html: buildLguManagedInviteHtml({
           heading: "LGU Staff Account Invitation",
           fullName: full_name,
-          email: acc.email,
+          email: acc.username, // displayed as username
           password: tempPassword,
           municipalityName: muni?.name || creatorProfile.municipality_id,
           loginUrl,
@@ -330,7 +457,13 @@ export const createLGUStaff = async (req, res, next) => {
       message: inviteEmailSent
         ? "LGU Staff created and invite email sent"
         : "LGU Staff created (invite email not sent)",
-      account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
+      account: {
+        id: acc._id,
+        account_id: acc.account_id,
+        email: acc.email,
+        username: acc.username,
+        role: acc.role,
+      },
       profile,
       inviteEmailSent,
     });
@@ -446,7 +579,7 @@ export const getLGUStaffs = async (req, res, next) => {
     }
 
     const staffAccounts = await Account.find({
-      role: { $in: ["lgu_admin", "lgu_staff", "business_establishment"] },
+      role: { $in: ["lgu_admin", "lgu_staff", "bto_staff", "business_establishment"] },
     })
       .select("-password") // never expose password hashes
       .sort({ createdAt: -1 })
@@ -595,28 +728,48 @@ export const regenerateEstablishmentQr = async (req, res, next) => {
 export const lguCreateOwnerProfile = async (req, res, next) => {
   try {
     const callerAccId = req.user?.account_id;
-    if (!callerAccId) { res.status(401); throw new Error("Unauthorized"); }
+    if (!callerAccId) {
+      res.status(401);
+      throw new Error("Unauthorized");
+    }
 
     const lguAdmin = await AdminStaffProfile.findOne({
       account_id: callerAccId,
-      position: "LGU Admin"
+      position: "LGU Admin",
     });
-    if (!lguAdmin) { res.status(403); throw new Error("Only LGU Admins can create owners"); }
-
-    const { email, password, full_name, contact_no, role = "Owner" } = req.body;
-    if (!email || !password || !full_name) {
-      res.status(400); throw new Error("email, password, full_name are required");
+    if (!lguAdmin) {
+      res.status(403);
+      throw new Error("Only LGU Admins can create owners");
     }
 
-    const exists = await Account.findOne({ email });
-    if (exists) { res.status(409); throw new Error("Email already in use"); }
+    const { email, username, full_name, contact_no, role = "Owner" } = req.body;
+    if (!email || !username || !full_name) {
+      res.status(400);
+      throw new Error("email, username, full_name are required");
+    }
 
-    const tempPassword = String(password);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim().toLowerCase();
+
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      res.status(400);
+      throw new Error("Invalid username format");
+    }
+
+    const exists = await Account.findOne({ username: normalizedUsername });
+    if (exists) {
+      res.status(409);
+      throw new Error("Username already in use");
+    }
+
+    const tempPassword = generateTempPassword();
+
     const acc = await Account.create({
-      email,
+      email: normalizedEmail, // contact only
+      username: normalizedUsername, // login ID
       password: tempPassword,
       role: "business_establishment",
-      must_change_password: true
+      must_change_password: true,
     });
 
     const profile = await BusinessEstablishmentProfile.create({
@@ -624,10 +777,13 @@ export const lguCreateOwnerProfile = async (req, res, next) => {
       municipality_id: lguAdmin.municipality_id,
       full_name,
       contact_no,
-      role
+      role,
     });
 
-    const muni = await Municipality.findOne({ municipality_id: lguAdmin.municipality_id }).lean();
+    const muni = await Municipality.findOne({
+      municipality_id: lguAdmin.municipality_id,
+    }).lean();
+
     const loginUrl = getAdminLoginUrl();
 
     let inviteEmailSent = false;
@@ -638,7 +794,7 @@ export const lguCreateOwnerProfile = async (req, res, next) => {
         html: buildLguManagedInviteHtml({
           heading: "Establishment Owner Account Invitation",
           fullName: full_name,
-          email: acc.email,
+          email: acc.username, // displayed as username
           password: tempPassword,
           municipalityName: muni?.name || lguAdmin.municipality_id,
           loginUrl,
@@ -654,7 +810,13 @@ export const lguCreateOwnerProfile = async (req, res, next) => {
       message: inviteEmailSent
         ? "Owner profile created and invite email sent"
         : "Owner profile created (invite email not sent)",
-      account: { id: acc._id, account_id: acc.account_id, email: acc.email, role: acc.role },
+      account: {
+        id: acc._id,
+        account_id: acc.account_id,
+        email: acc.email,
+        username: acc.username,
+        role: acc.role,
+      },
       profile,
       inviteEmailSent,
     });

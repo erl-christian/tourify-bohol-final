@@ -8,8 +8,17 @@ const ROLES = [
     "business_establishment",
     "lgu_staff",
     "lgu_admin",
-    "bto_admin"
+    "bto_admin",
+    "bto_staff",
 ];
+
+const ADMIN_SIDE_ROLES = new Set([
+  "business_establishment",
+  "lgu_staff",
+  "lgu_admin",
+  "bto_admin",
+  "bto_staff",
+]);
 
 //pk id creation
 function pad(n, size = 4) {
@@ -35,13 +44,14 @@ async function nextAccountID() {
 
 const accountSchema= new mongoose.Schema(
     {
-        email:      { type: String, required:true, unique:true, lowercase:true, trim: true },
+        email:      { type: String, required:true, lowercase:true, trim: true },
         password:   { type: String, required:true, minlength: 8 },
         role:       { type: String, enum: ROLES, default: "tourist", index: true },
         is_active:  { type: Boolean, default: true, index: true },
         must_change_password: { type: Boolean, default: false, index: true },
         email_verified: { type: Boolean, default: false, index: true },
         email_verified_at: { type: Date },
+        username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
         //PK
         account_id: { type: String, unique: true, index: true } 
     },
@@ -50,11 +60,20 @@ const accountSchema= new mongoose.Schema(
 
 //Auto-generated ID
 accountSchema.pre("validate", async function (next) {
-    if (this.isNew && !this.account_id) {
-        this.account_id = await nextAccountID();
-    }
-    next();
-})
+  if (this.username) {
+    this.username = String(this.username).trim().toLowerCase();
+  }
+
+  if (ADMIN_SIDE_ROLES.has(this.role) && !this.username) {
+    return next(new Error("username is required for admin-side accounts"));
+  }
+
+  if (this.isNew && !this.account_id) {
+    this.account_id = await nextAccountID();
+  }
+  next();
+});
+
 
 
 //password Hashing

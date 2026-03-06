@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../styles/AdminDashboard.css';
 import AdminLayout from '../components/AdminLayout';
 import {
@@ -9,34 +9,7 @@ import {
   // updateLguAdmin,
 } from '../services/btoApi';
 import { useActionStatus } from '../context/ActionStatusContext';
-
-
-const quickActions = [
-  {
-    id: 'add-admin',
-    title: 'Pre-register Accounts',
-    description: 'Issue provincial access to a municipal tourism lead.',
-    enabled: true,
-  },
-  {
-    id: 'view-staff',
-    title: 'View Staff Accounts',
-    description: 'LGU admins manage staff; BTO monitors their activity.',
-    enabled: false,
-  },
-  {
-    id: 'view-owners',
-    title: 'View Establishment Owners',
-    description: 'Owners join via LGU invitations; visibility only.',
-    enabled: false,
-  },
-  {
-    id: 'register-establishment',
-    title: 'Review Establishments',
-    description: 'Track verification workflows started by LGUs.',
-    enabled: false,
-  },
-];
+import AdminAnalytics from './admin/Analytics';
 
 const accountTabs = [
   { id: 'all', label: 'All Accounts' },
@@ -316,8 +289,8 @@ function BtoDashboard() {
 
   return (
     <AdminLayout
-      title="Account Management"
-      subtitle="Provision LGU admins, staff, and establishment owners while tracking verification progress across the province."
+      title="Dashboard & Analytics"
+      subtitle="Provincial overview, analytics insights, and account management in one page."
       searchPlaceholder="Search accounts or establishments..."
       onSearchSubmit={(value) => console.log('search', value)}
       headerActions={
@@ -329,34 +302,22 @@ function BtoDashboard() {
         </>
       }
     >
-      <div className="bto-fixed-content">
-        <section className="quick-actions">
-          {quickActions.map((action) => {
-            const isEnabled = action.enabled;
-            const isPrimaryAction = action.id === 'add-admin';
-            return (
-              <button
-                type="button"
-                key={action.id}
-                className={`quick-card${isEnabled ? '' : ' quick-card--disabled'}`}
-                disabled={!isEnabled}
-                onClick={isPrimaryAction ? openCreateModal : undefined}
-                title={
-                  isEnabled
-                    ? undefined
-                    : 'Creation managed by LGU admins; BTO has read visibility.'
-                }
-              >
-                <span className="quick-title">{action.title}</span>
-                <span className="quick-desc">{action.description}</span>
-                {!isEnabled && <span className="quick-note">View only</span>}
-              </button>
-            );
-          })}
+      <div className="bto-merged-content bto-merged-content--clean">
+        <section className="merged-analytics-block merged-analytics-block--clean">
+          <header className="merged-section-head">
+            <h2>Provincial Insights</h2>
+            <p>Tourism trends, visitor movement, and service sentiment in one view.</p>
+          </header>
+          <AdminAnalytics embedded />
         </section>
-        
-        <div className="account-establishment-grid">
-        <section className="account-management">
+        <section className="merged-management-block">
+          <header className="merged-section-head">
+            <h2>Operations and Accounts</h2>
+            <p>Manage LGU accounts and monitor registered establishments.</p>
+          </header>
+
+          <div className="account-establishment-grid account-establishment-grid--clean">
+          <section className="account-management">
           <div className="section-heading">
             <h2>All Accounts</h2>
             <p>
@@ -399,7 +360,6 @@ function BtoDashboard() {
               <span>Role</span>
               <span>Status</span>
               <span>Last Activity</span>
-              <span>Actions</span>
             </div>
 
             <ul className="table-body">
@@ -503,6 +463,7 @@ function BtoDashboard() {
           </div>
         </section>
       </div>
+    </section>
     </div>
       {isCreateModalOpen && (
         <div
@@ -768,7 +729,6 @@ function BtoDashboard() {
 }
 
 export default BtoDashboard;
-
 
 
 

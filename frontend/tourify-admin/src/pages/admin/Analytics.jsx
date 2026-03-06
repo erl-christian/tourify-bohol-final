@@ -195,7 +195,7 @@ function SpmControls() {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+    <div className="analytics-spm-bar">
       <button
         type="button"
         className="primary-cta"
@@ -212,7 +212,7 @@ function SpmControls() {
 }
 
 
-function AdminAnalytics() {
+function AdminAnalytics({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [trend, setTrend] = useState([]);
@@ -359,12 +359,9 @@ function AdminAnalytics() {
   const sankeyData = useMemo(() => buildSankeyData(flows), [flows]);
 
 
-  return (
-    <AdminLayout
-      title="Advanced Provincial Reports"
-      subtitle="Quick pulse on arrivals, sentiment, accreditation, and corridor flows."
-    >
-      <section className="analytics-export-bar">
+    const analyticsContent = (
+    <section className={`analytics-page${embedded ? ' analytics-page--embedded' : ''}`}>
+      <section className={`analytics-export-bar${embedded ? ' analytics-export-bar--embedded' : ''}`}>
         <div className="export-range">
           <label>
             From
@@ -392,9 +389,10 @@ function AdminAnalytics() {
           </button>
         </div>
       </section>
+
       <SpmControls />
       {error ? <p className="error-text">{error}</p> : null}
-      {loading ? <p className="muted">Loading analytics…</p> : null}
+      {loading ? <p className="muted">Loading analytics...</p> : null}
 
       <section className="analytics-summary-grid">
         {summaryCards.map(card => (
@@ -431,7 +429,7 @@ function AdminAnalytics() {
           <article className="analytics-card compact-card">
             <header>
               <h3>Feedback rating summary</h3>
-              <p>Distribution of 1–5 star reviews.</p>
+              <p>Distribution of 1-5 star reviews.</p>
             </header>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart id="province-arrivals-chart">
@@ -446,10 +444,7 @@ function AdminAnalytics() {
                   label
                 >
                   {feedbackBreakdown.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={pieColors[index % pieColors.length]}
-                    />
+                    <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                   ))}
                 </Pie>
               </PieChart>
@@ -474,10 +469,7 @@ function AdminAnalytics() {
                   label
                 >
                   {accreditation.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={pieColors[index % pieColors.length]}
-                    />
+                    <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                   ))}
                 </Pie>
               </PieChart>
@@ -556,7 +548,7 @@ function AdminAnalytics() {
                       <strong>{index + 1}.</strong> {item.name ?? 'Unnamed establishment'}
                     </div>
                     <p className="muted destination-meta">
-                      {item.municipality_id ?? 'Province-wide'} •{' '}
+                      {item.municipality_id ?? 'Province-wide'} -{' '}
                       {(item.checkIns ?? item.rating_count ?? 0).toLocaleString()} visits
                     </p>
                   </li>
@@ -608,10 +600,23 @@ function AdminAnalytics() {
             <p className="muted">No arrivals recorded in the past 30 days.</p>
           )}
         </article>
-
       </section>
+    </section>
+  );
+
+  if (embedded) {
+    return analyticsContent;
+  }
+
+  return (
+    <AdminLayout
+      title="Advanced Provincial Reports"
+      subtitle="Quick pulse on arrivals, sentiment, accreditation, and corridor flows."
+    >
+      {analyticsContent}
     </AdminLayout>
   );
+
 }
 
 export default AdminAnalytics;

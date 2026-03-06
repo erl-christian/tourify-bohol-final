@@ -2767,3 +2767,144 @@ body.bto-fixed .dashboard-content {
     opacity: 1;
   }
 }
+
+/* ===== Clean Merged BTO Dashboard ===== */
+.bto-merged-content--clean {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.merged-analytics-block--clean,
+.merged-management-block {
+  background: #ffffff;
+  border: 1px solid rgba(1, 77, 78, 0.12);
+  border-radius: 22px;
+  box-shadow: 0 16px 40px -30px rgba(15, 23, 42, 0.35);
+  padding: 20px;
+}
+
+.merged-section-head {
+  margin: 0 0 14px;
+}
+
+.merged-section-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #123b35;
+}
+
+.merged-section-head p {
+  margin: 6px 0 0;
+  color: #5a6f69;
+  font-size: 0.92rem;
+}
+
+.analytics-page--embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.analytics-export-bar--embedded {
+  margin-bottom: 0;
+  border: 1px solid rgba(1, 77, 78, 0.12);
+  box-shadow: none;
+  background: #f9fcfb;
+}
+
+.analytics-spm-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.analytics-page--embedded .analytics-summary-grid {
+  margin-bottom: 0.6rem;
+}
+
+.analytics-page--embedded .analytics-card {
+  border: 1px solid rgba(1, 77, 78, 0.1);
+  border-radius: 18px;
+  box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.28);
+  padding: 1.15rem;
+}
+
+.analytics-page--embedded .hero-map-card .map-shell {
+  min-height: 360px;
+  height: 360px;
+}
+
+.analytics-page--embedded .summary-card {
+  border: 1px solid rgba(1, 77, 78, 0.1);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfa 100%);
+  box-shadow: 0 10px 24px -20px rgba(15, 23, 42, 0.3);
+}
+
+.account-establishment-grid--clean {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.account-establishment-grid--clean .account-management,
+.account-establishment-grid--clean .establishments-section {
+  border: 1px solid rgba(1, 77, 78, 0.12);
+  border-radius: 18px;
+  box-shadow: none;
+  padding: 18px;
+}
+
+.account-establishment-grid--clean .table-shell {
+  border-radius: 14px;
+}
+
+.account-establishment-grid--clean .table-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #eef6f3;
+}
+
+.account-establishment-grid--clean .table-row:hover {
+  background: #f8fcfa;
+}
+
+.account-establishment-grid--clean .account-controls {
+  margin: 10px 0 14px;
+}
+
+@media (max-width: 1360px) {
+  .account-establishment-grid--clean {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .analytics-page--embedded .analytics-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-page--embedded .analytics-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-page--embedded .analytics-card.span-2,
+  .analytics-page--embedded .analytics-card.span-4 {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .merged-analytics-block--clean,
+  .merged-management-block {
+    padding: 14px;
+  }
+
+  .analytics-export-bar--embedded {
+    padding: 12px;
+  }
+}

@@ -15,7 +15,7 @@ export const listFeedbackForEstablishment = async (req, res, next) => {
     } = req.query;
 
     const role = req.user?.role;
-    const isBto = role === 'bto_admin';
+    const isBto = role === 'bto_admin' || role === 'bto_staff';
 
     const baseMatch = { business_establishment_id: estId };
     if (!isBto) {
@@ -139,7 +139,7 @@ export const getFeedbackDetails = async (req, res, next) => {
   try {
     const { feedbackId } = req.params;
     const role = req.user?.role;
-    const isBto = role === 'bto_admin';
+    const isBto = role === 'bto_admin' || role === 'bto_staff';
 
     const fb = await Feedback.findOne({ feedback_id: feedbackId }).lean();
     if (!fb) return res.status(404).json({ message: "Feedback not found" });

@@ -10,7 +10,7 @@ import AdminStaffProfile from '../../models/adminModels/AdminStaffProfile.js';
 import TouristProfile from '../../models/tourist/TouristProfile.js';
 
 export async function resolveMunicipalityForLgu(accountId, role, fallbackId) {
-  if (fallbackId || role === 'bto_admin') return fallbackId ?? null;
+  if (fallbackId || role === 'bto_admin' || role === 'bto_staff') return fallbackId ?? null;
   if (!['lgu_admin', 'lgu_staff'].includes(role)) return null;
 
   const profile = await AdminStaffProfile.findOne({ account_id: accountId })
@@ -770,7 +770,7 @@ export const getVisitorAnalytics = async (req, res, next) => {
       queryMunicipality
     );
     const effectiveScope =
-      municipalityId && req.user?.role !== 'bto_admin' ? 'municipality' : scope;
+      municipalityId && !['bto_admin', 'bto_staff'].includes(req.user?.role) ? 'municipality' : scope;
 
     const trends = await aggregateVisitorTrends(effectiveScope, municipalityId);
     res.json({ scope: effectiveScope, trends });

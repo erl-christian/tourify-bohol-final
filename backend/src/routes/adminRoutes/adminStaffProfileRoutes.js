@@ -23,6 +23,7 @@ import {
   updateLguAdmin,
   updateLguManagedAccount,
   lguModerateFeedback, 
+  createBTOStaff
 } from "../../controllers/adminControllers/adminStaffProfileController.js";
 import {
   listEstablishmentMedia,
@@ -46,11 +47,12 @@ import {
 const router = express.Router();
 
 // bto/lgu/staff
-router.post("/bto/create-lgu-admin", auth, requireRoles("bto_admin"), createLGUAdmin);
+router.post("/bto/create-lgu-admin", auth, requireRoles("bto_admin", "bto_staff"), createLGUAdmin);
+router.post("/bto/create-bto-staff", auth, requireRoles("bto_admin", "bto_staff"), createBTOStaff);
 router.post("/lgu/create-lgu-staff", auth, requireRoles("lgu_admin"), createLGUStaff);
 
-router.get("/bto/list", auth, requireRoles("bto_admin", "lgu_admin"), getLGUStaffs);
-router.get("/bto/establishments", auth, requireRoles("bto_admin"), listAllEstablishments);
+router.get("/bto/list", auth, requireRoles("bto_admin", "bto_staff", "lgu_admin"), getLGUStaffs);
+router.get("/bto/establishments", auth, requireRoles("bto_admin", "bto_staff"), listAllEstablishments);
 router.patch( '/lgu/accounts/:accountId', auth, requireRoles('lgu_admin'), updateLguManagedAccount);
 
 // establishments
@@ -64,7 +66,7 @@ router.get("/lgu/establishments", auth, requireRoles("lgu_admin", "lgu_staff"), 
 router.get("/lgu/establishments/pending", auth, requireRoles("lgu_admin", "lgu_staff"), listPendingEstablishment);
 router.get("/lgu/establishments/:estId", auth, requireRoles("lgu_admin", "lgu_staff"), getEstablishmentDetails);
 router.get("/lgu/establishments/:estId/approvals", auth, requireRoles("lgu_admin", "lgu_staff"), listApprovalHistory);
-router.get('/bto/establishments/:estId', auth, requireRoles('bto_admin'), getEstablishmentDetails);
+router.get('/bto/establishments/:estId', auth, requireRoles('bto_admin', 'bto_staff'), getEstablishmentDetails);
 router.post("/lgu/establishments/:estId/endorse", auth, requireRoles("lgu_staff"), endorseEstablishmentToAdmin);
 
 router.patch("/establishments/:estId", auth, requireRoles("business_establishment"), ownerUpdatePendingEstablishment);
@@ -82,7 +84,7 @@ router.post(
 router.get(
   "/establishments/:estId/media",
   auth,
-  requireRoles("business_establishment", "lgu_admin", "lgu_staff", "bto_admin"),
+  requireRoles("business_establishment", "lgu_admin", "lgu_staff", "bto_admin", "bto_staff"),
   listEstablishmentMedia
 );
 router.delete(
@@ -98,13 +100,13 @@ router.post("/lgu/feedback/:feedbackId/reply", auth, requireRoles("lgu_admin", "
 
 // router.get("/feedback/:feedbackId", auth, requireRoles("business_establishment", "lgu_admin", "lgu_staff"), getFeedbackDetails);
 
-router.post("/lgu/establishments/:estId/feedback-summary", auth, requireRoles("lgu_admin", "bto_admin", "lgu_staff"), generateFeedbackSummary);
-router.get("/lgu/establishments/:estId/feedback-summary/latest", auth, requireRoles("lgu_admin", "bto_admin", "lgu_staff"), getLatestFeedbackSummary);
+router.post("/lgu/establishments/:estId/feedback-summary", auth, requireRoles("lgu_admin", "bto_admin", "bto_staff", "lgu_staff"), generateFeedbackSummary);
+router.get("/lgu/establishments/:estId/feedback-summary/latest", auth, requireRoles("lgu_admin", "bto_admin", "bto_staff", "lgu_staff"), getLatestFeedbackSummary);
 
 router.get(
   '/analytics/establishments/:estId/feedback-stats',
   auth,
-  requireRoles('lgu_admin', 'bto_admin', 'lgu_staff'),
+  requireRoles('lgu_admin', 'bto_admin', 'bto_staff', 'lgu_staff'),
   getEstablishmentFeedbackStats
 );
 
@@ -126,21 +128,21 @@ router.get(
 router.get(
   '/bto/establishments/:estId/feedback',
   auth,
-  requireRoles('bto_admin'),
+  requireRoles('bto_admin', 'bto_staff'),
   listFeedbackForEstablishment
 );
 
 router.get(
   '/feedback/:feedbackId',
   auth,
-  requireRoles('business_establishment', 'lgu_admin', 'lgu_staff', 'bto_admin'),
+  requireRoles('business_establishment', 'lgu_admin', 'lgu_staff', 'bto_admin', 'bto_staff'),
   getFeedbackDetails
 );
 
 router.patch(
   "/bto/lgu-admins/:accountId/status",
   auth,
-  requireRoles("bto_admin"),
+  requireRoles("bto_admin", "bto_staff"),
   updateLguAdminStatus
 );
 
@@ -155,14 +157,16 @@ router.patch(
 router.patch(
   '/bto/lgu-admins/:accountId',
   auth,
-  requireRoles('bto_admin'),
+  requireRoles('bto_admin', 'bto_staff'),
   updateLguAdmin,
 );
 
-router.post("/bto/feedback/:feedbackId/reply", auth, requireRoles("bto_admin"), btoReplyFeedback);
-router.patch("/bto/feedback/:feedbackId/moderate", auth, requireRoles("bto_admin"), btoModerateFeedback);
+router.post("/bto/feedback/:feedbackId/reply", auth, requireRoles("bto_admin", "bto_staff"), btoReplyFeedback);
+router.patch("/bto/feedback/:feedbackId/moderate", auth, requireRoles("bto_admin", "bto_staff"), btoModerateFeedback);
 
 
 router.patch( '/lgu/feedback/:feedbackId/moderate',auth,requireRoles('lgu_admin', 'lgu_staff'),lguModerateFeedback,);
 
 export default router;
+
+

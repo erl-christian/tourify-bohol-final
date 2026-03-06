@@ -9,6 +9,9 @@ import {
     requestPasswordReset,
     resetPassword,
     changePasswordFirstLogin,
+    getMyAccount,
+    updateMyAccount,
+    changeMyPassword,
 } from "../controllers/accountController.js";
 
 const router = express.Router();
@@ -23,5 +26,9 @@ router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 router.post("/change-password-first-login", auth, changePasswordFirstLogin);
+router.get('/me', auth, getMyAccount);
+router.patch('/me', auth, updateMyAccount);
+router.patch('/me/password', auth, changeMyPassword);
+
 
 export default router;
