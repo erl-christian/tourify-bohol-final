@@ -17,7 +17,10 @@ function Establishments() {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [municipalityFilter, setMunicipalityFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const pageSize = 10;
   const [page, setPage] = useState(1);
@@ -49,36 +52,85 @@ function Establishments() {
       : [];
 
 
-  const loadEstablishments = useCallback(
-    async (searchTerm) => {
-      try {
-        setLoading(true);
-        const term = searchTerm ?? query;
-        const params = { page: 1, limit: 100 }; // bump as needed (max 100)
-        if (term) params.q = term;
-        const { data } = await fetchAllEstablishments(params);
-        const items = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-          ? data
-          : [];
-        setEstablishments(items);
-        setError('');
-      } catch (err) {
-        console.error('Failed to load establishments', err);
-        setError('Unable to load establishments right now.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [query],
-  );
+  const loadEstablishments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data } = await fetchAllEstablishments({ page: 1, limit: 200 });
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
+      setEstablishments(items);
+      setError('');
+    } catch (err) {
+      console.error('Failed to load establishments', err);
+      setError('Unable to load establishments right now.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadEstablishments();
   }, [loadEstablishments]);
 
-  const filteredEstablishments = useMemo(() => establishments, [establishments]);
+  const municipalityOptions = useMemo(() => {
+    const values = new Map();
+    establishments.forEach((item) => {
+      const raw = (item.municipality_id || item.municipality || '').toString().trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!values.has(key)) values.set(key, raw);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [establishments]);
+
+  const categoryOptions = useMemo(() => {
+    const values = new Map();
+    establishments.forEach((item) => {
+      const raw = (item.type || item.category || '').toString().trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!values.has(key)) values.set(key, raw);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [establishments]);
+
+  const statusOptions = useMemo(() => {
+    const values = new Map();
+    establishments.forEach((item) => {
+      const raw = (item.status || '').toString().trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!values.has(key)) values.set(key, raw);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [establishments]);
+
+  const filteredEstablishments = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return establishments.filter((item) => {
+      const id = (item.businessEstablishment_id || item.id || '').toString().toLowerCase();
+      const name = (item.name || '').toString().toLowerCase();
+      const municipality = (item.municipality_id || item.municipality || '').toString().toLowerCase();
+      const category = (item.type || item.category || '').toString().toLowerCase();
+      const status = (item.status || '').toString().toLowerCase();
+
+      if (term) {
+        const haystack = `${name} ${id} ${municipality} ${category} ${status}`;
+        if (!haystack.includes(term)) return false;
+      }
+      if (municipalityFilter !== 'all' && municipality !== municipalityFilter) return false;
+      if (categoryFilter !== 'all' && category !== categoryFilter) return false;
+      if (statusFilter !== 'all' && status !== statusFilter) return false;
+      return true;
+    });
+  }, [establishments, searchTerm, municipalityFilter, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, municipalityFilter, categoryFilter, statusFilter]);
 
   useEffect(() => {
     const max = Math.max(1, Math.ceil(filteredEstablishments.length / pageSize) || 1);
@@ -92,6 +144,11 @@ function Establishments() {
   );
   const pageStart = filteredEstablishments.length ? (page - 1) * pageSize + 1 : 0;
   const pageEnd = Math.min(page * pageSize, filteredEstablishments.length);
+  const hasActiveFilters =
+    searchTerm.trim() ||
+    municipalityFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    statusFilter !== 'all';
 
 
   const resolveTone = (status) =>
@@ -151,16 +208,75 @@ function Establishments() {
     <AdminLayout
       title="Establishments"
       subtitle="View every registered establishment across the province."
-      searchPlaceholder="Search establishments..."
-      onSearchSubmit={(value) => {
-        setQuery(value);
-        loadEstablishments(value);
-      }}
+      headerActions={<></>}
     >
       <section className="account-management">
         <div className="section-heading">
           <h2>Registered Establishments</h2>
           <p>BTO admins can review status and details submitted by LGU admins and business owners.</p>
+        </div>
+
+        <div className="est-filter-bar">
+          <div className="est-filter-item est-filter-item--search">
+            <span>Search</span>
+            <input
+              type="text"
+              placeholder="Name, ID, municipality, category"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+          <div className="est-filter-item">
+            <span>Municipality</span>
+            <select
+              value={municipalityFilter}
+              onChange={(event) => setMunicipalityFilter(event.target.value)}
+            >
+              <option value="all">All municipalities</option>
+              {municipalityOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="est-filter-item">
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">All categories</option>
+              {categoryOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="est-filter-item">
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">All statuses</option>
+              {statusOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="est-filter-actions">
+            <button
+              type="button"
+              className="ghost-cta"
+              onClick={() => {
+                setSearchTerm('');
+                setMunicipalityFilter('all');
+                setCategoryFilter('all');
+                setStatusFilter('all');
+              }}
+              disabled={!hasActiveFilters}
+            >
+              Clear filters
+            </button>
+          </div>
         </div>
 
         <div className="table-shell">

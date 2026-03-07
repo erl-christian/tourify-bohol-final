@@ -34,6 +34,13 @@ import {
   rebuildSpm
 } from '../../services/analyticsApi';
 import { useActionStatus } from '../../context/ActionStatusContext';
+import {
+  clampMonth,
+  getMonthBoundsFromTrend,
+  monthToDateEnd,
+  monthToDateStart,
+  normalizeMonthRange,
+} from '../../utils/exportDateRange';
 
 const transformMunicipalitySeries = municipalities =>
   municipalities.map(item => {
@@ -264,13 +271,30 @@ function AdminAnalytics({ embedded = false }) {
 
   const [exportRange, setExportRange] = useState({ from: '', to: '' });
 
+  const exportMonthBounds = useMemo(() => getMonthBoundsFromTrend(trend), [trend]);
+  const isExportDisabled = !exportMonthBounds;
+
+  useEffect(() => {
+    if (!exportMonthBounds) return;
+    setExportRange((prev) => ({
+      from: clampMonth(prev.from || exportMonthBounds.minMonth, exportMonthBounds),
+      to: clampMonth(prev.to || exportMonthBounds.maxMonth, exportMonthBounds),
+    }));
+  }, [exportMonthBounds]);
+
+
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
   const { showLoading, showSuccess, showError } = useActionStatus();
 
   const handleExport = async type => {
   const params = new URLSearchParams();
-    if (exportRange.from) params.append('from', `${exportRange.from}-01`);
-    if (exportRange.to) params.append('to', `${exportRange.to}-28`);
+  const normalizedRange = normalizeMonthRange(exportRange, exportMonthBounds);
+  if (normalizedRange.error) {
+    showError(normalizedRange.error);
+    return;
+  }
+  params.append('from', monthToDateStart(normalizedRange.from));
+  params.append('to', monthToDateEnd(normalizedRange.to));
 
     const token = sessionStorage.getItem('accessToken');
     if (!token) {
@@ -367,24 +391,38 @@ function AdminAnalytics({ embedded = false }) {
             From
             <input
               type="month"
+              min={exportMonthBounds?.minMonth}
+              max={exportMonthBounds?.maxMonth}
               value={exportRange.from}
-              onChange={event => setExportRange(prev => ({ ...prev, from: event.target.value }))}
+              onChange={event =>
+                setExportRange(prev => ({
+                  ...prev,
+                  from: clampMonth(event.target.value, exportMonthBounds),
+                }))
+              }
             />
           </label>
           <label>
             To
             <input
               type="month"
+              min={exportMonthBounds?.minMonth}
+              max={exportMonthBounds?.maxMonth}
               value={exportRange.to}
-              onChange={event => setExportRange(prev => ({ ...prev, to: event.target.value }))}
+              onChange={event =>
+                setExportRange(prev => ({
+                  ...prev,
+                  to: clampMonth(event.target.value, exportMonthBounds),
+                }))
+              }
             />
           </label>
         </div>
         <div className="export-buttons">
-          <button type="button" onClick={() => handleExport('excel')}>
+          <button type="button" disabled={isExportDisabled || loading} onClick={() => handleExport('excel')}>
             Download Excel
           </button>
-          <button type="button" onClick={() => handleExport('pdf')}>
+          <button type="button" disabled={isExportDisabled || loading} onClick={() => handleExport('pdf')}>
             Download PDF
           </button>
         </div>

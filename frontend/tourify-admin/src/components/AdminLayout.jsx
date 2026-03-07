@@ -1,5 +1,6 @@
 ﻿import PropTypes from 'prop-types';
 import { NavLink } from 'react-router-dom';
+import { IoNotificationsOutline, IoSearchOutline } from 'react-icons/io5';
 import { adminNavSections } from '../data/adminNavigation';
 import '../styles/AdminDashboard.css';
 import { useNavigate } from 'react-router-dom';
@@ -96,7 +97,7 @@ return (
             <form className="search-field" role="search" onSubmit={handleSearchSubmit}>
               <input name="search" type="search" placeholder={searchPlaceholder} />
               <button type="submit" aria-label="Search">
-                ðŸ”
+                <IoSearchOutline />
               </button>
             </form>
           ) : (
@@ -107,7 +108,7 @@ return (
             {headerActions ?? (
               <>
                 <button type="button" className="icon-pill" aria-label="Notifications">
-                  ðŸ””
+                  <IoNotificationsOutline />
                 </button>
                 <div className="header-avatar">{avatarInitials}</div>
               </>

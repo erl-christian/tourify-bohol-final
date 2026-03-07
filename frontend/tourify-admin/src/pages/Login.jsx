@@ -32,6 +32,10 @@ function Login() {
   const [pendingLogin, setPendingLogin] = useState(null);
   const [identifier, setIdentifier] = useState('');
 
+  const [showFirstNewPassword, setShowFirstNewPassword] = useState(false);
+  const [showFirstConfirmPassword, setShowFirstConfirmPassword] = useState(false);
+
+
   const navigate = useNavigate();
 
   const togglePassword = () => {
@@ -141,6 +145,8 @@ function Login() {
         setChangePasswordForm({ newPassword: '', confirmPassword: '' });
         setChangePasswordError('');
         setShowChangePasswordModal(true);
+        setShowFirstNewPassword(false);
+        setShowFirstConfirmPassword(false);
         return;
       }
 
@@ -337,35 +343,58 @@ function Login() {
             <form className="login-form login-modal-form" onSubmit={handleFirstPasswordSubmit}>
               <div className="form-field">
                 <label htmlFor="first-new-password">New password</label>
-                <input
-                  id="first-new-password"
-                  name="first-new-password"
-                  type="password"
-                  value={changePasswordForm.newPassword}
-                  onChange={(event) =>
-                    setChangePasswordForm((prev) => ({
-                      ...prev,
-                      newPassword: event.target.value,
-                    }))
-                  }
-                />
+                <div className="password-field">
+                  <input
+                    id="first-new-password"
+                    name="first-new-password"
+                    type={showFirstNewPassword ? 'text' : 'password'}
+                    value={changePasswordForm.newPassword}
+                    onChange={(event) =>
+                      setChangePasswordForm((prev) => ({
+                        ...prev,
+                        newPassword: event.target.value,
+                      }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowFirstNewPassword((prev) => !prev)}
+                    aria-pressed={showFirstNewPassword}
+                    aria-label={showFirstNewPassword ? 'Hide new password' : 'Show new password'}
+                  >
+                    {showFirstNewPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
 
               <div className="form-field">
                 <label htmlFor="first-confirm-password">Confirm new password</label>
-                <input
-                  id="first-confirm-password"
-                  name="first-confirm-password"
-                  type="password"
-                  value={changePasswordForm.confirmPassword}
-                  onChange={(event) =>
-                    setChangePasswordForm((prev) => ({
-                      ...prev,
-                      confirmPassword: event.target.value,
-                    }))
-                  }
-                />
+                <div className="password-field">
+                  <input
+                    id="first-confirm-password"
+                    name="first-confirm-password"
+                    type={showFirstConfirmPassword ? 'text' : 'password'}
+                    value={changePasswordForm.confirmPassword}
+                    onChange={(event) =>
+                      setChangePasswordForm((prev) => ({
+                        ...prev,
+                        confirmPassword: event.target.value,
+                      }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowFirstConfirmPassword((prev) => !prev)}
+                    aria-pressed={showFirstConfirmPassword}
+                    aria-label={showFirstConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showFirstConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
+
 
               {changePasswordError ? (
                 <p className="login-modal-error">{changePasswordError}</p>

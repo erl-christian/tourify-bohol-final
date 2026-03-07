@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import LguLayout from '../../components/LguLayout';
 import '../../styles/AdminDashboard.css';
+import LguAnalytics from './Analytics.jsx';
 import {
   fetchLguAccounts,
   fetchLguEstablishments,
@@ -22,7 +23,6 @@ const normalizeList = (raw) => {
   if (Array.isArray(raw?.data)) return raw.data;
   return [];
 };
-
 
 function LguDashboard() {
   const [municipalityName, setMunicipalityName] = useState('Your Municipality');
@@ -66,8 +66,7 @@ function LguDashboard() {
   }, []);
 
   const staffCount = useMemo(
-    () =>
-      accounts.filter((item) => item.account?.role === 'lgu_staff').length,
+    () => accounts.filter((item) => item.account?.role === 'lgu_staff').length,
     [accounts],
   );
 
@@ -91,7 +90,6 @@ function LguDashboard() {
     [pendingEstablishments],
   );
 
-  
   const metrics = [
     { label: 'Municipality', value: municipalityName },
     { label: 'LGU Staff', value: staffCount },
@@ -105,147 +103,165 @@ function LguDashboard() {
 
   return (
     <LguLayout
-      title={`${municipalityName} Tourism Overview`}
-      subtitle={`Logged in as LGU administrator for ${municipalityName}. Review municipal performance, pending approvals, and key insights.`}
+      title={`${municipalityName} Dashboard & Analytics`}
+      subtitle={`Logged in as LGU administrator for ${municipalityName}. Review insights, accounts, and pending approvals in one page.`}
       searchPlaceholder="Search municipal metrics..."
     >
-      <section className="account-management">
-        <div className="section-heading">
-          <h2>Key Municipal Metrics</h2>
-          <p>
-            Live snapshot for {municipalityName}. These numbers update as accounts and establishments change.
-          </p>
-        </div>
+      <div className="lgu-merged-content">
+        <section className="merged-analytics-block merged-analytics-block--clean">
+          <header className="merged-section-head">
+            <h2>Municipal Insights</h2>
+            <p>Tourist trends, movement patterns, and sentiment for {municipalityName}.</p>
+          </header>
+          <LguAnalytics embedded />
+        </section>
 
-        {loading ? (
-          <div className="muted">Loading overview…</div>
-        ) : error ? (
-          <div className="muted">{error}</div>
-        ) : (      
-          <div className="table-shell">
-            <div className="table-head table-grid">
-              <span>Metric</span>
-              <span>Value</span>
+        <section className="merged-management-block lgu-management-block">
+          <header className="merged-section-head">
+            <h2>Accounts and Approvals</h2>
+            <p>Track account coverage and pending establishment actions.</p>
+          </header>
+
+          <section className="account-management">
+            <div className="section-heading">
+              <h2>Key Municipal Metrics</h2>
+              <p>
+                Live snapshot for {municipalityName}. These numbers update as accounts and establishments change.
+              </p>
             </div>
 
-            <ul className="table-body">
-              {metrics.map((metric) => (
-                <li key={metric.label} className="table-row table-grid">
-                  <span>{metric.label}</span>
-                  <span>{metric.value}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
-
-      <section className="account-management">
-        <div className="section-heading">
-          <h2>Accounts in Municipality</h2>
-          <p>LGU staff and establishment owners currently registered.</p>
-        </div>
-
-        <div className="table-shell">
-          <div className="table-head table-grid">
-            <span>Name</span>
-            <span>Email</span>
-            <span>Role</span>
-            <span>Last Activity</span>
-          </div>
-
-          <ul className="table-body">
             {loading ? (
-              <li className="table-row table-grid">
-                <div className="muted">Loading accounts…</div>
-              </li>
+              <div className="muted">Loading overview...</div>
             ) : error ? (
-              <li className="table-row table-grid">
-                <div className="muted">{error}</div>
-              </li>
-            ) : accounts.length === 0 ? (
-              <li className="table-row table-grid">
-                <div className="muted">No accounts found.</div>
-              </li>
+              <div className="muted">{error}</div>
             ) : (
-              accounts.map((item) => (
-                <li
-                  key={item.account?.account_id}
-                  className="table-row table-grid"
-                >
-                  <div className="account-cell">
-                    <p className="account-name">
-                      {item.profile?.full_name || item.account?.email}
-                    </p>
-                    <p className="account-email">{item.account?.email}</p>
-                  </div>
-                  <div className="muted">
-                    {item.account?.role === 'business_establishment'
-                      ? 'Establishment Owner'
-                      : item.account?.role === 'lgu_staff'
-                      ? 'LGU Staff'
-                      : item.account?.role}
-                  </div>
-                  <div className="muted">
-                    {item.account?.updatedAt
-                      ? new Date(item.account.updatedAt).toLocaleString()
-                      : '—'}
-                  </div>
-                </li>
-              ))
+              <div className="table-shell">
+                <div className="table-head table-grid table-grid-2">
+                  <span>Metric</span>
+                  <span>Value</span>
+                </div>
+
+                <ul className="table-body">
+                  {metrics.map((metric) => (
+                    <li key={metric.label} className="table-row table-grid table-grid-2">
+                      <span>{metric.label}</span>
+                      <span>{metric.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
-          </ul>
-        </div>
-      </section>
+          </section>
 
-      <section className="establishments-section">
-        <div className="section-heading">
-          <h2>Pending Approvals</h2>
-          <p>Submissions needing LGU action.</p>
-        </div>
+          <div className="account-establishment-grid account-establishment-grid--clean">
+            <section className="account-management">
+              <div className="section-heading">
+                <h2>Accounts in Municipality</h2>
+                <p>LGU staff and establishment owners currently registered.</p>
+              </div>
 
-        <div className="table-shell">
-          <div className="table-head table-grid">
-            <span>Establishment</span>
-            <span>Status</span>
-            <span>Submitted</span>
+              <div className="table-shell">
+                <div className="table-head table-grid table-grid-3">
+                  <span>Name</span>
+                  <span>Role</span>
+                  <span>Last Activity</span>
+                </div>
+
+                <ul className="table-body">
+                  {loading ? (
+                    <li className="table-row table-grid table-grid-3">
+                      <div className="muted">Loading accounts...</div>
+                    </li>
+                  ) : error ? (
+                    <li className="table-row table-grid table-grid-3">
+                      <div className="muted">{error}</div>
+                    </li>
+                  ) : accounts.length === 0 ? (
+                    <li className="table-row table-grid table-grid-3">
+                      <div className="muted">No accounts found.</div>
+                    </li>
+                  ) : (
+                    accounts.map((item) => (
+                      <li
+                        key={item.account?.account_id}
+                        className="table-row table-grid table-grid-3"
+                      >
+                        <div className="account-cell">
+                          <p className="account-name">
+                            {item.profile?.full_name || item.account?.email}
+                          </p>
+                          <p className="account-email">{item.account?.email}</p>
+                        </div>
+                        <div className="muted">
+                          {item.account?.role === 'business_establishment'
+                            ? 'Establishment Owner'
+                            : item.account?.role === 'lgu_staff'
+                            ? 'LGU Staff'
+                            : item.account?.role}
+                        </div>
+                        <div className="muted">
+                          {item.account?.updatedAt
+                            ? new Date(item.account.updatedAt).toLocaleString()
+                            : 'N/A'}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </section>
+
+            <section className="establishments-section">
+              <div className="section-heading">
+                <h2>Pending Approvals</h2>
+                <p>Submissions needing LGU action.</p>
+              </div>
+
+              <div className="table-shell">
+                <div className="table-head table-grid table-grid-3">
+                  <span>Establishment</span>
+                  <span>Status</span>
+                  <span>Submitted</span>
+                </div>
+
+                <ul className="table-body">
+                  {loading ? (
+                    <li className="table-row table-grid table-grid-3">
+                      <div className="muted">Loading pending items...</div>
+                    </li>
+                  ) : pendingEstablishments.length === 0 ? (
+                    <li className="table-row table-grid table-grid-3">
+                      <div className="muted">No pending submissions.</div>
+                    </li>
+                  ) : (
+                    pendingEstablishments.map((item) => (
+                      <li
+                        key={item.businessEstablishment_id || item.id}
+                        className="table-row table-grid table-grid-3"
+                      >
+                        <div className="account-cell">
+                          <p className="account-name">{item.name}</p>
+                          <p className="account-email">
+                            ID: {item.businessEstablishment_id || item.id}
+                          </p>
+                        </div>
+                        <div>
+                          <span className={`status-chip status-${resolveTone(item.status)}`}>
+                            {item.status || 'pending'}
+                          </span>
+                        </div>
+                        <div className="muted">
+                          {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </section>
           </div>
-
-          <ul className="table-body">
-            {loading ? (
-              <li className="table-row table-grid">
-                <div className="muted">Loading pending items…</div>
-              </li>
-            ) : pendingEstablishments.length === 0 ? (
-              <li className="table-row table-grid">
-                <div className="muted">No pending submissions.</div>
-              </li>
-            ) : (
-              pendingEstablishments.map((item) => (
-                <li
-                  key={item.businessEstablishment_id || item.id}
-                  className="table-row table-grid"
-                >
-                  <div className="account-cell">
-                    <p className="account-name">{item.name}</p>
-                    <p className="account-email">
-                      ID: {item.businessEstablishment_id || item.id}
-                    </p>
-                  </div>
-                  <div>
-                    <span className={`status-chip status-${resolveTone(item.status)}`}>
-                      {item.status || 'pending'}
-                    </span>
-                  </div>
-                  <div className="muted">
-                    {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—'}
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
+        </section>
+      </div>
     </LguLayout>
   );
 }

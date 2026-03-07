@@ -336,8 +336,7 @@ export const getLatestFeedbackSummary = async (req, res, next) => {
       .lean();
 
     if (!doc) {
-      res.status(404);
-      throw new Error('No summary found');
+      return res.json(null);
     }
 
     res.json(doc);

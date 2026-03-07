@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../styles/AdminDashboard.css';
+import { IoNotificationsOutline } from 'react-icons/io5';
 import AdminLayout from '../components/AdminLayout';
 import {
   fetchAdminStaffProfiles,
@@ -20,8 +21,8 @@ const accountTabs = [
 
 const initialAdminForm = {
   fullName: '',
+  username: '',
   email: '',
-  password: '',
   municipalityId: '',
   phone: '',
   notes: '',
@@ -58,13 +59,6 @@ function BtoDashboard() {
   const [municipalities, setMunicipalities] = useState([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(true);
 
-  // const [editModal, setEditModal] = useState({
-  //   open: false,
-  //   target: null,
-  //   form: { fullName: '', email: '', municipalityId: '' },
-  //   saving: false,
-  //   error: '',
-  // });
 
   const displayInitials = (() => {
     const name = sessionStorage.getItem('mockDisplayName') || 'BTO';
@@ -205,16 +199,16 @@ function BtoDashboard() {
     }));
   };
 
-  const handleCreateAdmin = async (event) => {
+    const handleCreateAdmin = async (event) => {
     event.preventDefault();
     setSubmittingAdmin(true);
     showLoading('Creating LGU admin account...');
 
     try {
       await createLguAdmin({
-        email: adminForm.email,
-        password: adminForm.password,
-        full_name: adminForm.fullName,
+        username: adminForm.username.trim(),
+        email: adminForm.email.trim(),
+        full_name: adminForm.fullName.trim(),
         municipality_id: adminForm.municipalityId,
       });
 
@@ -230,73 +224,15 @@ function BtoDashboard() {
     }
   };
 
-//   const openEditModal = (account) => {
-//   setEditModal({
-//     open: true,
-//     target: account,
-//     form: {
-//       fullName: account.name || '',
-//       email: account.email || '',
-//       municipalityId: account.municipalityId || '',
-//     },
-//     saving: false,
-//     error: '',
-//   });
-// };
-
-// const closeEditModal = () =>
-//   setEditModal({
-//     open: false,
-//     target: null,
-//     form: { fullName: '', email: '', municipalityId: '' },
-//     saving: false,
-//     error: '',
-//   });
-
-// const handleEditChange = (event) => {
-//   const { name, value } = event.target;
-//   setEditModal((prev) => ({ ...prev, form: { ...prev.form, [name]: value } }));
-// };
-
-// const handleUpdateAccount = async (event) => {
-//   event.preventDefault();
-//   if (!editModal.target) return;
-//   setEditModal((prev) => ({ ...prev, saving: true, error: '' }));
-//   try {
-//     await updateLguAdmin(editModal.target.id, {
-//       email: editModal.form.email,
-//       full_name: editModal.form.fullName,
-//       municipality_id: editModal.form.municipalityId,
-//     });
-//     setFeedbackModal({
-//       open: true,
-//       status: 'success',
-//       message: `LGU admin ${editModal.form.fullName} has been updated.`,
-//     });
-//     closeEditModal();
-//     await loadData();
-//   } catch (error) {
-//     setEditModal((prev) => ({
-//       ...prev,
-//       saving: false,
-//       error:
-//         error.response?.data?.message ||
-//         'Unable to update account. Please try again.',
-//     }));
-//   }
-// };
-
 
   return (
     <AdminLayout
       title="Dashboard & Analytics"
       subtitle="Provincial overview, analytics insights, and account management in one page."
-      searchPlaceholder="Search accounts or establishments..."
-      onSearchSubmit={(value) => console.log('search', value)}
       headerActions={
         <>
           <button type="button" className="icon-pill" aria-label="Notifications">
-            🔔
+            <IoNotificationsOutline />
           </button>
           <div className="header-avatar">{displayInitials}</div>
         </>
@@ -509,6 +445,20 @@ function BtoDashboard() {
 
                 <div className="form-row form-grid">
                   <div>
+                    <label className="form-label" htmlFor="admin-username">
+                      Username
+                    </label>
+                    <input
+                      id="admin-username"
+                      name="username"
+                      type="text"
+                      required
+                      placeholder="lgu.tagbilaran.admin"
+                      value={adminForm.username}
+                      onChange={handleAdminFormChange}
+                    />
+                  </div>
+                  <div>
                     <label className="form-label" htmlFor="admin-email">
                       Government email
                     </label>
@@ -519,20 +469,6 @@ function BtoDashboard() {
                       required
                       placeholder="firstname.lastname@municipality.gov.ph"
                       value={adminForm.email}
-                      onChange={handleAdminFormChange}
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label" htmlFor="admin-password">
-                      Temporary password
-                    </label>
-                    <input
-                      id="admin-password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="At least 8 characters"
-                      value={adminForm.password}
                       onChange={handleAdminFormChange}
                     />
                   </div>
@@ -623,107 +559,6 @@ function BtoDashboard() {
           </div>
         </div>
       )}
-
-      {/* {editModal.open && (
-  <div className="modal-backdrop" role="dialog" aria-modal="true">
-    <div className="modal-card">
-      <header className="modal-header">
-        <div>
-          <h3>Update LGU Administrator</h3>
-          <p>Edit the details for this BTO-created account.</p>
-        </div>
-        <button
-          type="button"
-          className="modal-close"
-          aria-label="Close"
-          onClick={closeEditModal}
-          disabled={editModal.saving}
-        >
-          A-
-        </button>
-      </header>
-      {editModal.error && <div className="modal-error">{editModal.error}</div>}
-          <div className="modal-content">
-            <form className="modal-form" onSubmit={handleUpdateAccount}>
-              <div className="form-row">
-                <label className="form-label" htmlFor="edit-fullName">
-                  Full name
-                </label>
-                <input
-                  id="edit-fullName"
-                  name="fullName"
-                  type="text"
-                  required
-                  value={editModal.form.fullName}
-                  onChange={handleEditChange}
-                />
-              </div>
-
-              <div className="form-row">
-                <label className="form-label" htmlFor="edit-email">
-                  Government email
-                </label>
-                <input
-                  id="edit-email"
-                  name="email"
-                  type="email"
-                  required
-                  value={editModal.form.email}
-                  onChange={handleEditChange}
-                />
-              </div>
-
-              <div className="form-row">
-                <label className="form-label" htmlFor="edit-municipality">
-                  Municipality assignment
-                </label>
-                <select
-                  id="edit-municipality"
-                  name="municipalityId"
-                  required
-                  value={editModal.form.municipalityId}
-                  onChange={handleEditChange}
-                  disabled={loadingMunicipalities || editModal.saving}
-                >
-                  <option value="" disabled>
-                    {loadingMunicipalities
-                      ? 'Loading municipalities…'
-                      : 'Select municipality'}
-                  </option>
-                  {(Array.isArray(municipalities) ? municipalities : []).map((m) => (
-                    <option
-                      key={m.municipality_id || m.id}
-                      value={m.municipality_id || m.id}
-                    >
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="ghost-cta"
-                  onClick={closeEditModal}
-                  disabled={editModal.saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="primary-cta"
-                  disabled={editModal.saving}
-                >
-                  {editModal.saving ? 'Saving…' : 'Update Account'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    )} */}
-
     </AdminLayout>
   );
 }

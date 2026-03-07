@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import LguStaffLayout from '../../components/LguStaffLayout';
 import '../../styles/AdminDashboard.css';
+import LguStaffAnalytics from './Analytics.jsx';
 import {
   fetchLguEstablishments,
   fetchLguPendingEstablishments,
@@ -39,9 +40,9 @@ const resolveTone = (status) => {
 };
 
 const formatDate = (value) => {
-  if (!value) return '—';
+  if (!value) return 'N/A';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString();
 };
 
 function LguStaffDashboard() {
@@ -135,9 +136,7 @@ function LguStaffDashboard() {
         if (municipalityCandidate) {
           const found = municipalities.find((item) => {
             const id = item.municipality_id || item.id;
-            return (
-              id === municipalityCandidate || item.name === municipalityCandidate
-            );
+            return id === municipalityCandidate || item.name === municipalityCandidate;
           });
           setMunicipalityName(found?.name || municipalityCandidate);
         } else {
@@ -157,7 +156,6 @@ function LguStaffDashboard() {
   }, []);
 
   const totalEstablishments = establishments.length;
-
   const approvedCount = useMemo(
     () =>
       establishments.filter((item) =>
@@ -204,15 +202,12 @@ function LguStaffDashboard() {
   const rejectedItems = useMemo(
     () =>
       establishments
-        .filter(
-          (item) => (item.status || '').toLowerCase() === 'rejected',
-        )
+        .filter((item) => (item.status || '').toLowerCase() === 'rejected')
         .slice(0, 8),
     [establishments],
   );
 
   const resolvedDecisions = [...approvedItems, ...rejectedItems];
-
   const priorities = useMemo(
     () => pendingEstablishments.slice(0, 10),
     [pendingEstablishments],
@@ -220,176 +215,195 @@ function LguStaffDashboard() {
 
   return (
     <LguStaffLayout
-      title={`${municipalityName} Staff Overview`}
-      subtitle={`Logged in as LGU staff. Validate submissions and support the ${municipalityName} tourism admin.`}
+      title={`${municipalityName} Dashboard & Analytics`}
+      subtitle={`Logged in as LGU staff. Validate submissions and review analytics for ${municipalityName} in one page.`}
       searchPlaceholder="Search submissions or establishments..."
     >
-      <section className="account-management">
-        <div className="section-heading">
-          <h2>Municipal Snapshot</h2>
-          <p>
-            Live indicators for {municipalityName}. These metrics mirror what the LGU admin sees.
-          </p>
-        </div>
+      <div className="lgu-merged-content">
+        <section className="merged-analytics-block merged-analytics-block--clean">
+          <header className="merged-section-head">
+            <h2>Municipal Insights</h2>
+            <p>Live tourism trends and movement analytics for {municipalityName}.</p>
+          </header>
+          <LguStaffAnalytics embedded />
+        </section>
 
-        <div className="table-shell">
-          <div className="table-head table-grid">
-            <span>Metric</span>
-            <span>Value</span>
+        <section className="merged-management-block lgu-management-block">
+          <header className="merged-section-head">
+            <h2>Validation Operations</h2>
+            <p>Monitor municipal metrics, recent decisions, and pending priorities.</p>
+          </header>
+
+          <section className="account-management">
+            <div className="section-heading">
+              <h2>Municipal Snapshot</h2>
+              <p>
+                Live indicators for {municipalityName}. These metrics mirror what the LGU admin sees.
+              </p>
+            </div>
+
+            <div className="table-shell">
+              <div className="table-head table-grid table-grid-2">
+                <span>Metric</span>
+                <span>Value</span>
+              </div>
+
+              <ul className="table-body">
+                {loading ? (
+                  <li className="table-row table-grid table-grid-2">
+                    <div className="muted">Loading overview...</div>
+                  </li>
+                ) : error ? (
+                  <li className="table-row table-grid table-grid-2">
+                    <div className="muted">{error}</div>
+                  </li>
+                ) : (
+                  metrics.map((metric) => (
+                    <li key={metric.label} className="table-row table-grid table-grid-2">
+                      <span>{metric.label}</span>
+                      <span>
+                        {typeof metric.value === 'number'
+                          ? metric.value.toLocaleString()
+                          : metric.value || 'N/A'}
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </section>
+
+          <div className="account-establishment-grid account-establishment-grid--clean">
+            <section className="account-management">
+              <div className="section-heading">
+                <h2>Recent Decisions</h2>
+                <p>Approved and rejected submissions that need follow-up coordination.</p>
+              </div>
+
+              <div className="table-shell">
+                <div className="table-head table-grid table-grid-4">
+                  <span>Submission</span>
+                  <span>Status</span>
+                  <span>Last decision</span>
+                  <span>Action</span>
+                </div>
+
+                <ul className="table-body">
+                  {loading ? (
+                    <li className="table-row table-grid table-grid-4">
+                      <div className="muted">Loading decisions...</div>
+                    </li>
+                  ) : error ? (
+                    <li className="table-row table-grid table-grid-4">
+                      <div className="muted">{error}</div>
+                    </li>
+                  ) : resolvedDecisions.length === 0 ? (
+                    <li className="table-row table-grid table-grid-4">
+                      <div className="muted">No approvals or rejections recorded yet.</div>
+                    </li>
+                  ) : (
+                    resolvedDecisions.map((item) => (
+                      <li
+                        key={item.businessEstablishment_id || item.id}
+                        className="table-row table-grid table-grid-4"
+                      >
+                        <div className="account-cell">
+                          <p className="account-name">{item.name || 'Unnamed establishment'}</p>
+                          <p className="account-email">
+                            ID: {item.businessEstablishment_id || item.id || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className={`status-chip status-${resolveTone(item.status)}`}>
+                            {item.status || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="muted">
+                          {formatDate(item.updatedAt || item.createdAt)}
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="table-action-button"
+                            onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
+                          >
+                            View
+                          </button>
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </section>
+
+            <section className="account-management">
+              <div className="section-heading">
+                <h2>Today's Priorities</h2>
+                <p>Pending submissions that need LGU staff validation before endorsement.</p>
+              </div>
+
+              <div className="table-shell">
+                <div className="table-head table-grid table-grid-5">
+                  <span>Establishment</span>
+                  <span>Category</span>
+                  <span>Status</span>
+                  <span>Last update</span>
+                  <span>Action</span>
+                </div>
+
+                <ul className="table-body">
+                  {loading ? (
+                    <li className="table-row table-grid table-grid-5">
+                      <div className="muted">Loading pending items...</div>
+                    </li>
+                  ) : error ? (
+                    <li className="table-row table-grid table-grid-5">
+                      <div className="muted">{error}</div>
+                    </li>
+                  ) : priorities.length === 0 ? (
+                    <li className="table-row table-grid table-grid-5">
+                      <div className="muted">No pending submissions. You're all caught up.</div>
+                    </li>
+                  ) : (
+                    priorities.map((item) => (
+                      <li
+                        key={item.businessEstablishment_id || item.id}
+                        className="table-row table-grid table-grid-5"
+                      >
+                        <div className="account-cell">
+                          <p className="account-name">{item.name || 'Unnamed establishment'}</p>
+                          <p className="account-email">
+                            ID: {item.businessEstablishment_id || item.id || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="muted">{item.type || 'N/A'}</div>
+                        <div>
+                          <span className={`status-chip status-${resolveTone(item.status)}`}>
+                            {item.status || 'pending'}
+                          </span>
+                        </div>
+                        <div className="muted">
+                          {formatDate(item.updatedAt || item.createdAt)}
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="table-action-button"
+                            onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
+                          >
+                            View
+                          </button>
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </section>
           </div>
-
-          <ul className="table-body">
-            {loading ? (
-              <li className="table-row table-grid">
-                <div className="muted">Loading overview…</div>
-              </li>
-            ) : error ? (
-              <li className="table-row table-grid">
-                <div className="muted">{error}</div>
-              </li>
-            ) : (
-              metrics.map((metric) => (
-                <li key={metric.label} className="table-row table-grid">
-                  <span>{metric.label}</span>
-                  <span>
-                    {typeof metric.value === 'number'
-                      ? metric.value.toLocaleString()
-                      : metric.value || '—'}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
-
-      <section className="account-management">
-        <div className="section-heading">
-          <h2>Recent Decisions</h2>
-          <p>Approved and rejected submissions that need follow-up coordination.</p>
-        </div>
-
-        <div className="table-shell">
-          <div className="table-head table-grid">
-            <span>Submission</span>
-            <span>Status</span>
-            <span>Last decision</span>
-            <span>Action</span>
-          </div>
-
-          <ul className="table-body">
-            {loading ? (
-              <li className="table-row table-grid">
-                <div className="muted">Loading decisions…</div>
-              </li>
-            ) : error ? (
-              <li className="table-row table-grid">
-                <div className="muted">{error}</div>
-              </li>
-            ) : resolvedDecisions.length === 0 ? (
-              <li className="table-row table-grid">
-                <div className="muted">No approvals or rejections recorded yet.</div>
-              </li>
-            ) : (
-              resolvedDecisions.map((item) => (
-                <li
-                  key={item.businessEstablishment_id || item.id}
-                  className="table-row table-grid"
-                >
-                  <div className="account-cell">
-                    <p className="account-name">{item.name || 'Unnamed establishment'}</p>
-                    <p className="account-email">
-                      ID: {item.businessEstablishment_id || item.id || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className={`status-chip status-${resolveTone(item.status)}`}>
-                      {item.status || '—'}
-                    </span>
-                  </div>
-                  <div className="muted">
-                    {formatDate(item.updatedAt || item.createdAt)}
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      className="table-action-button"
-                      onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
-                    >
-                      View
-                    </button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
-
-      <section className="account-management">
-        <div className="section-heading">
-          <h2>Today’s Priorities</h2>
-          <p>Pending submissions that need LGU staff validation before endorsement.</p>
-        </div>
-
-        <div className="table-shell">
-          <div className="table-head table-grid">
-            <span>Establishment</span>
-            <span>Category</span>
-            <span>Status</span>
-            <span>Last update</span>
-            <span>Action</span>
-          </div>
-
-          <ul className="table-body">
-            {loading ? (
-              <li className="table-row table-grid">
-                <div className="muted">Loading pending items…</div>
-              </li>
-            ) : error ? (
-              <li className="table-row table-grid">
-                <div className="muted">{error}</div>
-              </li>
-            ) : priorities.length === 0 ? (
-              <li className="table-row table-grid">
-                <div className="muted">No pending submissions. You’re all caught up!</div>
-              </li>
-            ) : (
-              priorities.map((item) => (
-                <li
-                  key={item.businessEstablishment_id || item.id}
-                  className="table-row table-grid"
-                >
-                  <div className="account-cell">
-                    <p className="account-name">{item.name || 'Unnamed establishment'}</p>
-                    <p className="account-email">
-                      ID: {item.businessEstablishment_id || item.id || '—'}
-                    </p>
-                  </div>
-                  <div className="muted">{item.type || '—'}</div>
-                  <div>
-                    <span className={`status-chip status-${resolveTone(item.status)}`}>
-                      {item.status || 'pending'}
-                    </span>
-                  </div>
-                  <div className="muted">
-                    {formatDate(item.updatedAt || item.createdAt)}
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      className="table-action-button"
-                      onClick={() => handleViewDetails(item.businessEstablishment_id || item.id)}
-                    >
-                      View
-                    </button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {detailModal.open && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -398,7 +412,7 @@ function LguStaffDashboard() {
               <div>
                 <h3>Establishment Details</h3>
                 <p className="muted">
-                  ID: {detailModal.establishment?.businessEstablishment_id ?? '—'}
+                  ID: {detailModal.establishment?.businessEstablishment_id ?? 'N/A'}
                 </p>
               </div>
               <button
@@ -408,13 +422,13 @@ function LguStaffDashboard() {
                 onClick={closeDetailModal}
                 disabled={detailModal.loading}
               >
-                ×
+                x
               </button>
             </header>
 
             {detailModal.loading ? (
               <div className="modal-content">
-                <div className="muted">Loading…</div>
+                <div className="muted">Loading...</div>
               </div>
             ) : detailModal.error ? (
               <div className="modal-content">
@@ -426,25 +440,25 @@ function LguStaffDashboard() {
                   <div className="detail-pair">
                     <p className="detail-label">Name</p>
                     <p className="detail-value strong">
-                      {detailModal.establishment?.name || '—'}
+                      {detailModal.establishment?.name || 'N/A'}
                     </p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Category</p>
                     <p className="detail-value">
-                      {detailModal.establishment?.type || detailModal.establishment?.category || '—'}
+                      {detailModal.establishment?.type || detailModal.establishment?.category || 'N/A'}
                     </p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Status</p>
                     <p className="detail-value chip">
-                      {detailModal.establishment?.status || '—'}
+                      {detailModal.establishment?.status || 'N/A'}
                     </p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Municipality</p>
                     <p className="detail-value">
-                      {detailModal.establishment?.municipality_id || detailModal.establishment?.municipality || '—'}
+                      {detailModal.establishment?.municipality_id || detailModal.establishment?.municipality || 'N/A'}
                     </p>
                   </div>
                   <div className="detail-pair">
@@ -452,13 +466,13 @@ function LguStaffDashboard() {
                     <p className="detail-value">
                       {detailModal.establishment?.updatedAt
                         ? new Date(detailModal.establishment.updatedAt).toLocaleString()
-                        : '—'}
+                        : 'N/A'}
                     </p>
                   </div>
                   <div className="detail-pair">
                     <p className="detail-label">Contact</p>
                     <p className="detail-value">
-                      {detailModal.establishment?.contact_info || '—'}
+                      {detailModal.establishment?.contact_info || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -466,7 +480,7 @@ function LguStaffDashboard() {
                 <div className="detail-block">
                   <p className="detail-label">Address</p>
                   <p className="detail-value">
-                    {detailModal.establishment?.address || '—'}
+                    {detailModal.establishment?.address || 'N/A'}
                   </p>
                 </div>
                 <div className="detail-block">

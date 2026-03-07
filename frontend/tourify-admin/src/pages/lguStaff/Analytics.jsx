@@ -25,6 +25,13 @@ import {
   rebuildSpm,
 } from '../../services/analyticsApi';
 import { useActionStatus } from '../../context/ActionStatusContext';
+import {
+  clampMonth,
+  getMonthBoundsFromTrend,
+  monthToDateEnd,
+  monthToDateStart,
+  normalizeMonthRange,
+} from '../../utils/exportDateRange';
 
 const pieColors = ['#2f80ed', '#56ccf2', '#f2c94c', '#f2994a', '#eb5757'];
 
@@ -184,7 +191,7 @@ function SpmControls() {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+    <div className="analytics-spm-bar">
       <button
         type="button"
         className="primary-cta"
@@ -201,7 +208,7 @@ function SpmControls() {
 }
 
 
-function LguStaffAnalytics() {
+function LguStaffAnalytics({ embedded = false }) {
   const [municipalityLabel, setMunicipalityLabel] = useState('Your municipality');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -218,12 +225,28 @@ function LguStaffAnalytics() {
 
 
   const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+  const exportMonthBounds = useMemo(() => getMonthBoundsFromTrend(trend), [trend]);
+  const isExportDisabled = !exportMonthBounds;
+
+  useEffect(() => {
+    if (!exportMonthBounds) return;
+    setExportRange((prev) => ({
+      from: clampMonth(prev.from || exportMonthBounds.minMonth, exportMonthBounds),
+      to: clampMonth(prev.to || exportMonthBounds.maxMonth, exportMonthBounds),
+    }));
+  }, [exportMonthBounds]);
+
   const { showLoading, showSuccess, showError } = useActionStatus();
 
   const handleExport = async (type) => {
     const params = new URLSearchParams();
-    if (exportRange.from) params.append('from', `${exportRange.from}-01`);
-    if (exportRange.to) params.append('to', `${exportRange.to}-28`);
+    const normalizedRange = normalizeMonthRange(exportRange, exportMonthBounds);
+    if (normalizedRange.error) {
+      showError(normalizedRange.error);
+      return;
+    }
+    params.append('from', monthToDateStart(normalizedRange.from));
+    params.append('to', monthToDateEnd(normalizedRange.to));
     const token = sessionStorage.getItem('accessToken');
     if (!token) {
       showError('Please log in to export.');
@@ -347,36 +370,47 @@ function LguStaffAnalytics() {
     [tourists30Days, trend, topDestination, topMovement],
   );
 
-  return (
-    <LguStaffLayout
-      title={`${municipalityLabel} Quick Reports`}
-      subtitle="LGU staff view of municipal analytics with exports."
-    >
+  const analyticsContent = (
+    <section className={`analytics-page${embedded ? ' analytics-page--embedded' : ''}`}>
       <SpmControls />
-      <section className="analytics-export-bar">
+      <section className={`analytics-export-bar${embedded ? ' analytics-export-bar--embedded' : ''}`}>
         <div className="export-range">
           <label>
             From
             <input
               type="month"
+              min={exportMonthBounds?.minMonth}
+              max={exportMonthBounds?.maxMonth}
               value={exportRange.from}
-              onChange={(event) => setExportRange((prev) => ({ ...prev, from: event.target.value }))}
+              onChange={(event) =>
+                setExportRange((prev) => ({
+                  ...prev,
+                  from: clampMonth(event.target.value, exportMonthBounds),
+                }))
+              }
             />
           </label>
           <label>
             To
             <input
               type="month"
+              min={exportMonthBounds?.minMonth}
+              max={exportMonthBounds?.maxMonth}
               value={exportRange.to}
-              onChange={(event) => setExportRange((prev) => ({ ...prev, to: event.target.value }))}
+              onChange={(event) =>
+                setExportRange((prev) => ({
+                  ...prev,
+                  to: clampMonth(event.target.value, exportMonthBounds),
+                }))
+              }
             />
           </label>
         </div>
         <div className="export-buttons">
-          <button type="button" onClick={() => handleExport('excel')}>
+          <button type="button" disabled={isExportDisabled || loading} onClick={() => handleExport('excel')}>
             Download Excel
           </button>
-          <button type="button" onClick={() => handleExport('pdf')}>
+          <button type="button" disabled={isExportDisabled || loading} onClick={() => handleExport('pdf')}>
             Download PDF
           </button>
         </div>
@@ -594,6 +628,19 @@ function LguStaffAnalytics() {
           )}
         </article>
       </section>
+    </section>
+  );
+
+  if (embedded) {
+    return analyticsContent;
+  }
+
+  return (
+    <LguStaffLayout
+      title={`${municipalityLabel} Quick Reports`}
+      subtitle="LGU staff view of municipal analytics with exports."
+    >
+      {analyticsContent}
     </LguStaffLayout>
   );
 }

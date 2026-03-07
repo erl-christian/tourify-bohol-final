@@ -16,11 +16,9 @@ import LguApprovals from './pages/lgu/Approvals.jsx';
 import LguActivities from './pages/lguStaff/Activities.jsx';
 import OwnerFeedback from './pages/owner/Feedback';
 import LguFeedback from './pages/lgu/Feedback.jsx';
-import LguAnalytics from './pages/lgu/Analytics.jsx';
 import AdminFeedback from './pages/admin/Feedback';
 import LguStaffFeedback from './pages/lguStaff/Feedback.jsx';
 import OwnerAnalytics from './pages/owner/Analytics.jsx';
-import LguStaffAnalytics from './pages/lguStaff/Analytics.jsx';
 import AccountSettings from './pages/AccountSettings.jsx';
 
 function App() {
@@ -99,7 +97,7 @@ function App() {
         path="/lgu/analytics"
         element={
           <ProtectedRoute allowedRoles={['lgu_admin', 'lgu_staff']}>
-            <LguAnalytics />
+            <Navigate to="/lgu/dashboard" replace />
           </ProtectedRoute>
         }
       />
@@ -113,7 +111,7 @@ function App() {
         path="/lgu-staff/reports"
         element={
           <ProtectedRoute allowedRoles={['lgu_staff', 'lgu_admin']}>
-            <LguStaffAnalytics />
+            <Navigate to="/lgu-staff/dashboard" replace />
           </ProtectedRoute>
         }
       />

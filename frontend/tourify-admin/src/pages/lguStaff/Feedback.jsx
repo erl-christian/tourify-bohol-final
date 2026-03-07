@@ -17,6 +17,9 @@ import {
 } from '../../services/feedbackApi';
 import { useActionStatus } from '../../context/ActionStatusContext';
 
+import { filterFeedbackItems } from '../../utils/feedbackFilters';
+
+
 const stripMarkdown = (text) => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
 
 const parseAiSummary = (text) => {
@@ -64,6 +67,14 @@ function LguStaffFeedback() {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState('newest');
   const [search, setSearch] = useState('');
+
+  const [ratingFilter, setRatingFilter] = useState('all');
+  const [replyFilter, setReplyFilter] = useState('all');
+  const [commentFilter, setCommentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
 
   const [feedbackState, setFeedbackState] = useState({
     loading: false,
@@ -146,13 +157,25 @@ function LguStaffFeedback() {
   const loadFeedback = useCallback(async () => {
     if (!selectedEst) return;
     try {
-      setFeedbackState((prev) => ({ ...prev, loading: true }));
+      setFeedbackState(prev => ({ ...prev, loading: true }));
       const { data } = await fetchLguFeedback(selectedEst, {
         page,
         sort,
-        search,
+        pageSize: 10,
       });
-      const items = Array.isArray(data?.items) ? data.items : [];
+
+      const baseItems = Array.isArray(data?.items) ? data.items : [];
+      const items = await Promise.all(
+        baseItems.map(async item => {
+          try {
+            const detail = await fetchFeedbackDetails(item.feedback_id);
+            return { ...item, replies: detail.data?.replies ?? [] };
+          } catch {
+            return { ...item, replies: [] };
+          }
+        }),
+      );
+
       setFeedbackState({
         loading: false,
         items,
@@ -163,10 +186,11 @@ function LguStaffFeedback() {
       });
     } catch (err) {
       console.error('[LGU Staff Feedback] load feedback failed', err);
-      setFeedbackState((prev) => ({ ...prev, loading: false }));
+      setFeedbackState(prev => ({ ...prev, loading: false }));
       setError('Unable to load feedback entries.');
     }
-  }, [selectedEst, page, sort, search]);
+  }, [selectedEst, page, sort]);
+
 
   useEffect(() => {
     loadFeedback();
@@ -219,13 +243,31 @@ function LguStaffFeedback() {
     [feedbackState.summary, feedbackState.total],
   );
 
-  const filteredItems = useMemo(() => {
-    if (!search) return feedbackState.items;
-    const query = search.toLowerCase();
-    return feedbackState.items.filter((item) =>
-      (item.review_text ?? '').toLowerCase().includes(query),
-    );
-  }, [feedbackState.items, search]);
+  const filteredItems = useMemo(
+    () =>
+      filterFeedbackItems(feedbackState.items, {
+        query: search,
+        rating: ratingFilter,
+        reply: replyFilter,
+        text: commentFilter,
+        status: statusFilter,
+        dateFrom,
+        dateTo,
+      }),
+    [feedbackState.items, search, ratingFilter, replyFilter, commentFilter, statusFilter, dateFrom, dateTo],
+  );
+
+  const clearFilters = () => {
+    setSearch('');
+    setRatingFilter('all');
+    setReplyFilter('all');
+    setCommentFilter('all');
+    setStatusFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  };
+
 
   const handleGenerateSummary = async () => {
     if (!selectedEst) return;
@@ -279,7 +321,7 @@ function LguStaffFeedback() {
       title="Feedback & Comments"
       subtitle="Monitor and respond to tourist sentiment for establishments in your municipality."
     >
-      <section className="lgu-feedback-page">
+      <section className="lgu-feedback-page feedback-studio">
         <header className="lgu-feedback-hero">
           <div>
             <p className="eyebrow">Reviews</p>
@@ -397,112 +439,141 @@ function LguStaffFeedback() {
               </article>
             </section>
 
-            <section className="lgu-reviews-panel">
-              <header className="lgu-reviews-header">
-                <div>
+            <section className="feedbackx-shell">
+              <div className="feedbackx-top">
+                <div className="feedbackx-title">
                   <h2>Visitor comments</h2>
-                  <p className="muted">
+                  <p className="feedbackx-count">
                     Showing {filteredItems.length} of {feedbackState.total} entries
                   </p>
                 </div>
-                <div className="lgu-reviews-controls">
-                  <div className="filter-input">
-                    <IoSearchOutline />
-                    <input
-                      placeholder="Search comment…"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
+                <button type="button" className="ghost-btn" onClick={loadFeedback} disabled={feedbackState.loading}>
+                  <IoReloadOutline /> Refresh
+                </button>
+              </div>
+
+              <div className="feedbackx-filters">
+                <div className="feedbackx-field feedbackx-field--search">
+                  <IoSearchOutline />
+                  <input
+                    placeholder="Search comment, tourist, or profile ID"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="feedbackx-field">
+                  <select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)}>
+                    <option value="all">All ratings</option>
+                    <option value="5">5 stars</option>
+                    <option value="4">4 stars</option>
+                    <option value="3">3 stars</option>
+                    <option value="2">2 stars</option>
+                    <option value="1">1 star</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field">
+                  <select value={replyFilter} onChange={e => setReplyFilter(e.target.value)}>
+                    <option value="all">All reply states</option>
+                    <option value="awaiting">Awaiting reply</option>
+                    <option value="replied">With replies</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field">
+                  <select value={commentFilter} onChange={e => setCommentFilter(e.target.value)}>
+                    <option value="all">All comment types</option>
+                    <option value="with_text">With comment</option>
+                    <option value="rating_only">Rating only</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field">
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                    <option value="all">All statuses</option>
+                    <option value="active">Active only</option>
+                    <option value="flagged">Flagged only</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field feedbackx-field--date">
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                </div>
+
+                <div className="feedbackx-field feedbackx-field--date">
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </div>
+
+                <button type="button" className="feedbackx-clear" onClick={clearFilters}>
+                  <IoFilterOutline /> Clear
+                </button>
+              </div>
+
+              {feedbackState.loading && !feedbackState.items.length ? (
+                <div className="feedbackx-empty">Loading feedback...</div>
+              ) : filteredItems.length ? (
+                <div className="feedbackx-table">
+                  <div className="feedbackx-table-head">
+                    <span>Review</span>
+                    <span>Rating</span>
+                    <span>Verified Traveler</span>
+                    <span>Actions</span>
                   </div>
-                  <button type="button" className="ghost-btn">
-                    <IoFilterOutline /> Filter
-                  </button>
-                </div>
-              </header>
+                  <div className="feedbackx-grid">
+                    {filteredItems.map(item => (
+                      <article key={item.feedback_id} className="feedbackx-row">
+                        <div className="feedbackx-cell feedbackx-cell--review">
+                          <p className="feedbackx-text">
+                            {item.review_text?.length ? item.review_text : 'No written review provided.'}
+                          </p>
+                          <div className="feedbackx-tags">
+                            <span className="feedbackx-tag feedbackx-tag--neutral">
+                              {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'}
+                            </span>
+                            <span className="feedbackx-tag feedbackx-tag--neutral">
+                              Replies: {item.replies?.length ?? 0}
+                            </span>
+                          </div>
+                        </div>
 
-              <div className="lgu-reviews-table">
-                <div className="lgu-table-head">
-                  <span>Comment</span>
-                  <span>Rating</span>
-                  <span>Date</span>
-                  <span>Actions</span>
-                </div>
+                        <div className="feedbackx-cell feedbackx-cell--rating">
+                          <span className="feedbackx-rating">{Number(item.rating ?? 0).toFixed(1)} *</span>
+                          <small>{ratingLabels[item.rating] ?? ''}</small>
+                        </div>
 
-                {feedbackState.loading ? (
-                  <p className="muted">Loading reviews…</p>
-                ) : filteredItems.length === 0 ? (
-                  <p className="muted">No feedback yet for this establishment.</p>
-                ) : (
-                  filteredItems.map((item) => (
-                    <article key={item.feedback_id} className="lgu-table-row">
-                      <div className="lgu-review-info">
-                        <p className="review-text">
-                          {item.review_text?.length ? item.review_text : 'No written review provided.'}
-                        </p>
-                        <p className="review-meta">
-                          by {item.tourist_name ?? 'Verified traveler'} · Profile ID:{' '}
-                          {item.tourist_profile_id ?? '—'}
-                        </p>
-                      </div>
+                        <div className="feedbackx-cell feedbackx-cell--traveler">
+                          <p className="feedbackx-traveler-name">{item.tourist_name ?? 'Verified traveler'}</p>
+                          <p className="feedbackx-traveler-meta">Profile ID: {item.tourist_profile_id ?? '-'}</p>
+                        </div>
 
-                      <div className="lgu-review-rating">
-                        <span className="status-chip status-success">
-                          {Number(item.rating).toFixed(1)} ★
-                        </span>
-                        <p>{ratingLabels[item.rating] ?? ''}</p>
-                      </div>
-
-                      <div className="lgu-review-date">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleString() : '—'}
-                      </div>
-
-                      <div className="lgu-review-actions">
-                        <div className="action-buttons">
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => openReplyModal(item)}
-                          >
+                        <div className="feedbackx-actions">
+                          <button type="button" className="btn-primary" onClick={() => openReplyModal(item)}>
                             Reply
                           </button>
-                          <button
-                            type="button"
-                            className="btn-ghost"
-                            onClick={() => handleViewThread(item.feedback_id)}
-                          >
+                          <button type="button" className="btn-ghost" onClick={() => handleViewThread(item.feedback_id)}>
                             View thread
                           </button>
                         </div>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="feedbackx-empty">No feedback matches the current filters.</div>
+              )}
 
-              <footer className="lgu-reviews-footer">
-                <div>
-                  Page {page} / {feedbackState.pages}
-                </div>
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    disabled={page <= 1}
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    disabled={page >= feedbackState.pages}
-                    onClick={() => setPage((prev) => prev + 1)}
-                  >
-                    Next
-                  </button>
-                </div>
-              </footer>
+              <div className="feedbackx-pagination">
+                <button type="button" disabled={page <= 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+                  Previous
+                </button>
+                <span>Page {page} of {feedbackState.pages}</span>
+                <button type="button" disabled={page >= feedbackState.pages} onClick={() => setPage(prev => prev + 1)}>
+                  Next
+                </button>
+              </div>
             </section>
+
           </>
         )}
       </section>

@@ -1277,6 +1277,44 @@ export const updateLguAdminStatus = async (req, res, next) => {
       });
     }
 
+    if (!is_active) {
+      const targetProfile = await AdminStaffProfile.findOne({
+        account_id: accountId,
+        position: "LGU Admin",
+      }).lean();
+
+      if (targetProfile?.municipality_id) {
+        const sameMunicipalityAdminIds = await AdminStaffProfile.distinct("account_id", {
+          position: "LGU Admin",
+          municipality_id: targetProfile.municipality_id,
+        });
+
+        const remainingActiveInMunicipality = await Account.countDocuments({
+          role: "lgu_admin",
+          is_active: true,
+          account_id: { $ne: accountId, $in: sameMunicipalityAdminIds },
+        });
+
+        if (remainingActiveInMunicipality < 1) {
+          res.status(400);
+          throw new Error(
+            "Cannot deactivate this LGU admin. Each municipality must have at least one active LGU admin."
+          );
+        }
+      } else {
+        const remainingActiveLguAdmins = await Account.countDocuments({
+          role: "lgu_admin",
+          is_active: true,
+          account_id: { $ne: accountId },
+        });
+
+        if (remainingActiveLguAdmins < 1) {
+          res.status(400);
+          throw new Error("Cannot deactivate the last active LGU admin account.");
+        }
+      }
+    }
+
     account.is_active = is_active;
     await account.save();
 

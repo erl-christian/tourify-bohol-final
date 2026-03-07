@@ -159,38 +159,54 @@ function Accounts() {
     setOwnerForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreateStaff = async (event) => {
-    event.preventDefault();
-    setSubmittingStaff(true);
-    showLoading('Creating LGU staff account...');
-    try {
-      await createLguStaff({
-        username: staffForm.username,
-        email: staffForm.email,
-        full_name: staffForm.fullName,
-      });
-      showSuccess(`LGU staff ${staffForm.fullName} has been created.`);
-      setStaffForm(initialStaffForm);
-      setStaffModalOpen(false);
-      await loadAccounts();
-    } catch (err) {
-      showError(err.response?.data?.message || 'Unable to create LGU staff. Please try again.');
-    } finally {
-      setSubmittingStaff(false);
-    }
+    const handleCreateStaff = async (event) => {
+      event.preventDefault();
+      setSubmittingStaff(true);
+      showLoading('Creating LGU staff account...');
+
+      if (!staffForm.fullName.trim() || !staffForm.username.trim() || !staffForm.email.trim()) {
+        showError('Full name, username, and email are required.');
+        setSubmittingStaff(false);
+        return;
+      }
+
+      try {
+        await createLguStaff({
+          username: staffForm.username.trim(),
+          email: staffForm.email.trim(),
+          full_name: staffForm.fullName.trim(),
+        });
+
+        showSuccess(`LGU staff ${staffForm.fullName} has been created.`);
+        setStaffForm(initialStaffForm);
+        setStaffModalOpen(false);
+        await loadAccounts();
+      } catch (err) {
+        showError(err.response?.data?.message || 'Unable to create LGU staff. Please try again.');
+      } finally {
+        setSubmittingStaff(false);
+      }
   };
 
-  const handleCreateOwner = async (event) => {
+    const handleCreateOwner = async (event) => {
     event.preventDefault();
     setSubmittingOwner(true);
     showLoading('Creating owner account...');
+
+    if (!ownerForm.fullName.trim() || !ownerForm.username.trim() || !ownerForm.email.trim()) {
+      showError('Full name, username, and email are required.');
+      setSubmittingOwner(false);
+      return;
+    }
+
     try {
       await createOwnerProfile({
-        username: ownerForm.username,
-        email: ownerForm.email,
-        full_name: ownerForm.fullName,
+        username: ownerForm.username.trim(),
+        email: ownerForm.email.trim(),
+        full_name: ownerForm.fullName.trim(),
         contact_no: ownerForm.contactNo,
       });
+
       showSuccess(`Owner ${ownerForm.fullName} has been created.`);
       setOwnerForm(initialOwnerForm);
       setOwnerModalOpen(false);
@@ -201,6 +217,7 @@ function Accounts() {
       setSubmittingOwner(false);
     }
   };
+
 
   const openStatusModalForAccount = (account, nextState) => {
     setStatusModal({
@@ -312,8 +329,6 @@ function Accounts() {
     <LguLayout
       title="Accounts"
       subtitle="Invite municipal staff and establishment owners."
-      searchPlaceholder="Search accounts..."
-      onSearchSubmit={(value) => console.log('search', value)}
       headerActions={
         <div className="split-dropdown">
           <button
@@ -494,63 +509,54 @@ function Accounts() {
             <div className="modal-content">
               <form className="modal-form" onSubmit={handleCreateStaff}>
                 <div className="form-row">
-                  <label className="form-label" htmlFor="staff-username">Username</label>
-                    <input
-                      id="staff-username"
-                      name="username"
-                      type="text"
-                      required
-                      placeholder="lgu.staff001"
-                      value={staffForm.username}
-                      onChange={handleStaffFormChange}
-                    />
-                </div>
-
-                <div className="form-row">
-                  <label className="form-label" htmlFor="owner-email">
-                    Email
-                  </label>
+                  <label className="form-label" htmlFor="staff-fullName">Full name</label>
                   <input
-                    id="owner-email"
-                    name="email"
-                    type="email"
+                    id="staff-fullName"
+                    name="fullName"
+                    type="text"
                     required
-                    placeholder="owner@example.com"
-                    value={ownerForm.email}
-                    onChange={handleOwnerFormChange}
+                    placeholder="Juan Dela Cruz"
+                    value={staffForm.fullName}
+                    onChange={handleStaffFormChange}
                   />
                 </div>
 
+                <div className="form-row">
+                  <label className="form-label" htmlFor="staff-username">Username</label>
+                  <input
+                    id="staff-username"
+                    name="username"
+                    type="text"
+                    required
+                    placeholder="lgu.staff001"
+                    value={staffForm.username}
+                    onChange={handleStaffFormChange}
+                  />
+                </div>
 
-                <div className="form-row form-grid">
-                  {/* <div>
-                    <label className="form-label" htmlFor="staff-email">
-                      Government email
-                    </label>
-                    <input
-                      id="staff-email"
-                      name="email"
-                      type="email"
-                      required
-                      placeholder="firstname.lastname@lgu.gov.ph"
-                      value={staffForm.email}
-                      onChange={handleStaffFormChange}
-                    />
-                  </div> */}
-                  {/* <div>
-                    <label className="form-label" htmlFor="staff-password">
-                      Temporary password
-                    </label>
-                    <input
-                      id="staff-password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="At least 8 characters"
-                      value={staffForm.password}
-                      onChange={handleStaffFormChange}
-                    />
-                  </div> */}
+                <div className="form-row">
+                  <label className="form-label" htmlFor="staff-email">Email</label>
+                  <input
+                    id="staff-email"
+                    name="email"
+                    type="email"
+                    required
+                    placeholder="staff@example.com"
+                    value={staffForm.email}
+                    onChange={handleStaffFormChange}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="staff-phone">Contact number (optional)</label>
+                  <input
+                    id="staff-phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="+63 900 123 4567"
+                    value={staffForm.phone}
+                    onChange={handleStaffFormChange}
+                  />
                 </div>
 
                 <div className="modal-actions">
@@ -619,20 +625,18 @@ function Accounts() {
                   />
                 </div>
 
-                {/* <div className="form-row">
-                  <label className="form-label" htmlFor="owner-password">
-                    Temporary password
-                  </label>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="owner-email">Email</label>
                   <input
-                    id="owner-password"
-                    name="password"
-                    type="password"
+                    id="owner-email"
+                    name="email"
+                    type="email"
                     required
-                    placeholder="At least 8 characters"
-                    value={ownerForm.password}
+                    placeholder="owner@example.com"
+                    value={ownerForm.email}
                     onChange={handleOwnerFormChange}
                   />
-                </div> */}
+                </div>
 
                 <div className="form-row">
                   <label className="form-label" htmlFor="owner-contactNo">

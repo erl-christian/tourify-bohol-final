@@ -32,6 +32,9 @@ const initialBtoStaffForm = {
   email: '',
 };
 
+const LAST_ACTIVE_LGU_ADMIN_MESSAGE =
+  'At least one LGU admin account must remain active in this municipality.';
+
 function Accounts() {
   const [activeTab, setActiveTab] = useState('all');
   const [adminForm, setAdminForm] = useState(initialAdminForm);
@@ -181,6 +184,25 @@ function Accounts() {
   const currentCount =
     activeTab === 'all' ? roleCounts.all : roleCounts[activeTab] || 0;
 
+  const isLastActiveLguAdminInMunicipality = (targetAccount) => {
+    if (
+      !targetAccount ||
+      targetAccount.roleId !== 'lgu_admin' ||
+      targetAccount.isActive !== true
+    ) {
+      return false;
+    }
+
+    const activeLguAdminsInMunicipality = accounts.filter(
+      (account) =>
+        account.roleId === 'lgu_admin' &&
+        account.isActive === true &&
+        account.municipalityId === targetAccount.municipalityId,
+    );
+
+    return activeLguAdminsInMunicipality.length <= 1;
+  };
+
   const openModal = () => {
     setAdminForm(initialAdminForm);
     setModalOpen(true);
@@ -262,12 +284,15 @@ const handleCreateBtoStaff = async (event) => {
 };
 
   const openStatusModalForAccount = (account, nextState) => {
+    const isBlockedDeactivation =
+      nextState === false && isLastActiveLguAdminInMunicipality(account);
+
     setStatusModal({
       open: true,
       target: account,
       nextState,
       loading: false,
-      error: '',
+      error: isBlockedDeactivation ? LAST_ACTIVE_LGU_ADMIN_MESSAGE : '',
     });
   };
 
@@ -283,6 +308,19 @@ const handleCreateBtoStaff = async (event) => {
 
   const handleStatusSubmit = async () => {
     if (!statusModal.target) return;
+
+    if (
+      statusModal.nextState === false &&
+      isLastActiveLguAdminInMunicipality(statusModal.target)
+    ) {
+      setStatusModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: LAST_ACTIVE_LGU_ADMIN_MESSAGE,
+      }));
+      return;
+    }
+
     setStatusModal((prev) => ({ ...prev, loading: true, error: '' }));
     showLoading('Updating account status...');
     try {
@@ -303,16 +341,19 @@ const handleCreateBtoStaff = async (event) => {
         error:
           error.response?.data?.message ||
           'Unable to update account status. Please try again.',
-      }));
+        }));
     }
   };
+
+  const statusActionBlocked =
+    statusModal.open &&
+    statusModal.nextState === false &&
+    isLastActiveLguAdminInMunicipality(statusModal.target);
 
   return (
     <AdminLayout
       title="LGU Accounts"
       subtitle="Manage LGU admins and staff across the province."
-      searchPlaceholder="Search accounts..."
-      onSearchSubmit={(value) => console.log('search', value)}
         headerActions={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="primary-cta" onClick={openModal}>
@@ -681,7 +722,7 @@ const handleCreateBtoStaff = async (event) => {
                 type="button"
                 className={statusModal.nextState ? 'primary-cta' : 'danger-cta'}
                 onClick={handleStatusSubmit}
-                disabled={statusModal.loading}
+                disabled={statusModal.loading || statusActionBlocked}
               >
                 {statusModal.loading
                   ? 'Updating…'

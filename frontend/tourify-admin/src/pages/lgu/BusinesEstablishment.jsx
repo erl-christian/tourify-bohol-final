@@ -21,6 +21,9 @@ function Establishments() {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const pageSize = 10;
   const [page, setPage] = useState(1);
@@ -76,18 +79,63 @@ function Establishments() {
 
   const rows = useMemo(() => establishments, [establishments]);
 
-  useEffect(() => {
-    const max = Math.max(1, Math.ceil(rows.length / pageSize) || 1);
-    setPage((prev) => Math.min(prev, max));
-  }, [rows.length]);
+  const categoryOptions = useMemo(() => {
+    const values = new Map();
+    rows.forEach((item) => {
+      const raw = (item.type || item.category || '').toString().trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!values.has(key)) values.set(key, raw);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const statusOptions = useMemo(() => {
+    const values = new Map();
+    rows.forEach((item) => {
+      const raw = (item.status || '').toString().trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!values.has(key)) values.set(key, raw);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return rows.filter((item) => {
+      const id = (item.businessEstablishment_id || item.id || '').toString().toLowerCase();
+      const name = (item.name || '').toString().toLowerCase();
+      const category = (item.type || item.category || '').toString().toLowerCase();
+      const status = (item.status || '').toString().toLowerCase();
+
+      if (term) {
+        const haystack = `${name} ${id} ${category} ${status}`;
+        if (!haystack.includes(term)) return false;
+      }
+      if (categoryFilter !== 'all' && category !== categoryFilter) return false;
+      if (statusFilter !== 'all' && status !== statusFilter) return false;
+      return true;
+    });
+  }, [rows, searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    const max = Math.max(1, Math.ceil(filteredRows.length / pageSize) || 1);
+    setPage((prev) => Math.min(prev, max));
+  }, [filteredRows.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page],
+    () => filteredRows.slice((page - 1) * pageSize, page * pageSize),
+    [filteredRows, page],
   );
-  const pageStart = rows.length ? (page - 1) * pageSize + 1 : 0;
-  const pageEnd = Math.min(page * pageSize, rows.length);
+  const pageStart = filteredRows.length ? (page - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(page * pageSize, filteredRows.length);
+  const hasActiveFilters = searchTerm.trim() || categoryFilter !== 'all' || statusFilter !== 'all';
 
 
   const resolveTone = (status) =>
@@ -161,16 +209,60 @@ function Establishments() {
     <LguLayout
       title="Municipal Establishments"
       subtitle="Monitor establishments in your municipality."
-      searchPlaceholder="Search establishments..."
-      onSearchSubmit={(value) => {
-        // optional: support simple search
-        console.log('search', value);
-      }}
+      headerActions={<></>}
     >
       <section className="account-management">
         <div className="section-heading">
           <h2>Registered Establishments</h2>
           <p>Read-only list of establishments in your municipality.</p>
+        </div>
+
+        <div className="est-filter-bar">
+          <div className="est-filter-item est-filter-item--search">
+            <span>Search</span>
+            <input
+              type="text"
+              placeholder="Name, ID, category, status"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+          <div className="est-filter-item">
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">All categories</option>
+              {categoryOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="est-filter-item">
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">All statuses</option>
+              {statusOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="est-filter-actions">
+            <button
+              type="button"
+              className="ghost-cta"
+              onClick={() => {
+                setSearchTerm('');
+                setCategoryFilter('all');
+                setStatusFilter('all');
+              }}
+              disabled={!hasActiveFilters}
+            >
+              Clear filters
+            </button>
+          </div>
         </div>
 
         <div className="table-shell">
@@ -191,12 +283,12 @@ function Establishments() {
               <li className="table-row table-grid">
                 <div className="muted">{error}</div>
               </li>
-            ) : rows.length === 0 ? (
+            ) : filteredRows.length === 0 ? (
               <li className="table-row table-grid">
                 <div className="muted">No establishments found.</div>
               </li>
             ) : (
-              rows.map((item) => (
+              paginatedRows.map((item) => (
                 <li key={item.businessEstablishment_id || item.id} className="table-row table-grid">
                   <div className="account-cell">
                     <p className="account-name">{item.name}</p>
@@ -228,14 +320,14 @@ function Establishments() {
         </div>
         <div className="pagination-bar">
             <div className="pagination-info">
-              Showing {paginatedRows.length ? `${pageStart}–${pageEnd}` : '0'} of {paginatedRows.length}
+              Showing {filteredRows.length ? `${pageStart}-${pageEnd}` : '0'} of {filteredRows.length}
             </div>
             <div className="pagination-controls">
               <button
                 type="button"
                 className="pagination-button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || !paginatedRows.length}
+                disabled={page === 1 || !filteredRows.length}
               >
                 Previous
               </button>
@@ -244,7 +336,7 @@ function Establishments() {
                 type="button"
                 className="pagination-button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || !paginatedRows.length}
+                disabled={page === totalPages || !filteredRows.length}
               >
                 Next
               </button>
@@ -429,3 +521,6 @@ function Establishments() {
 }
 
 export default Establishments;
+
+
+

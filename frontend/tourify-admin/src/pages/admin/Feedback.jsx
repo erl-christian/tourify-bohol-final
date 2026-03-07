@@ -12,6 +12,7 @@ import {
   btoReplyToFeedback,
 } from '../../services/feedbackApi';
 import { useActionStatus } from '../../context/ActionStatusContext';
+import { filterFeedbackItems } from '../../utils/feedbackFilters.js';
 
 const stripMarkdown = text => text?.replace(/\*\*(.*?)\*\*/g, '$1').trim();
 
@@ -81,6 +82,13 @@ function BtoFeedback() {
   const [feedbackPage, setFeedbackPage] = useState(1);
   const [feedbackSort, setFeedbackSort] = useState('newest');
   const [feedbackSearch, setFeedbackSearch] = useState('');
+
+  const [ratingFilter, setRatingFilter] = useState('all');
+  const [replyFilter, setReplyFilter] = useState('all');
+  const [commentFilter, setCommentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [feedbackState, setFeedbackState] = useState({
     loading: false,
@@ -262,17 +270,40 @@ function BtoFeedback() {
 
   const filteredItems = useMemo(
     () =>
-      feedbackState.items
-       .filter((item) => !item.deleted_at)
-       .filter(item =>
-        feedbackSearch
-          ? (item.review_text ?? '').toLowerCase().includes(feedbackSearch.toLowerCase())
-          : true
-      ),
-    [feedbackState.items, feedbackSearch]
+      filterFeedbackItems(feedbackState.items, {
+        query: feedbackSearch,
+        rating: ratingFilter,
+        reply: replyFilter,
+        text: commentFilter,
+        status: statusFilter,
+        dateFrom,
+        dateTo,
+      }),
+    [
+      feedbackState.items,
+      feedbackSearch,
+      ratingFilter,
+      replyFilter,
+      commentFilter,
+      statusFilter,
+      dateFrom,
+      dateTo,
+    ],
   );
 
-    const openReplyModal = (item) =>
+  const clearFilters = () => {
+    setFeedbackSearch('');
+    setRatingFilter('all');
+    setReplyFilter('all');
+    setCommentFilter('all');
+    setStatusFilter('active');
+    setDateFrom('');
+    setDateTo('');
+    setFeedbackPage(1);
+  };
+
+
+  const openReplyModal = (item) =>
     setReplyModal({ open: true, target: item, text: '', loading: false, error: '' });
 
   const submitReply = async (e) => {
@@ -339,7 +370,7 @@ const closeThreadModal = () =>
       title="Feedback Oversight"
       subtitle="Inspect province-wide reviews and ensure LGUs stay responsive."
     >
-      <section className="lgu-feedback-page">
+      <section className="lgu-feedback-page feedback-studio">
         <header className="lgu-feedback-hero">
           <div>
             <p className="eyebrow">Moderation</p>
@@ -463,82 +494,123 @@ const closeThreadModal = () =>
               </article>
             </section>
 
-            <section className="lgu-reviews-panel">
-              <div className="lgu-reviews-header">
-                <div>
+            <section className="feedbackx-shell">
+              <div className="feedbackx-top">
+                <div className="feedbackx-title">
                   <h2>Reviews</h2>
-                  <p className="muted">
+                  <p className="feedbackx-count">
                     Showing {filteredItems.length} of {feedbackState.total} entries
                   </p>
                 </div>
-                <div className="lgu-reviews-controls">
-                  <div className="filter-input">
-                    <IoSearchOutline />
-                    <input
-                      placeholder="Search comment…"
-                      value={feedbackSearch}
-                      onChange={event => setFeedbackSearch(event.target.value)}
-                    />
-                  </div>
-                  <button type="button" className="ghost-btn">
-                    <IoFilterOutline /> Filter
-                  </button>
-                </div>
+                <button type="button" className="ghost-btn" onClick={loadFeedback} disabled={feedbackState.loading}>
+                  <IoReloadOutline /> Refresh
+                </button>
               </div>
 
-              <div className="lgu-reviews-table">
-                <div className="lgu-table-head">
-                  <span>Review</span>
-                  <span>Rating</span>
-                  <span>Date</span>
-                  <span>Replies</span>
-                  <span>Action</span>
+              <div className="feedbackx-filters">
+                <div className="feedbackx-field feedbackx-field--search">
+                  <IoSearchOutline />
+                  <input
+                    placeholder="Search comment, tourist, or profile ID"
+                    value={feedbackSearch}
+                    onChange={e => setFeedbackSearch(e.target.value)}
+                  />
                 </div>
 
-                {feedbackState.loading && !feedbackState.items.length ? (
-                  <div className="empty-card">Loading feedback…</div>
-                ) : filteredItems.length ? (
-                  filteredItems.map(item => (
-                    <article key={item.feedback_id} className="lgu-table-row">
-                      <div className="lgu-review-info">
-                        <p className="review-text">
-                          {item.review_text?.length ? item.review_text : 'No written review provided.'}
-                        </p>
-                        <p className="review-meta">
-                          by {item.tourist_name ?? 'Verified traveler'} · Profile ID:{' '}
-                          {item.tourist_profile_id ?? '—'}
-                        </p>
-                      </div>
+                <div className="feedbackx-field">
+                  <select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)}>
+                    <option value="all">All ratings</option>
+                    <option value="5">5 stars</option>
+                    <option value="4">4 stars</option>
+                    <option value="3">3 stars</option>
+                    <option value="2">2 stars</option>
+                    <option value="1">1 star</option>
+                  </select>
+                </div>
 
-                      <div className="lgu-review-rating">
-                        <span className="status-chip status-success">
-                          {Number(item.rating).toFixed(1)} ★
-                        </span>
-                        <p>{ratingLabels[item.rating] ?? ''}</p>
-                      </div>
+                <div className="feedbackx-field">
+                  <select value={replyFilter} onChange={e => setReplyFilter(e.target.value)}>
+                    <option value="all">All reply states</option>
+                    <option value="awaiting">Awaiting reply</option>
+                    <option value="replied">With replies</option>
+                  </select>
+                </div>
 
-                      <div className="lgu-review-meta">
-                          <p>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</p>
-                          <p className="muted">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : ''}</p>
-                          <div className="meta-chips">
-                            {item.is_hidden && <span className="meta-chip warning">Hidden</span>}
-                            {item.is_flagged && <span className="meta-chip danger">Flagged</span>}
+                <div className="feedbackx-field">
+                  <select value={commentFilter} onChange={e => setCommentFilter(e.target.value)}>
+                    <option value="all">All comment types</option>
+                    <option value="with_text">With comment</option>
+                    <option value="rating_only">Rating only</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field">
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                    <option value="active">Active</option>
+                    <option value="all">All statuses</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="hidden">Hidden</option>
+                    <option value="deleted">Deleted</option>
+                  </select>
+                </div>
+
+                <div className="feedbackx-field feedbackx-field--date">
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                </div>
+
+                <div className="feedbackx-field feedbackx-field--date">
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </div>
+
+                <button type="button" className="feedbackx-clear" onClick={clearFilters}>
+                  <IoFilterOutline /> Clear
+                </button>
+              </div>
+
+              {feedbackState.loading && !feedbackState.items.length ? (
+                <div className="feedbackx-empty">Loading feedback...</div>
+              ) : filteredItems.length ? (
+                <div className="feedbackx-table">
+                  <div className="feedbackx-table-head">
+                    <span>Review</span>
+                    <span>Rating</span>
+                    <span>Verified Traveler</span>
+                    <span>Actions</span>
+                  </div>
+                  <div className="feedbackx-grid">
+                    {filteredItems.map(item => (
+                      <article key={item.feedback_id} className="feedbackx-row">
+                        <div className="feedbackx-cell feedbackx-cell--review">
+                          <p className="feedbackx-text">
+                            {item.review_text?.length ? item.review_text : 'No written review provided.'}
+                          </p>
+                          <div className="feedbackx-tags">
+                            <span className="feedbackx-tag feedbackx-tag--neutral">
+                              {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'}
+                            </span>
+                            <span className="feedbackx-tag feedbackx-tag--neutral">
+                              Replies: {item.replies?.length ?? 0}
+                            </span>
+                            {item.is_hidden ? <span className="feedbackx-tag feedbackx-tag--warn">Hidden</span> : null}
+                            {item.is_flagged ? <span className="feedbackx-tag feedbackx-tag--danger">Flagged</span> : null}
+                            {item.deleted_at ? <span className="feedbackx-tag feedbackx-tag--danger">Deleted</span> : null}
                           </div>
                         </div>
 
-                      <div className="lgu-review-replies">
-                        {item.replies?.length ? (
-                          <p>{item.replies.length} reply{item.replies.length > 1 ? 'ies' : ''}</p>
-                        ) : (
-                          <p className="muted">Awaiting response</p>
-                        )}
-                      </div>
+                        <div className="feedbackx-cell feedbackx-cell--rating">
+                          <span className="feedbackx-rating">{Number(item.rating ?? 0).toFixed(1)} *</span>
+                          <small>{ratingLabels[item.rating] ?? ''}</small>
+                        </div>
 
-                      <div className="lgu-review-actions">
-                        <div className="action-buttons">
+                        <div className="feedbackx-cell feedbackx-cell--traveler">
+                          <p className="feedbackx-traveler-name">{item.tourist_name ?? 'Verified traveler'}</p>
+                          <p className="feedbackx-traveler-meta">Profile ID: {item.tourist_profile_id ?? '-'}</p>
+                        </div>
+
+                        <div className="feedbackx-actions">
                           <button type="button" className="btn-primary" onClick={() => openReplyModal(item)}>
                             Reply
-                          </button> 
+                          </button>
                           <button
                             type="button"
                             className="btn-ghost"
@@ -553,16 +625,15 @@ const closeThreadModal = () =>
                             View thread
                           </button>
                         </div>
-                      </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="feedbackx-empty">No feedback matches the current filters.</div>
+              )}
 
-                    </article>
-                  ))
-                ) : (
-                  <div className="empty-card">No feedback matches the current filters.</div>
-                )}
-              </div>
-
-              <div className="feedback-pagination">
+              <div className="feedbackx-pagination">
                 <button
                   type="button"
                   onClick={() => setFeedbackPage(prev => Math.max(1, prev - 1))}

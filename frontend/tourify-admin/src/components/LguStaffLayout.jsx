@@ -1,5 +1,6 @@
-import PropTypes from 'prop-types';
+﻿import PropTypes from 'prop-types';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { IoNotificationsOutline, IoSearchOutline } from 'react-icons/io5';
 import { lguStaffNavSections } from '../data/lguStaffNavigation';
 import '../styles/AdminDashboard.css';
 import { signOut } from '../utils/auth';
@@ -80,7 +81,7 @@ function LguStaffLayout({
             <form className="search-field" role="search" onSubmit={handleSearchSubmit}>
               <input name="search" type="search" placeholder={searchPlaceholder} />
               <button type="submit" aria-label="Search">
-                🔍
+                <IoSearchOutline />
               </button>
             </form>
           ) : (
@@ -91,7 +92,7 @@ function LguStaffLayout({
             {headerActions ?? (
               <>
                 <button type="button" className="icon-pill" aria-label="Notifications">
-                  🔔
+                  <IoNotificationsOutline />
                 </button>
                 <div className="header-avatar">LS</div>
               </>
@@ -115,3 +116,4 @@ LguStaffLayout.propTypes = {
 };
 
 export default LguStaffLayout;
+

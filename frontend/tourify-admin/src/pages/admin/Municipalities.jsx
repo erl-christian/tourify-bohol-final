@@ -23,6 +23,7 @@ function Municipalities() {
   const [submitting, setSubmitting] = useState(false);
 
   const { showLoading, showSuccess, showError } = useActionStatus();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const normalizePayload = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -53,13 +54,21 @@ function Municipalities() {
     loadMunicipalities();
   }, [loadMunicipalities]);
 
-  const sortedMunicipalities = useMemo(
-    () =>
-      [...municipalities].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || ''),
-      ),
-    [municipalities],
-  );
+  const filteredMunicipalities = useMemo(() => {
+    const sorted = [...municipalities].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || ''),
+    );
+
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sorted;
+
+    return sorted.filter((m) =>
+      [m.municipality_id, m.name, m.slug, m.province]
+        .map((value) => String(value || '').toLowerCase())
+        .some((value) => value.includes(q)),
+    );
+  }, [municipalities, searchQuery]);
+
 
   const openModal = () => {
     setForm(initialForm);
@@ -103,7 +112,7 @@ function Municipalities() {
       title="Municipalities"
       subtitle="Maintain the list of LGU partners across Bohol."
       searchPlaceholder="Search municipalities..."
-      onSearchSubmit={(value) => console.log('search', value)}
+      onSearchSubmit={(value) => setSearchQuery(value)}
       headerActions={
         <button type="button" className="primary-cta" onClick={openModal}>
           Add Municipality
@@ -134,12 +143,12 @@ function Municipalities() {
               <li className="table-row table-grid">
                 <div className="muted">{error}</div>
               </li>
-            ) : sortedMunicipalities.length === 0 ? (
+            ) : filteredMunicipalities.length === 0 ? (
               <li className="table-row table-grid">
                 <div className="muted">No municipalities found.</div>
               </li>
             ) : (
-              sortedMunicipalities.map((municipality) => (
+              filteredMunicipalities.map((municipality) => (
                 <li key={municipality.municipality_id} className="table-row table-grid">
                   <div className="account-cell">
                     <p className="account-name">{municipality.municipality_id}</p>
@@ -157,6 +166,11 @@ function Municipalities() {
               ))
             )}
           </ul>
+        </div>
+        <div className="muted">
+          {searchQuery
+            ? `No municipalities found for "${searchQuery}".`
+            : 'No municipalities found.'}
         </div>
       </section>
 

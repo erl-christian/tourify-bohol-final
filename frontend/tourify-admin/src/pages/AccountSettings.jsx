@@ -40,6 +40,12 @@ function AccountSettings() {
     confirmPassword: '',
   });
 
+  const [passwordVisibility, setPasswordVisibility] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
+
   const [profileSaving, setProfileSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
 
@@ -48,44 +54,40 @@ function AccountSettings() {
   const [profileConfirmOpen, setProfileConfirmOpen] = useState(false);
   const [passwordConfirmOpen, setPasswordConfirmOpen] = useState(false);
 
-
-
   const loadMyAccount = async () => {
     try {
-        setLoading(true);
-        const { data } = await fetchMyAccount();
+      setLoading(true);
+      const { data } = await fetchMyAccount();
+      const roleFromApi = data?.account?.role || '';
 
-        const roleFromApi = data?.account?.role || '';
-
-        const fallbackPosition =
+      const fallbackPosition =
         roleFromApi === 'bto_admin'
-            ? 'BTO Admin'
-            : roleFromApi === 'bto_staff'
-            ? 'BTO Staff'
-            : roleFromApi === 'lgu_admin'
-            ? 'LGU Admin'
-            : roleFromApi === 'lgu_staff'
-            ? 'LGU Staff'
-            : roleFromApi === 'business_establishment'
-            ? 'Owner'
-            : '';
+          ? 'BTO Admin'
+          : roleFromApi === 'bto_staff'
+          ? 'BTO Staff'
+          : roleFromApi === 'lgu_admin'
+          ? 'LGU Admin'
+          : roleFromApi === 'lgu_staff'
+          ? 'LGU Staff'
+          : roleFromApi === 'business_establishment'
+          ? 'Owner'
+          : '';
 
-        setProfileForm({
+      setProfileForm({
         username: data?.account?.username || '',
         fullName: data?.profile?.full_name || '',
         contactNo: data?.profile?.contact_no || '',
         email: data?.account?.email || '',
         municipality:
-            data?.profile?.municipality_id || (roleFromApi.startsWith('bto_') ? 'Bohol' : ''),
+          data?.profile?.municipality_id || (roleFromApi.startsWith('bto_') ? 'Bohol' : ''),
         position: data?.profile?.position || fallbackPosition,
-        });
+      });
 
-
-        setLoadError('');
+      setLoadError('');
     } catch (err) {
-        setLoadError(err.response?.data?.message || 'Unable to load your account details.');
+      setLoadError(err.response?.data?.message || 'Unable to load your account details.');
     } finally {
-         setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -93,121 +95,139 @@ function AccountSettings() {
     loadMyAccount();
   }, []);
 
-  const handleProfileChange = event => {
+  const handleProfileChange = (event) => {
     const { name, value } = event.target;
-    setProfileForm(prev => ({ ...prev, [name]: value }));
+    setProfileForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handlePasswordChange = event => {
+  const handlePasswordChange = (event) => {
     const { name, value } = event.target;
-    setPasswordForm(prev => ({ ...prev, [name]: value }));
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
   };
 
-    const submitProfile = event => {
-        event.preventDefault();
-        if (profileSaving) return;
-        setProfileNotice({ type: '', message: '' });
-        setProfileConfirmOpen(true);
-    };
+  const togglePasswordVisibility = (field) => {
+    setPasswordVisibility((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
+  };
 
-    const confirmProfileUpdate = async () => {
-        setProfileConfirmOpen(false); // close confirm modal first
-        setProfileSaving(true);
-        setProfileNotice({ type: '', message: '' });
+  const submitProfile = (event) => {
+    event.preventDefault();
+    if (profileSaving) return;
+    setProfileNotice({ type: '', message: '' });
+    setProfileConfirmOpen(true);
+  };
 
-        try {
-            await updateMyAccount({
-            username: profileForm.username,
-            full_name: profileForm.fullName,
-            contact_no: profileForm.contactNo,
-            });
+  const confirmProfileUpdate = async () => {
+    setProfileConfirmOpen(false);
+    setProfileSaving(true);
+    setProfileNotice({ type: '', message: '' });
 
-            sessionStorage.setItem('mockDisplayName', profileForm.fullName || profileForm.username);
-            setProfileNotice({ type: 'success', message: 'Profile updated successfully.' });
-        } catch (err) {
-            setProfileNotice({
-            type: 'error',
-            message: err.response?.data?.message || 'Failed to update profile.',
-            });
-        } finally {
-            setProfileSaving(false);
-        }
-    };
+    try {
+      await updateMyAccount({
+        username: profileForm.username.trim(),
+        full_name: profileForm.fullName.trim(),
+        contact_no: profileForm.contactNo,
+      });
 
-    const cancelProfileUpdate = () => {
-        if (profileSaving) return;
-        setProfileConfirmOpen(false);
-    };
+      sessionStorage.setItem('mockDisplayName', profileForm.fullName || profileForm.username);
+      setProfileNotice({ type: 'success', message: 'Profile updated successfully.' });
+    } catch (err) {
+      setProfileNotice({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to update profile.',
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
+  const cancelProfileUpdate = () => {
+    if (profileSaving) return;
+    setProfileConfirmOpen(false);
+  };
 
+  const submitPassword = (event) => {
+    event.preventDefault();
+    if (passwordSaving) return;
 
-    const submitPassword = event => {
-        event.preventDefault();
-        if (passwordSaving) return;
+    setPasswordNotice({ type: '', message: '' });
 
-        setPasswordNotice({ type: '', message: '' });
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordNotice({ type: 'error', message: 'Passwords do not match.' });
+      return;
+    }
 
-        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-            setPasswordNotice({ type: 'error', message: 'Passwords do not match.' });
-            return;
-        }
+    setPasswordConfirmOpen(true);
+  };
 
-        setPasswordConfirmOpen(true);
-    };
+  const confirmPasswordUpdate = async () => {
+    setPasswordConfirmOpen(false);
+    setPasswordSaving(true);
+    setPasswordNotice({ type: '', message: '' });
 
-    const confirmPasswordUpdate = async () => {
-        setPasswordConfirmOpen(false); // close confirm modal first
-        setPasswordSaving(true);
-        setPasswordNotice({ type: '', message: '' });
+    try {
+      await changeMyPassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
 
-        try {
-            await changeMyPassword({
-            currentPassword: passwordForm.currentPassword,
-            newPassword: passwordForm.newPassword,
-            confirmPassword: passwordForm.confirmPassword,
-            });
+      setPasswordNotice({ type: 'success', message: 'Password changed successfully.' });
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordVisibility({
+        currentPassword: false,
+        newPassword: false,
+        confirmPassword: false,
+      });
+    } catch (err) {
+      setPasswordNotice({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to change password.',
+      });
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
 
-            setPasswordNotice({ type: 'success', message: 'Password changed successfully.' });
-            setPasswordForm({
-            currentPassword: '',
-            newPassword: '',
-            confirmPassword: '',
-            });
-        } catch (err) {
-            setPasswordNotice({
-            type: 'error',
-            message: err.response?.data?.message || 'Failed to change password.',
-            });
-        } finally {
-            setPasswordSaving(false);
-        }
-        };
+  const cancelPasswordUpdate = () => {
+    if (passwordSaving) return;
+    setPasswordConfirmOpen(false);
+  };
 
-        const cancelPasswordUpdate = () => {
-        if (passwordSaving) return;
-        setPasswordConfirmOpen(false);
-    };
+  const profileNoticeClassName =
+    profileNotice.type === 'error'
+      ? 'account-settings-notice account-settings-notice--error'
+      : 'account-settings-notice account-settings-notice--success';
 
-
+  const passwordNoticeClassName =
+    passwordNotice.type === 'error'
+      ? 'account-settings-notice account-settings-notice--error'
+      : 'account-settings-notice account-settings-notice--success';
 
   return (
     <Layout
       title="My Account"
       subtitle="Only your own account can be edited here. Municipality and position are locked."
     >
-      <section className="account-management">
+      <section className="account-management account-settings-wrap">
         {loading ? <p className="muted">Loading account details...</p> : null}
         {loadError ? <div className="modal-error">{loadError}</div> : null}
 
         {!loading && !loadError ? (
-          <>
-            <div className="table-shell" style={{ marginBottom: '1rem' }}>
-              <div className="section-heading">
+          <div className="account-settings-grid">
+            <article className="table-shell account-settings-card">
+              <div className="section-heading account-settings-heading">
                 <h2>Profile Details</h2>
-                <p>Editable: username, full name, contact number</p>
+                <p>Editable: username, full name, contact number.</p>
               </div>
 
-              <form className="modal-form" onSubmit={submitProfile}>
+              <form className="modal-form account-settings-form" onSubmit={submitProfile}>
                 <div className="form-row">
                   <label className="form-label" htmlFor="my-email">Email</label>
                   <input id="my-email" value={profileForm.email} readOnly className="readonly-input" />
@@ -269,177 +289,212 @@ function AccountSettings() {
                 </div>
 
                 {profileNotice.message ? (
-                  <div className={profileNotice.type === 'error' ? 'modal-error' : 'muted'}>
+                  <div className={profileNoticeClassName}>
                     {profileNotice.message}
                   </div>
                 ) : null}
 
-                <div className="modal-actions">
+                <div className="modal-actions account-settings-actions">
                   <button type="submit" className="primary-cta" disabled={profileSaving}>
                     {profileSaving ? 'Saving...' : 'Save Profile'}
                   </button>
                 </div>
               </form>
-            </div>
+            </article>
 
-            <div className="table-shell">
-              <div className="section-heading">
+            <article className="table-shell account-settings-card">
+              <div className="section-heading account-settings-heading">
                 <h2>Change Password</h2>
                 <p>No OTP required. Use your current password.</p>
               </div>
 
-              <form className="modal-form" onSubmit={submitPassword}>
+              <form className="modal-form account-settings-form" onSubmit={submitPassword}>
                 <div className="form-row">
                   <label className="form-label" htmlFor="currentPassword">Current password</label>
-                  <input
-                    id="currentPassword"
-                    name="currentPassword"
-                    type="password"
-                    required
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordChange}
-                  />
+                  <div className="account-password-field">
+                    <input
+                      id="currentPassword"
+                      name="currentPassword"
+                      type={passwordVisibility.currentPassword ? 'text' : 'password'}
+                      required
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChange}
+                    />
+                    <button
+                      type="button"
+                      className="account-password-toggle"
+                      onClick={() => togglePasswordVisibility('currentPassword')}
+                      aria-label={passwordVisibility.currentPassword ? 'Hide current password' : 'Show current password'}
+                      aria-pressed={passwordVisibility.currentPassword}
+                    >
+                      {passwordVisibility.currentPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="form-row">
                   <label className="form-label" htmlFor="newPassword">New password</label>
-                  <input
-                    id="newPassword"
-                    name="newPassword"
-                    type="password"
-                    required
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordChange}
-                  />
+                  <div className="account-password-field">
+                    <input
+                      id="newPassword"
+                      name="newPassword"
+                      type={passwordVisibility.newPassword ? 'text' : 'password'}
+                      required
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChange}
+                    />
+                    <button
+                      type="button"
+                      className="account-password-toggle"
+                      onClick={() => togglePasswordVisibility('newPassword')}
+                      aria-label={passwordVisibility.newPassword ? 'Hide new password' : 'Show new password'}
+                      aria-pressed={passwordVisibility.newPassword}
+                    >
+                      {passwordVisibility.newPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="form-row">
                   <label className="form-label" htmlFor="confirmPassword">Confirm new password</label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordChange}
-                  />
+                  <div className="account-password-field">
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={passwordVisibility.confirmPassword ? 'text' : 'password'}
+                      required
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordChange}
+                    />
+                    <button
+                      type="button"
+                      className="account-password-toggle"
+                      onClick={() => togglePasswordVisibility('confirmPassword')}
+                      aria-label={passwordVisibility.confirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      aria-pressed={passwordVisibility.confirmPassword}
+                    >
+                      {passwordVisibility.confirmPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                 </div>
 
                 {passwordNotice.message ? (
-                  <div className={passwordNotice.type === 'error' ? 'modal-error' : 'muted'}>
+                  <div className={passwordNoticeClassName}>
                     {passwordNotice.message}
                   </div>
                 ) : null}
 
-                <div className="modal-actions">
+                <div className="modal-actions account-settings-actions">
                   <button type="submit" className="primary-cta" disabled={passwordSaving}>
                     {passwordSaving ? 'Updating...' : 'Change Password'}
                   </button>
                 </div>
               </form>
-            </div>
-          </>
+            </article>
+          </div>
         ) : null}
       </section>
+
       {profileConfirmOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal-card">
+          <div className="modal-card">
             <header className="modal-header">
-                <div>
+              <div>
                 <h3>Confirm Profile Update</h3>
                 <p>Are you sure you want to save changes to your account profile?</p>
-                </div>
-                <button
+              </div>
+              <button
                 type="button"
                 className="modal-close"
                 aria-label="Close"
                 onClick={cancelProfileUpdate}
                 disabled={profileSaving}
-                >
-                ×
-                </button>
+              >
+                x
+              </button>
             </header>
 
             <div className="modal-actions">
-                <button
+              <button
                 type="button"
                 className="ghost-cta"
                 onClick={cancelProfileUpdate}
                 disabled={profileSaving}
-                >
+              >
                 Cancel
-                </button>
-                <button
+              </button>
+              <button
                 type="button"
                 className="primary-cta"
                 onClick={confirmProfileUpdate}
                 disabled={profileSaving}
-                >
+              >
                 {profileSaving ? 'Saving...' : 'Confirm Update'}
-                </button>
+              </button>
             </div>
-            </div>
+          </div>
         </div>
-        )}
-        {(profileSaving || passwordSaving) && (
+      )}
+
+      {(profileSaving || passwordSaving) && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-live="polite">
-            <div className="modal-card account-loading-modal">
+          <div className="modal-card account-loading-modal">
             <div className="account-loading-visual" aria-hidden="true">
-                <div className="account-loading-spinner">
+              <div className="account-loading-spinner">
                 <span />
-                </div>
+              </div>
             </div>
 
             <h3>Saving Changes...</h3>
             <p className="muted">
-                {profileSaving
+              {profileSaving
                 ? 'Updating your profile. Please wait.'
                 : 'Updating your password. Please wait.'}
             </p>
-            </div>
+          </div>
         </div>
-        )}
-            {passwordConfirmOpen && (
-            <div className="modal-backdrop" role="dialog" aria-modal="true">
-                <div className="modal-card">
-                <header className="modal-header">
-                    <div>
-                    <h3>Confirm Password Change</h3>
-                    <p>Are you sure you want to update your password?</p>
-                    </div>
-                    <button
-                    type="button"
-                    className="modal-close"
-                    aria-label="Close"
-                    onClick={cancelPasswordUpdate}
-                    disabled={passwordSaving}
-                    >
-                    ×
-                    </button>
-                </header>
+      )}
 
-                <div className="modal-actions">
-                    <button
-                    type="button"
-                    className="ghost-cta"
-                    onClick={cancelPasswordUpdate}
-                    disabled={passwordSaving}
-                    >
-                    Cancel
-                    </button>
-                    <button
-                    type="button"
-                    className="primary-cta"
-                    onClick={confirmPasswordUpdate}
-                    disabled={passwordSaving}
-                    >
-                    {passwordSaving ? 'Updating...' : 'Confirm Change'}
-                    </button>
-                </div>
-                </div>
+      {passwordConfirmOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Confirm Password Change</h3>
+                <p>Are you sure you want to update your password?</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={cancelPasswordUpdate}
+                disabled={passwordSaving}
+              >
+                x
+              </button>
+            </header>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-cta"
+                onClick={cancelPasswordUpdate}
+                disabled={passwordSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary-cta"
+                onClick={confirmPasswordUpdate}
+                disabled={passwordSaving}
+              >
+                {passwordSaving ? 'Updating...' : 'Confirm Change'}
+              </button>
             </div>
-            )}
-
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
