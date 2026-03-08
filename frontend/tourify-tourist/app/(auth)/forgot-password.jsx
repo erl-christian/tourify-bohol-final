@@ -10,7 +10,13 @@ import TextField from '../../components/TextField';
 import { colors, spacing } from '../../constants/theme';
 import { requestPasswordReset } from '../../lib/auth';
 
-const schema = z.object({ email: z.string().email('Enter a valid email') });
+const schema = z.object({
+  username: z
+    .string()
+    .min(4, 'Username is required')
+    .regex(/^[a-z0-9._-]{4,64}$/i, 'Use letters, numbers, ., _, -'),
+  email: z.string().email('Enter a valid recovery email'),
+});
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -19,14 +25,14 @@ export default function ForgotPassword() {
 
   const { control, handleSubmit } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: '' },
+    defaultValues: { username: '', email: '' },
   });
 
   const onSubmit = async values => {
     try {
       setSubmitting(true);
-      const data = await requestPasswordReset(values.email);
-      setMessage(data?.message || 'If that email exists, a reset code was sent.');
+      const data = await requestPasswordReset(values);
+      setMessage(data?.message || 'If that account exists, a reset code was sent.');
       if (data?.resetToken) {
         router.push({
           pathname: '/(auth)/reset-password',
@@ -46,12 +52,13 @@ export default function ForgotPassword() {
         <View style={styles.header}>
           <Text style={styles.title}>Reset your password</Text>
           <Text style={styles.subtitle}>
-            Enter your email and we’ll send a reset code.
+            Enter your username and recovery email and we'll send a reset code.
           </Text>
         </View>
 
         <AuthCard>
-          <TextField label="Email" name="email" control={control} keyboardType="email-address" />
+          <TextField label="Username" name="username" control={control} autoCapitalize="none" />
+          <TextField label="Recovery Email" name="email" control={control} keyboardType="email-address" />
 
           <TouchableOpacity
             style={styles.primaryButton}

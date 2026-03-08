@@ -66,6 +66,7 @@ const formatDistance = km => {
 };
 
 const formatISODate = date => date.toISOString().slice(0, 10);
+const routeOptionPalette = ['#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#ef4444', '#0ea5e9'];
 
 export default function ItineraryPlanner() {
   const router = useRouter();
@@ -82,6 +83,7 @@ export default function ItineraryPlanner() {
   const [plan, setPlan] = useState([]);
   const [routeSummary, setRouteSummary] = useState(null);
   const [alternates, setAlternates] = useState([]);
+  const [selectedRouteKey, setSelectedRouteKey] = useState('best');
   const [budget, setBudget] = useState('3500');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(
@@ -97,11 +99,9 @@ export default function ItineraryPlanner() {
   const [userLocation, setUserLocation] = useState(null);
 
   const segmentPalette = ['#facc15', '#60a5fa', '#8b5cf6', '#34d399', '#f87171'];
-  const buildLabel = index => String.fromCharCode(65 + index); // A, B, C …
   const [isLocating, setIsLocating] = useState(true);
 
   const mapRef = useRef(null);
-  const canOptimise = plan.length >= 1;
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [activeStop, setActiveStop] = useState(null);
@@ -245,7 +245,6 @@ export default function ItineraryPlanner() {
             latitude: lat,
             longitude: lng,
             order: index,
-            label: buildLabel(index),
           };
         })
         .filter(Boolean),
@@ -629,106 +628,100 @@ export default function ItineraryPlanner() {
   };
 
 
-  const handleOptimise = async () => {
-    if (!sortedPlan.length) return;
-    if (!userLocation) {
-      Alert.alert('Locating you', 'Turn on location services to optimise from your current position.');
+  const computeRouteOptions = async ({ silent = false } = {}) => {
+    if (!sortedPlan.length || !userLocation) {
+      setRoadPolyline([]);
+      setRouteSummary(null);
+      setAlternates([]);
+      setSelectedRouteKey('best');
       return;
     }
+
     setLoadingRoute(true);
 
     try {
-      
       const payload = {
-      title,
-      total_budget: Number(budget) || null,
-      start_date: formatISODate(startDate),
-      end_date: formatISODate(endDate),
-      origin: {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      },
-      stops: sortedPlan.map((item, index) => {
-        const est = item.establishment ?? {};
-        const latitude = est.latitude ?? est.location?.coordinates?.[1];
-        const longitude = est.longitude ?? est.location?.coordinates?.[0];
-        if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-          throw new Error('One of the selected stops is missing coordinates.');
-        }
+        title,
+        total_budget: Number(budget) || null,
+        start_date: formatISODate(startDate),
+        end_date: formatISODate(endDate),
+        origin: {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        },
+        stops: sortedPlan.map((item, index) => {
+          const est = item.establishment ?? {};
+          const latitude = est.latitude ?? est.location?.coordinates?.[1];
+          const longitude = est.longitude ?? est.location?.coordinates?.[0];
+          if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+            throw new Error('One of the selected stops is missing coordinates.');
+          }
 
-        return {
-          order: index,
-          preferred_order: item.preferredOrder ?? index,
-          business_establishment_id:
-            item.business_establishment_id ??
-            item.businessEstablishment_id ??
-            est.businessEstablishment_id,
-          latitude,
-          longitude,
-        };
-      }),
-      manual_order: sortedPlan.every(item => typeof item.preferredOrder === 'number'),
-    };
+          return {
+            order: index,
+            preferred_order: item.preferredOrder ?? index,
+            business_establishment_id:
+              item.business_establishment_id ??
+              item.businessEstablishment_id ??
+              est.businessEstablishment_id,
+            latitude,
+            longitude,
+          };
+        }),
+        manual_order: true,
+      };
 
       const result = await optimizeRoute(payload);
-      console.log('Route geometry points:', result?.route_geometry?.length);
-      if (Array.isArray(result?.route_geometry)) {
-        console.log('Example route coords:', result.route_geometry.slice(0, 3));
-      }
 
-      const hasPolyline =
-        Array.isArray(result?.route_geometry) && result.route_geometry.length > 1;
+      let resolvedBestGeometry =
+        Array.isArray(result?.route_geometry) ? result.route_geometry : [];
+      let resolvedSummary =
+        result?.summary ?? {
+          distance_km: 0,
+          duration_minutes: 0,
+          traffic_penalty: 0,
+          weather_penalty: null,
+          efficiency_score: 0,
+          final_score: 0,
+        };
 
-      if (!hasPolyline && sortedPlan.length === 1) {
+      if (resolvedBestGeometry.length <= 1 && sortedPlan.length === 1) {
         const onlyStop = sortedPlan[0];
         const est = onlyStop.establishment ?? {};
         const latitude = est.latitude ?? est.location?.coordinates?.[1];
         const longitude = est.longitude ?? est.location?.coordinates?.[0];
 
-        const fallbackPolyline = [
+        resolvedBestGeometry = [
           { latitude: userLocation.latitude, longitude: userLocation.longitude },
           { latitude, longitude },
         ];
-
-        setRoadPolyline(fallbackPolyline);
-        if (mapRef.current) {
-          mapRef.current.fitToCoordinates(fallbackPolyline, {
-            edgePadding: { top: 64, right: 64, bottom: 64, left: 64 },
-            animated: true,
-          });
-        }
-
-        setRouteSummary(
-          result?.summary ?? {
-            distance_km: 0,
-            duration_minutes: 0,
-          }
-        );
-        setLoadingRoute(false);
-        return;
       }
 
-      if (Array.isArray(result?.orderedStops) && !payload.manual_order) {
-        const reordered = result.orderedStops
-          .map(stop =>
-            plan.find(
-              item =>
-                item.business_establishment_id === stop.business_establishment_id ||
-                item.establishment?.business_establishment_id === stop.business_establishment_id
-            )
-          )
-          .filter(Boolean)
-          .map((item, idx) => ({ ...item, preferredOrder: idx }));
+      const routeOptions = [
+        {
+          key: 'best',
+          label: 'Best route',
+          route_geometry: resolvedBestGeometry,
+          summary: resolvedSummary,
+        },
+        ...((Array.isArray(result?.alternate_routes) ? result.alternate_routes : []).map(
+          (route, index) => ({
+            key: `alt-${index + 1}`,
+            label: `Option ${index + 1}`,
+            route_geometry: Array.isArray(route?.route_geometry) ? route.route_geometry : [],
+            summary: route?.summary ?? null,
+          })
+        )),
+      ];
 
-        if (reordered.length === plan.length) {
-          setPlan(reordered);
-        }
-      }
+      setAlternates(routeOptions);
+      setSelectedRouteKey(routeOptions[0]?.key ?? 'best');
+      setRouteSummary(resolvedSummary);
 
-      if (Array.isArray(result?.route_geometry) && result.route_geometry.length > 1) {
-        setRoadPolyline(result.route_geometry);
+      if (Array.isArray(resolvedBestGeometry) && resolvedBestGeometry.length > 1) {
+        setRoadPolyline(resolvedBestGeometry);
         if (mapRef.current) {
-          mapRef.current.fitToCoordinates(result.route_geometry, {
+          mapRef.current.fitToCoordinates(resolvedBestGeometry, {
             edgePadding: { top: 64, right: 64, bottom: 64, left: 64 },
             animated: true,
           });
@@ -736,16 +729,27 @@ export default function ItineraryPlanner() {
       } else {
         setRoadPolyline([]);
       }
-
-      setRouteSummary(result?.summary ?? null);
     } catch (err) {
       console.error(err);
-      Alert.alert('Route optimisation failed', err.message ?? 'Please try again.');
+      if (!silent) {
+        Alert.alert('Route loading failed', err.message ?? 'Please try again.');
+      }
       setRoadPolyline([]);
+      setRouteSummary(null);
+      setAlternates([]);
+      setSelectedRouteKey('best');
     } finally {
       setLoadingRoute(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      computeRouteOptions({ silent: true });
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [sortedPlan, userLocation, startDate, endDate, budget, title]);
 
 
   const handleDateChange = (event, selectedDate, type) => {
@@ -818,7 +822,7 @@ export default function ItineraryPlanner() {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Plan your route</Text>
-            <Text style={styles.subtitle}>Add destinations and let Tourify optimise the journey.</Text>
+            <Text style={styles.subtitle}>Add destinations, then tap a route line on the map to choose it.</Text>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={safeBack} activeOpacity={0.8}>
             <Ionicons name="close" size={22} color={colors.text} />
@@ -903,26 +907,58 @@ export default function ItineraryPlanner() {
             showsPointsOfInterest={false}
             toolbarEnabled={false}
           >
-            {roadPolyline.length > 1 && (
-              <Polyline coordinates={roadPolyline} strokeColor="rgba(15,23,42,0.2)" strokeWidth={3} />
-            )}
-
-            {routeSegments.map(segment => (
-              <Polyline
-                key={segment.id}
-                coordinates={segment.coordinates}
-                strokeColor={segment.color}
-                strokeWidth={6}
-                lineCap="round"
-                lineJoin="round"
-              />
-            ))}
+            {alternates.length > 0
+              ? alternates.map((option, index) => {
+                  if (!Array.isArray(option.route_geometry) || option.route_geometry.length < 2) {
+                    return null;
+                  }
+                  const routeColor = routeOptionPalette[index % routeOptionPalette.length];
+                  const isSelected =
+                    (selectedRouteKey && selectedRouteKey === option.key) ||
+                    (!selectedRouteKey && index === 0);
+                  return (
+                    <Polyline
+                      key={option.key}
+                      coordinates={option.route_geometry}
+                      strokeColor={
+                        isSelected
+                          ? routeColor
+                          : `${routeColor}${routeColor.length === 7 ? '66' : ''}`
+                      }
+                      strokeWidth={isSelected ? 7 : 4}
+                      lineCap="round"
+                      lineJoin="round"
+                      tappable
+                      onPress={() => {
+                        setSelectedRouteKey(option.key);
+                        setRouteSummary(option.summary ?? null);
+                        setRoadPolyline(option.route_geometry);
+                        if (mapRef.current) {
+                          mapRef.current.fitToCoordinates(option.route_geometry, {
+                            edgePadding: { top: 64, right: 64, bottom: 64, left: 64 },
+                            animated: true,
+                          });
+                        }
+                      }}
+                    />
+                  );
+                })
+              : routeSegments.map(segment => (
+                  <Polyline
+                    key={segment.id}
+                    coordinates={segment.coordinates}
+                    strokeColor={segment.color}
+                    strokeWidth={6}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                ))}
 
             {mapMarkers.map(marker => (
               <Marker
                 key={marker.id}
                 coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-                title={`${marker.label}. ${marker.title}`}
+                title={marker.title}
                 description={marker.subtitle}
               >
                 <View
@@ -930,9 +966,7 @@ export default function ItineraryPlanner() {
                     styles.markerBubble,
                     { backgroundColor: segmentPalette[marker.order % segmentPalette.length] },
                   ]}
-                >
-                  <Text style={styles.markerText}>{marker.label}</Text>
-                </View>
+                />
               </Marker>
             ))}
 
@@ -964,21 +998,12 @@ export default function ItineraryPlanner() {
               <Ionicons name="navigate" size={18} color={colors.primary} />
               <Text style={styles.mapLocateText}>Locate me</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.optimizeButton, (!canOptimise || loadingRoute) && styles.optimizeButtonDisabled]}
-              onPress={handleOptimise}
-              disabled={!canOptimise || loadingRoute}
-              activeOpacity={0.85}
-            >
-              {loadingRoute ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <>
-                  <Ionicons name="sparkles-outline" size={16} color={colors.white} />
-                  <Text style={styles.optimizeButtonText}>Optimise route</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {loadingRoute ? (
+              <View style={styles.summaryRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.summaryText}>Evaluating route options...</Text>
+              </View>
+            ) : null}
 
             <View style={styles.summaryRow}>
               <Ionicons name="walk" size={18} color={colors.primary} />
@@ -992,6 +1017,75 @@ export default function ItineraryPlanner() {
                 Travel time: {formatDuration(routeSummary?.duration_minutes)}
               </Text>
             </View>
+            {Number.isFinite(routeSummary?.weather_penalty) ? (
+              <View style={styles.summaryRow}>
+                <Ionicons name="rainy-outline" size={18} color={colors.primary} />
+                <Text style={styles.summaryText}>
+                  Weather impact: {(Number(routeSummary.weather_penalty) * 100).toFixed(0)}%
+                </Text>
+              </View>
+            ) : null}
+            {Number.isFinite(routeSummary?.efficiency_score) ? (
+              <View style={styles.summaryRow}>
+                <Ionicons name="speedometer-outline" size={18} color={colors.primary} />
+                <Text style={styles.summaryText}>
+                  Route efficiency: {Number(routeSummary.efficiency_score).toFixed(3)}
+                </Text>
+              </View>
+            ) : null}
+            {Number.isFinite(routeSummary?.traffic_penalty) ? (
+              <View style={styles.summaryRow}>
+                <Ionicons name="car-outline" size={18} color={colors.primary} />
+                <Text style={styles.summaryText}>
+                  Traffic proxy: {(Number(routeSummary.traffic_penalty) * 100).toFixed(0)}%
+                </Text>
+              </View>
+            ) : null}
+            {alternates.length > 0 ? (
+              <View style={styles.routeOptionsWrap}>
+                <Text style={styles.routeOptionsLabel}>Route options</Text>
+                <Text style={styles.routeOptionsHint}>Tap a route line on the map to select your preferred path.</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.routeOptionScroller}
+                >
+                  {alternates.map((option, index) => {
+                    const isActive =
+                      (selectedRouteKey && selectedRouteKey === option.key) ||
+                      (!selectedRouteKey && index === 0);
+                    const routeColor = routeOptionPalette[index % routeOptionPalette.length];
+                    return (
+                      <View
+                        key={option.key}
+                        style={[styles.routeOptionChip, isActive && styles.routeOptionChipActive]}
+                      >
+                        <View style={styles.routeOptionTitleRow}>
+                          <View style={[styles.routeColorDot, { backgroundColor: routeColor }]} />
+                          <Text
+                            style={[
+                              styles.routeOptionTitle,
+                              isActive && styles.routeOptionTitleActive,
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.routeOptionMeta,
+                            isActive && styles.routeOptionMetaActive,
+                          ]}
+                        >
+                          {formatDuration(option?.summary?.duration_minutes)} ·{' '}
+                          {formatDistance(option?.summary?.distance_km)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -1070,7 +1164,7 @@ export default function ItineraryPlanner() {
                       </TouchableOpacity>
                     </View>
                     <View style={styles.stopHeader}>
-                      <Text style={styles.stopOrder}>{buildLabel(index)}</Text>
+                      <Ionicons name="location-outline" size={16} color={colors.primary} />
                       <TouchableOpacity onPress={() => handleRemove(item.id)} hitSlop={8}>
                         <Ionicons name="close" size={16} color="#ef4444" />
                       </TouchableOpacity>
@@ -1291,19 +1385,56 @@ const styles = StyleSheet.create({
     gap: spacing(0.75),
     backgroundColor: colors.white,
   },
-  optimizeButton: {
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
+  summaryText: { fontFamily: 'Inter_500Medium', color: colors.text },
+  routeOptionsWrap: { marginTop: spacing(0.75), gap: spacing(0.6) },
+  routeOptionsLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    fontSize: 13,
+  },
+  routeOptionsHint: {
+    fontFamily: 'Inter_400Regular',
+    color: colors.muted,
+    fontSize: 12,
+  },
+  routeOptionScroller: { gap: spacing(0.7), paddingRight: spacing(1) },
+  routeOptionChip: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.22)',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing(0.9),
+    paddingVertical: spacing(0.6),
+    minWidth: 150,
+  },
+  routeOptionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing(0.5),
-    paddingHorizontal: spacing(1.25),
-    paddingVertical: spacing(0.6),
-    borderRadius: 999,
-    backgroundColor: colors.primary,
   },
-  optimizeButtonDisabled: { opacity: 0.6 },
-  optimizeButtonText: { fontFamily: 'Inter_600SemiBold', color: colors.white },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
-  summaryText: { fontFamily: 'Inter_500Medium', color: colors.text },
+  routeColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  routeOptionChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(108,92,231,0.1)',
+  },
+  routeOptionTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    fontSize: 13,
+  },
+  routeOptionTitleActive: { color: colors.primary },
+  routeOptionMeta: {
+    marginTop: spacing(0.2),
+    fontFamily: 'Inter_400Regular',
+    color: colors.muted,
+    fontSize: 12,
+  },
+  routeOptionMetaActive: { color: colors.primaryDark },
   timelineCard: {
     borderRadius: radii.md,
     borderWidth: 1,
@@ -1465,11 +1596,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  stopOrder: {
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.primary,
-    fontSize: 12,
-  },
   stopTitle: {
     fontFamily: 'Inter_700Bold',
     color: colors.text,
@@ -1503,11 +1629,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 3,
-  },
-  markerText: {
-    fontFamily: 'Inter_700Bold',
-    color: '#1f2937',
-    fontSize: 13,
   },
   loadingContainer: {
     flex: 1,

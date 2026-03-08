@@ -35,3 +35,5 @@ export const fetchEstablishmentMediaForAdmin = (estId, mediaKind) =>
 export const createBtoStaff = (payload) =>
   http.post('/admin/bto/create-bto-staff', payload);
 
+export const generateArrivalQr = (payload) =>
+  http.post('/admin/bto/arrival-qr', payload);

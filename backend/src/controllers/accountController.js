@@ -478,30 +478,80 @@ export const changeMyPassword = async (req, res, next) => {
 // POST /api/accounts/register
 export const registerAccount = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
-    if (!email || !password) {
+    const { email, username, password, role = 'tourist' } = req.body;
+    const normalizedRole = String(role || 'tourist').trim();
+    const normalizedEmail = String(email ?? '').trim().toLowerCase();
+    const normalizedUsername = String(username ?? '').trim().toLowerCase();
+
+    if (!password) {
       res.status(400);
-      throw new Error('Email and password are required');
+      throw new Error('password is required');
     }
 
-    const exists = await Account.findOne({ email });
-    if (exists) {
-      res.status(409);
-      throw new Error('Email already registered');
+    if (normalizedRole === 'tourist') {
+      if (!normalizedUsername || !normalizedEmail) {
+        res.status(400);
+        throw new Error('username, email, and password are required');
+      }
+
+      if (!USERNAME_REGEX.test(normalizedUsername)) {
+        res.status(400);
+        throw new Error('Invalid username format');
+      }
+
+      const existingUsername = await Account.findOne({ username: normalizedUsername });
+      if (existingUsername) {
+        res.status(409);
+        throw new Error('Username already in use');
+      }
+    } else {
+      if (!normalizedEmail) {
+        res.status(400);
+        throw new Error('email and password are required');
+      }
+      const exists = await Account.findOne({ email: normalizedEmail });
+      if (exists) {
+        res.status(409);
+        throw new Error('Email already registered');
+      }
     }
 
-    const acc = await Account.create({ email, password, role });
+    const acc = await Account.create({
+      email: normalizedEmail,
+      username: normalizedUsername || undefined,
+      password,
+      role: normalizedRole,
+      email_verified: normalizedRole === 'tourist' ? true : false,
+      email_verified_at: normalizedRole === 'tourist' ? new Date() : undefined,
+    });
     const token = signAuthToken(acc);
 
-    const otp = generateOtp();
-    const verifyToken = signVerifyToken(acc, otp);
-    const verifyHtml = buildVerifyHtml(otp);
+    // Tourist accounts no longer require email verification.
+    if (normalizedRole !== 'tourist') {
+      const otp = generateOtp();
+      const verifyToken = signVerifyToken(acc, otp);
+      const verifyHtml = buildVerifyHtml(otp);
 
-    sendMail({
-      to: acc.email,
-      subject: 'Your Tourify Bohol verification code',
-      html: verifyHtml,
-    }).catch(err => console.warn('Email send failed (verify):', err.message));
+      sendMail({
+        to: acc.email,
+        subject: 'Your Tourify Bohol verification code',
+        html: verifyHtml,
+      }).catch(err => console.warn('Email send failed (verify):', err.message));
+
+      return res.status(201).json({
+        message: 'Account created',
+        account: {
+          id: acc._id,
+          account_id: acc.account_id,
+          email: acc.email,
+          username: acc.username ?? null,
+          role: acc.role,
+          email_verified: acc.email_verified,
+        },
+        token,
+        verifyToken, // submit with OTP
+      });
+    }
 
     res.status(201).json({
       message: 'Account created',
@@ -509,11 +559,11 @@ export const registerAccount = async (req, res, next) => {
         id: acc._id,
         account_id: acc.account_id,
         email: acc.email,
+        username: acc.username ?? null,
         role: acc.role,
         email_verified: acc.email_verified,
       },
       token,
-      verifyToken, // used with OTP
     });
   } catch (err) {
     next(err);
@@ -524,7 +574,9 @@ export const registerAccount = async (req, res, next) => {
 export const loginAccount = async (req, res, next) => {
   try {
     const { identifier, username, email, password } = req.body;
-    const raw = identifier ?? username ?? email;
+    const fromUsername =
+      typeof username === 'string' && username.trim().length ? username : null;
+    const raw = identifier ?? fromUsername ?? email;
 
     if (!raw || !password) {
       res.status(400);
@@ -532,10 +584,14 @@ export const loginAccount = async (req, res, next) => {
     }
 
     const normalized = String(raw).trim().toLowerCase();
-
-    const acc = await Account.findOne({
-      $or: [{ username: normalized }, { email: normalized }],
-    });
+    let acc = null;
+    if (fromUsername !== null) {
+      acc = await Account.findOne({ username: normalized });
+    } else {
+      acc = await Account.findOne({
+        $or: [{ username: normalized }, { email: normalized }],
+      });
+    }
 
     if (!acc) {
       res.status(401);
@@ -551,6 +607,11 @@ export const loginAccount = async (req, res, next) => {
     ]);
 
     if (adminRoles.has(acc.role) && acc.username && acc.username !== normalized) {
+      res.status(401);
+      throw new Error("Use your username to log in");
+    }
+
+    if (acc.role === 'tourist' && acc.username !== normalized) {
       res.status(401);
       throw new Error("Use your username to log in");
     }
@@ -772,15 +833,33 @@ export const verifyEmail = async (req, res, next) => {
 // POST /api/accounts/forgot-password
 export const requestPasswordReset = async (req, res, next) => {
   try {
-    const { email } = req.body;
-    if (!email) {
+    const usernameRaw = String(req.body.username ?? '').trim().toLowerCase();
+    const emailRaw = String(req.body.email ?? '').trim().toLowerCase();
+    if (!emailRaw) {
       res.status(400);
-      throw new Error('Email is required');
+      throw new Error('email is required');
     }
 
-    const acc = await Account.findOne({ email });
+    let acc = null;
+    if (usernameRaw) {
+      acc = await Account.findOne({ username: usernameRaw, email: emailRaw });
+    } else {
+      const emailMatches = await Account.find({ email: emailRaw })
+        .select('_id role')
+        .sort({ createdAt: -1 })
+        .lean();
+      if (emailMatches.length === 1) {
+        acc = await Account.findById(emailMatches[0]._id);
+      } else if (emailMatches.length > 1) {
+        const nonTourist = emailMatches.find(item => item.role !== 'tourist');
+        if (nonTourist?._id) {
+          acc = await Account.findById(nonTourist._id);
+        }
+      }
+    }
+
     if (!acc) {
-      return res.json({ message: 'If that email exists, a reset code was sent.' });
+      return res.json({ message: 'If that account exists, a reset code was sent.' });
     }
 
     const otp = generateOtp();
@@ -794,7 +873,7 @@ export const requestPasswordReset = async (req, res, next) => {
     }).catch(err => console.warn('Email send failed (reset):', err.message));
 
     res.json({
-      message: 'If that email exists, a reset code was sent.',
+      message: 'If that account exists, a reset code was sent.',
       resetToken: resetOtpToken, // submit with OTP + new password
     });
   } catch (err) {

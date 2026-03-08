@@ -41,6 +41,9 @@ export const generateSmartBundles = payload =>
 export const getPublicDestinations = params =>
   client.get('/public/establishments', { params }).then(normaliseResponse);
 
+export const getPublicMapOverview = () =>
+  client.get('/public/establishments/map-overview').then(res => res.data);
+
 export const createTouristProfile = payload =>
   client.post('/tourist/create-profile', payload).then(res => res.data);
 
@@ -104,13 +107,13 @@ export async function completeItinerary(itineraryId) {
 }
 
 export const markStopVisited = (itineraryId, establishmentId) =>
-  api.post(`/tourist/itineraries/${itineraryId}/check-in`, { establishment_id: establishmentId });
+  client.post(`/tourist/itineraries/${itineraryId}/check-in`, { establishment_id: establishmentId });
 
 export const submitFeedback = payload =>
-  api.post('/tourist/feedback', payload);
+  client.post('/tourist/feedback', payload);
 
 export const uploadFeedbackMedia = formData =>
-  api.post('/tourist/media', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  client.post('/tourist/media', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 
 export const shareCompletedItinerary = (itineraryId, caption) =>
   client.post(`/tourist/shared-itineraries/${itineraryId}/share`, { caption }).then(res => res.data.shared);
@@ -125,3 +128,9 @@ export async function recordQrArrival(establishmentId, coords = {}) {
     longitude: coords.longitude,
   }).then(res => res.data);
 }
+
+export const scanTouristArrival = payload =>
+  client.post('/public/arrivals/scan', payload).then(res => res.data);
+
+export const linkTouristArrivalSession = sessionId =>
+  client.post('/tourist/arrivals/link', { session_id: sessionId }).then(res => res.data);

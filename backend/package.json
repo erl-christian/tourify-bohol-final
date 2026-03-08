@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "mine:spm": "node scripts/mineBigrams.js"
+    "mine:spm": "node scripts/mineBigrams.js",
+    "migrate:tourist-usernames": "node scripts/migrateTouristUsernames.js"
   },
   "keywords": [],
   "author": "",

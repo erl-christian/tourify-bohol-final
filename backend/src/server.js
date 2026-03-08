@@ -23,8 +23,10 @@ import itineraries from "./routes/touristRoutes/itineraryRoutes.js"
 import touristFeedbackRoutes from "./routes/touristRoutes/feedbackRoutes.js";
 import publicFeedbackRoutes from "./routes/publicRoutes/publicFeedbackRoutes.js"
 import favoriteRoutes from "./routes/touristRoutes/favoriteRoutes.js";
+import touristArrivalRoutes from "./routes/touristRoutes/arrivalRoutes.js";
 import tagRoutes from "./routes/adminRoutes/tagRoutes.js";
 import publicEstablishmentRoutes from "./routes/publicRoutes/publicEstablishmentRoutes.js";
+import publicArrivalRoutes from "./routes/publicRoutes/publicArrivalRoutes.js";
 import recommendationRoutes from "./routes/recommendationRoutes/travelRecommendationRoutes.js"
 import telemetryRoutes from "./routes/telemetry/recommendationEventsRoute.js";
 import feedbackThreadRoutes from './routes/feedbackThreadRoutes.js';
@@ -72,7 +74,9 @@ app.use("/api/tourist", touristProfileRoutes)
 app.use("/api/tourist/itineraries", itineraries)
 app.use("/api/tourist/feedback", touristFeedbackRoutes);
 app.use("/api/public", publicFeedbackRoutes);
+app.use("/api/public", publicArrivalRoutes);
 app.use("/api/tourist", favoriteRoutes);
+app.use("/api/tourist", touristArrivalRoutes);
 app.use("/api/tourist/recommendations", recommendationRoutes);
 app.use('/api/tourist/shared-itineraries', sharedItineraryRoutes);
 app.use("/api/admin/tag", tagRoutes);

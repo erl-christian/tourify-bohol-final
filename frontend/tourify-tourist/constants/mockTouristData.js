@@ -1,6 +1,5 @@
 export const quickActions = [
   { id: 'explore', label: 'Explore', icon: 'compass-outline' },
-  { id: 'plan', label: 'Plan Trip', icon: 'calendar' },
   { id: 'destinations', label: 'Destinations', icon: 'map' },
   { id: 'feedback', label: 'Feedback', icon: 'chatbubbles' },
   { id: 'history', label: 'History', icon: 'time' },

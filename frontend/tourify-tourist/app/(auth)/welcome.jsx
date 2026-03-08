@@ -21,6 +21,18 @@ export default function Welcome() {
     typeof params.establishmentId === 'string' && params.establishmentId.length > 0
       ? params.establishmentId
       : null;
+  const arrivalSessionId =
+    typeof params.arrivalSessionId === 'string' && params.arrivalSessionId.length > 0
+      ? params.arrivalSessionId
+      : null;
+  const entryPointType =
+    typeof params.entryPointType === 'string' && params.entryPointType.length > 0
+      ? params.entryPointType
+      : null;
+  const entryPointName =
+    typeof params.entryPointName === 'string' && params.entryPointName.length > 0
+      ? params.entryPointName
+      : null;
 
   useEffect(() => {
     if (!establishmentId) {
@@ -49,15 +61,28 @@ export default function Welcome() {
   }, [establishmentId]);
 
   const goToLogin = () => {
+    const nextParams = {};
+    if (establishmentId) nextParams.establishmentId = establishmentId;
+    if (arrivalSessionId) nextParams.arrivalSessionId = arrivalSessionId;
+    if (entryPointType) nextParams.entryPointType = entryPointType;
+    if (entryPointName) nextParams.entryPointName = entryPointName;
     router.push(
-      establishmentId
-        ? { pathname: '/(auth)/login', params: { establishmentId } }
-        : '/(auth)/login',
+      Object.keys(nextParams).length
+        ? { pathname: '/(auth)/login', params: nextParams }
+        : '/(auth)/login'
     );
   };
 
   const goToRegister = () => {
-    router.push('/(auth)/register');
+    const nextParams = {};
+    if (arrivalSessionId) nextParams.arrivalSessionId = arrivalSessionId;
+    if (entryPointType) nextParams.entryPointType = entryPointType;
+    if (entryPointName) nextParams.entryPointName = entryPointName;
+    router.push(
+      Object.keys(nextParams).length
+        ? { pathname: '/(auth)/register', params: nextParams }
+        : '/(auth)/register'
+    );
   };
 
   const goToScanner = () => {
@@ -87,6 +112,17 @@ export default function Welcome() {
                 <Text style={styles.scanBannerLabel}>Scanned on site</Text>
                 <Text style={styles.scanBannerValue} numberOfLines={1}>
                   {scannedLabel || establishmentId}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+          {!establishmentId && arrivalSessionId ? (
+            <View style={styles.scanBanner}>
+              <Ionicons name="airplane-outline" size={20} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.scanBannerLabel}>Arrival recorded</Text>
+                <Text style={styles.scanBannerValue} numberOfLines={1}>
+                  {entryPointName || entryPointType || 'Bohol entry point'}
                 </Text>
               </View>
             </View>

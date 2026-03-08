@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  FlatList,
   ScrollView,
   View,
   Text,
@@ -8,27 +9,39 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  Pressable,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, radii, spacing } from '../../constants/theme';
+import { isKnownNationality, NATIONALITIES } from '../../constants/nationalities';
 import TextField from '../../components/TextField';
 import {
   createTouristProfile,
+  linkTouristArrivalSession,
   updateTouristProfile,
   uploadTouristMedia,
 } from '../../lib/tourist';
 import { useAuth } from '../../hooks/useAuth';
 
 const schema = z.object({
-  full_name: z.string().min(3, 'Full name is required'),
+  full_name: z
+    .string()
+    .min(3, 'Full name is required')
+    .regex(/^[A-Za-z.\-\s]+$/, 'Use letters, spaces, period, and hyphen only'),
+  nickname: z.string().max(40, 'Nickname is too long').optional(),
   contact_no: z.string().min(7, 'Contact number is required'),
-  nationality: z.string().min(2, 'Nationality is required'),
+  nationality: z
+    .string()
+    .min(1, 'Nationality is required')
+    .refine(value => isKnownNationality(value), 'Please choose from the nationality list'),
 });
 
 const getInitials = (name = '') =>
@@ -41,27 +54,44 @@ const getInitials = (name = '') =>
 
 export default function ProfileSetup() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { profile, refreshProfile } = useAuth();
+  const arrivalSessionId =
+    typeof params.arrivalSessionId === 'string' && params.arrivalSessionId.length > 0
+      ? params.arrivalSessionId
+      : null;
+  const entryPointType =
+    typeof params.entryPointType === 'string' && params.entryPointType.length > 0
+      ? params.entryPointType
+      : null;
+  const entryPointName =
+    typeof params.entryPointName === 'string' && params.entryPointName.length > 0
+      ? params.entryPointName
+      : null;
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pickedImage, setPickedImage] = useState(null);
+  const [nationalityPickerVisible, setNationalityPickerVisible] = useState(false);
+  const [nationalitySearch, setNationalitySearch] = useState('');
 
-  const { control, handleSubmit, reset } = useForm({
+  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       full_name: profile?.full_name ?? '',
+      nickname: profile?.nickname ?? '',
       contact_no: profile?.contact_no ?? '',
-      nationality: profile?.nationality ?? '',
+      nationality: isKnownNationality(profile?.nationality) ? profile?.nationality : '',
     },
   });
 
   useEffect(() => {
     reset({
       full_name: profile?.full_name ?? '',
+      nickname: profile?.nickname ?? '',
       contact_no: profile?.contact_no ?? '',
-      nationality: profile?.nationality ?? '',
+      nationality: isKnownNationality(profile?.nationality) ? profile?.nationality : '',
     });
   }, [profile, reset]);
 
@@ -84,19 +114,47 @@ export default function ProfileSetup() {
     };
   }, [step]);
 
+  const selectedNationality = watch('nationality');
+
+  const filteredNationalities = useMemo(() => {
+    const keyword = nationalitySearch.trim().toLowerCase();
+    if (!keyword) return NATIONALITIES;
+    return NATIONALITIES.filter(item => item.toLowerCase().includes(keyword));
+  }, [nationalitySearch]);
+
+  const openNationalityPicker = () => {
+    setNationalitySearch('');
+    setNationalityPickerVisible(true);
+  };
+
+  const closeNationalityPicker = () => {
+    setNationalityPickerVisible(false);
+  };
+
   const onSubmitDetails = async values => {
     try {
       setSubmitting(true);
+      const payload = {
+        ...values,
+        full_name: String(values.full_name ?? '').trim().replace(/\s+/g, ' '),
+        nickname: String(values.nickname ?? '').trim(),
+        nationality: String(values.nationality ?? '').trim().replace(/\s+/g, ' '),
+      };
       try {
-        await createTouristProfile(values);
+        await createTouristProfile(payload);
       } catch (err) {
         if (err?.status === 409 || /already registered/i.test(err?.message ?? '')) {
-          await updateTouristProfile(values);
+          await updateTouristProfile(payload);
         } else {
           throw err;
         }
       }
       await refreshProfile();
+      if (arrivalSessionId) {
+        await linkTouristArrivalSession(arrivalSessionId).catch(error => {
+          console.warn('[ARRIVAL LINK] failed', error?.message || error);
+        });
+      }
       setStep(2);
     } catch (error) {
       Alert.alert('Unable to save profile', error.message ?? 'Please try again.');
@@ -165,14 +223,47 @@ export default function ProfileSetup() {
               </View>
             </View>
 
+            {arrivalSessionId ? (
+              <View style={styles.arrivalHint}>
+                <Ionicons name="airplane-outline" size={16} color={colors.primary} />
+                <Text style={styles.arrivalHintText}>
+                  Arrival already recorded at {entryPointName || entryPointType || 'Bohol entry point'}.
+                </Text>
+              </View>
+            ) : null}
+
             <TextField label="Full Name" name="full_name" control={control} autoCapitalize="words" />
+            <TextField label="Nickname (Optional)" name="nickname" control={control} autoCapitalize="words" />
             <TextField
               label="Contact Number"
               name="contact_no"
               control={control}
               keyboardType="phone-pad"
             />
-            <TextField label="Nationality" name="nationality" control={control} autoCapitalize="words" />
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Nationality</Text>
+              <TouchableOpacity
+                style={[
+                  styles.nationalityPicker,
+                  errors.nationality ? styles.nationalityPickerError : null,
+                ]}
+                onPress={openNationalityPicker}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    styles.nationalityPickerText,
+                    !selectedNationality ? styles.nationalityPickerPlaceholder : null,
+                  ]}
+                >
+                  {selectedNationality || 'Select nationality'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              {errors.nationality ? (
+                <Text style={styles.fieldError}>{errors.nationality.message}</Text>
+              ) : null}
+            </View>
 
             <TouchableOpacity
               style={styles.primaryButton}
@@ -239,6 +330,63 @@ export default function ProfileSetup() {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={nationalityPickerVisible}
+        onRequestClose={closeNationalityPicker}
+      >
+        <Pressable style={styles.nationalityModalBackdrop} onPress={closeNationalityPicker}>
+          <Pressable style={styles.nationalityModalCard} onPress={() => {}}>
+            <View style={styles.nationalityModalHeader}>
+              <Text style={styles.nationalityModalTitle}>Select Nationality</Text>
+              <TouchableOpacity onPress={closeNationalityPicker} hitSlop={8}>
+                <Ionicons name="close" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.nationalitySearchBox}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                value={nationalitySearch}
+                onChangeText={setNationalitySearch}
+                placeholder="Search nationality..."
+                style={styles.nationalitySearchInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <FlatList
+              data={filteredNationalities}
+              keyExtractor={item => item}
+              keyboardShouldPersistTaps="handled"
+              style={styles.nationalityList}
+              ListEmptyComponent={
+                <Text style={styles.nationalityEmpty}>No nationality found.</Text>
+              }
+              renderItem={({ item }) => {
+                const selected = selectedNationality === item;
+                return (
+                  <TouchableOpacity
+                    style={styles.nationalityItem}
+                    onPress={() => {
+                      setValue('nationality', item, { shouldValidate: true, shouldDirty: true });
+                      closeNationalityPicker();
+                    }}
+                  >
+                    <Text style={styles.nationalityItemText}>{item}</Text>
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -267,6 +415,53 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   cardTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.text },
   cardHint: { fontFamily: 'Inter_400Regular', color: colors.muted },
+  arrivalHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.5),
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.2)',
+    backgroundColor: 'rgba(108,92,231,0.08)',
+    paddingHorizontal: spacing(1),
+    paddingVertical: spacing(0.75),
+  },
+  arrivalHintText: { flex: 1, fontFamily: 'Inter_500Medium', color: colors.primary },
+  fieldBlock: {
+    gap: spacing(0.55),
+  },
+  fieldLabel: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.muted,
+    fontSize: 13,
+  },
+  fieldError: {
+    fontFamily: 'Inter_500Medium',
+    color: '#dc2626',
+    fontSize: 12,
+  },
+  nationalityPicker: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.3)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing(1),
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nationalityPickerError: {
+    borderColor: '#ef4444',
+  },
+  nationalityPickerText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+    flex: 1,
+  },
+  nationalityPickerPlaceholder: {
+    color: colors.muted,
+  },
   primaryButton: {
     marginTop: spacing(1),
     height: 52,
@@ -315,5 +510,68 @@ const styles = StyleSheet.create({
   },
   finishButton: {
     backgroundColor: colors.primaryDark,
+  },
+  nationalityModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'flex-end',
+  },
+  nationalityModalCard: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: spacing(1.5),
+    paddingTop: spacing(1.2),
+    paddingBottom: spacing(1.5),
+    maxHeight: '72%',
+  },
+  nationalityModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing(1),
+  },
+  nationalityModalTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    color: colors.text,
+  },
+  nationalitySearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.6),
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.3)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing(0.9),
+    minHeight: 46,
+    marginBottom: spacing(0.8),
+  },
+  nationalitySearchInput: {
+    flex: 1,
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+    paddingVertical: spacing(0.65),
+  },
+  nationalityList: {
+    flexGrow: 0,
+  },
+  nationalityItem: {
+    minHeight: 46,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(15,23,42,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nationalityItemText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+  },
+  nationalityEmpty: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.muted,
+    textAlign: 'center',
+    paddingVertical: spacing(1.2),
   },
 });

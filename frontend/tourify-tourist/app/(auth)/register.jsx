@@ -1,4 +1,4 @@
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -16,11 +16,16 @@ import AuthCard from '../../components/AuthCard';
 import TextField from '../../components/TextField';
 import { colors, spacing } from '../../constants/theme';
 import { register as registerAccount } from '../../lib/auth';
-// import { useAuth } from '../../hooks/useAuth';
+import { linkTouristArrivalSession } from '../../lib/tourist';
+import { useAuth } from '../../hooks/useAuth';
 
 const schema = z
   .object({
-    email: z.string().email('Enter a valid email'),
+    username: z
+      .string()
+      .min(4, 'Username is required')
+      .regex(/^[a-z0-9._-]{4,64}$/i, 'Use letters, numbers, ., _, -'),
+    email: z.string().email('Enter a valid recovery email'),
     password: z.string().min(8, 'Minimum 8 characters'),
     confirm: z.string().min(8, 'Confirm your password'),
   })
@@ -31,30 +36,53 @@ const schema = z
 
 export default function RegisterScreen() {
   const router = useRouter();
-  // const { signIn } = useAuth();
+  const params = useLocalSearchParams();
+  const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
+  const arrivalSessionId =
+    typeof params.arrivalSessionId === 'string' && params.arrivalSessionId.length > 0
+      ? params.arrivalSessionId
+      : null;
+  const entryPointType =
+    typeof params.entryPointType === 'string' && params.entryPointType.length > 0
+      ? params.entryPointType
+      : null;
+  const entryPointName =
+    typeof params.entryPointName === 'string' && params.entryPointName.length > 0
+      ? params.entryPointName
+      : null;
   const { control, handleSubmit, reset } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', confirm: '' },
+    defaultValues: { username: '', email: '', password: '', confirm: '' },
   });
 
-  const onSubmit = async ({ email, password }) => {
+  const onSubmit = async ({ username, email, password }) => {
     try {
       setLoading(true);
-      const payload = await registerAccount({ email, password, role: 'tourist' });
-      reset();
-
-      // Go to email verification flow first (not profile setup)
-      if (payload?.verifyToken) {
-        router.replace({
-          pathname: '/(auth)/verify-email',
-          params: { token: payload.verifyToken },
-        });
-      } else {
-        router.replace('/(auth)/verify-email-request');
+      const payload = await registerAccount({
+        username,
+        email,
+        password,
+        role: 'tourist',
+      });
+      await signIn(payload);
+      if (arrivalSessionId) {
+        await linkTouristArrivalSession(arrivalSessionId).catch(err =>
+          console.warn('[ARRIVAL LINK] failed', err?.message || err)
+        );
       }
+      reset();
+      const nextParams = {};
+      if (arrivalSessionId) nextParams.arrivalSessionId = arrivalSessionId;
+      if (entryPointType) nextParams.entryPointType = entryPointType;
+      if (entryPointName) nextParams.entryPointName = entryPointName;
+      router.replace(
+        Object.keys(nextParams).length
+          ? { pathname: '/profile/setup', params: nextParams }
+          : '/profile/setup'
+      );
     } catch (error) {
-      alert(error.message ?? 'Unable to create account. Email may already be registered.');
+      alert(error.message ?? 'Unable to create account. Username may already be registered.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +105,16 @@ export default function RegisterScreen() {
             Tell us who you are to personalise recommendations.
           </Text>
 
-          <TextField label="Email" name="email" control={control} keyboardType="email-address" />
+          {arrivalSessionId ? (
+            <View style={styles.arrivalHint}>
+              <Ionicons name="airplane-outline" size={16} color={colors.primary} />
+              <Text style={styles.arrivalHintText}>
+                Arrival recorded at {entryPointName || entryPointType || 'Bohol entry point'}.
+              </Text>
+            </View>
+          ) : null}
+          <TextField label="Username" name="username" control={control} autoCapitalize="none" />
+          <TextField label="Recovery Email" name="email" control={control} keyboardType="email-address" />
           <TextField label="Password" name="password" control={control} secureTextEntry />
           <TextField label="Confirm Password" name="confirm" control={control} secureTextEntry />
 
@@ -130,6 +167,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryText: { fontFamily: 'Inter_600SemiBold', color: colors.white, fontSize: 16 },
+
+  arrivalHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.5),
+    backgroundColor: 'rgba(108,92,231,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.2)',
+    borderRadius: 12,
+    paddingHorizontal: spacing(1),
+    paddingVertical: spacing(0.75),
+  },
+  arrivalHintText: { fontFamily: 'Inter_500Medium', color: colors.primary, flex: 1 },
 
   qrHint: {
     marginTop: spacing(1),

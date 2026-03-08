@@ -3,9 +3,152 @@ import Feedback from "../../models/feedback/Feedback.js";
 import EstablishmentTag from "../../models/tagModels/EstablishmentTag.js";
 import Tag from "../../models/tagModels/Tag.js";
 import Media from "../../models/Media/Media.js";
+import FeedbackSummary from "../../models/Media/FeedbackSummary.js";
 import FrequentSequence from "../../models/recommendations/FrequentSequence.js";
+import Municipality from "../../models/Municipality.js";
+import OpenAI from "openai";
 
 const selectFields = "media_id business_establishment_id file_url file_type caption createdAt";
+const FEEDBACK_SUMMARY_STALE_MS = 1000 * 60 * 60 * 24 * 7;
+
+let openAiClient = null;
+const getOpenAiClient = () => {
+  if (!process.env.OPENAI_API_KEY) return null;
+  if (!openAiClient) {
+    openAiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openAiClient;
+};
+
+const buildFallbackAiSummary = ({ count, average, positives, negatives, from, to }) => {
+  if (!count) {
+    return "No traveler feedback yet for this place.";
+  }
+  const lead = `From ${from.toLocaleDateString()} to ${to.toLocaleDateString()}, travelers rated this place ${average}/5 based on ${count} reviews.`;
+  const positive = positives?.length
+    ? ` Visitors often liked ${positives.slice(0, 2).join(", ")}.`
+    : "";
+  const negative = negatives?.length
+    ? ` Common concerns were ${negatives.slice(0, 2).join(", ")}.`
+    : "";
+  return `${lead}${positive}${negative} Use this as a quick traveler snapshot before visiting.`.trim();
+};
+
+const normalizeAspect = text =>
+  String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+
+const createFeedbackSummaryDocument = async (estId, establishmentName = estId) => {
+  const to = new Date();
+  const from = new Date(to.getTime() - 1000 * 60 * 60 * 24 * 180);
+  const reviews = await Feedback.find({
+    business_establishment_id: estId,
+    createdAt: { $gte: from, $lte: to },
+  })
+    .select("rating review_text")
+    .lean();
+
+  const count = reviews.length;
+  const average =
+    count > 0 ? +(reviews.reduce((sum, row) => sum + (Number(row.rating) || 0), 0) / count).toFixed(2) : 0;
+
+  const positiveSamples = reviews
+    .filter(row => Number(row.rating) >= 4 && row.review_text)
+    .map(row => normalizeAspect(row.review_text))
+    .filter(Boolean)
+    .slice(0, 4);
+  const negativeSamples = reviews
+    .filter(row => Number(row.rating) <= 2 && row.review_text)
+    .map(row => normalizeAspect(row.review_text))
+    .filter(Boolean)
+    .slice(0, 4);
+  const allSamples = reviews
+    .map((row, idx) => `${idx + 1}. (${row.rating}/5) ${normalizeAspect(row.review_text ?? "No text provided")}`)
+    .slice(0, 12);
+
+  let aiSummary = buildFallbackAiSummary({
+    count,
+    average,
+    positives: positiveSamples,
+    negatives: negativeSamples,
+    from,
+    to,
+  });
+
+  const openai = getOpenAiClient();
+  if (count > 0 && openai) {
+    const prompt = `You are a local travel assistant writing for tourists.
+Summarize traveler feedback for "${establishmentName}".
+Date range: ${from.toDateString()} to ${to.toDateString()}.
+Average rating: ${average}/5 from ${count} reviews.
+
+Positive samples:
+${positiveSamples.length ? positiveSamples.map((row, idx) => `${idx + 1}) ${row}`).join("\n") : "None"}
+
+Negative samples:
+${negativeSamples.length ? negativeSamples.map((row, idx) => `${idx + 1}) ${row}`).join("\n") : "None"}
+
+All samples:
+${allSamples.length ? allSamples.join("\n") : "None"}
+
+Write one paragraph (max 85 words) for tourists that includes:
+- overall traveler vibe
+- what people usually enjoy
+- common issues to expect
+- who this place is best for (brief)
+Tone: tourist-friendly, practical, non-technical.
+Do not mention LGU, admin, compliance, policy, or moderation terms.`;
+    try {
+      const response = await openai.responses.create({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        input: prompt,
+        max_output_tokens: 220,
+      });
+      const text =
+        response.output?.[0]?.content?.[0]?.text ??
+        response.choices?.[0]?.message?.content ??
+        "";
+      if (text && text.trim()) {
+        aiSummary = text.trim();
+      }
+    } catch (error) {
+      console.warn("Public AI summary generation failed:", error.message);
+    }
+  }
+
+  return FeedbackSummary.create({
+    business_establishment_id: estId,
+    time_range_start: from,
+    time_range_end: to,
+    count,
+    average_rating: average,
+    ai_summary: aiSummary,
+    audience: "tourist",
+  });
+};
+
+const getOrGenerateLatestFeedbackSummary = async (estId, establishmentName) => {
+  const latest = await FeedbackSummary.findOne({
+    business_establishment_id: estId,
+    audience: "tourist",
+  })
+    .sort({ generated_at: -1, createdAt: -1 })
+    .lean();
+
+  const generatedAt = latest?.generated_at ? new Date(latest.generated_at) : null;
+  const isFresh = generatedAt && Date.now() - generatedAt.getTime() <= FEEDBACK_SUMMARY_STALE_MS;
+  if (latest && isFresh) return latest;
+
+  try {
+    const generated = await createFeedbackSummaryDocument(estId, establishmentName);
+    return generated?.toObject ? generated.toObject() : generated;
+  } catch (error) {
+    console.warn("Unable to generate feedback summary:", error.message);
+    return latest ?? null;
+  }
+};
 
 const enrichWithMedia = async payload => {
   if (!payload) return payload;
@@ -309,6 +452,55 @@ export const getEstablishments = async (req, res, next) => {
   }
 };
 
+export const getMapOverview = async (_req, res, next) => {
+  try {
+    const establishments = await BusinessEstablishment.find({ status: "approved" })
+      .select(
+        "businessEstablishment_id name municipality_id type latitude longitude rating_avg rating_count"
+      )
+      .lean();
+
+    const municipalityCountMap = {};
+    establishments.forEach(est => {
+      const key = est.municipality_id || "UNKNOWN";
+      municipalityCountMap[key] = (municipalityCountMap[key] || 0) + 1;
+    });
+
+    const municipalities = await Municipality.find({})
+      .select("municipality_id name latitude longitude")
+      .lean();
+
+    const municipalityPayload = municipalities
+      .map(municipality => ({
+        municipality_id: municipality.municipality_id,
+        name: municipality.name,
+        latitude: municipality.latitude ?? null,
+        longitude: municipality.longitude ?? null,
+        establishment_count: municipalityCountMap[municipality.municipality_id] || 0,
+      }))
+      .sort((a, b) => b.establishment_count - a.establishment_count || a.name.localeCompare(b.name));
+
+    const topMunicipality = municipalityPayload.length ? municipalityPayload[0] : null;
+
+    res.json({
+      establishments: establishments.map(est => ({
+        business_establishment_id: est.businessEstablishment_id,
+        name: est.name,
+        municipality_id: est.municipality_id,
+        type: est.type,
+        latitude: est.latitude ?? null,
+        longitude: est.longitude ?? null,
+        rating_avg: est.rating_avg ?? 0,
+        rating_count: est.rating_count ?? 0,
+      })),
+      municipalities: municipalityPayload,
+      top_municipality: topMunicipality,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getEstablishmentDetails = async (req, res, next) => {
   try {
     const { estId } = req.params;
@@ -331,7 +523,20 @@ export const getEstablishmentDetails = async (req, res, next) => {
       ? { average_rating: +agg[0].avg.toFixed(2), count: agg[0].count }
       : { average_rating: 0, count: 0 };
 
-    res.json({ establishment, feedback_summary: summary });
+    const aiFeedbackSummaryDoc = await getOrGenerateLatestFeedbackSummary(estId, est.name);
+
+    res.json({
+      establishment,
+      feedback_summary: summary,
+      ai_feedback_summary: aiFeedbackSummaryDoc
+        ? {
+            ai_summary: aiFeedbackSummaryDoc.ai_summary ?? "",
+            count: aiFeedbackSummaryDoc.count ?? summary.count,
+            average_rating: aiFeedbackSummaryDoc.average_rating ?? summary.average_rating,
+            generated_at: aiFeedbackSummaryDoc.generated_at ?? aiFeedbackSummaryDoc.createdAt ?? null,
+          }
+        : null,
+    });
   } catch (e) {
     next(e);
   }

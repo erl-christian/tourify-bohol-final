@@ -166,6 +166,7 @@ export default function DestinationDetail() {
             setDetail({
             ...estData.establishment,
             feedback_summary: estData.feedback_summary,
+            ai_feedback_summary: estData.ai_feedback_summary ?? null,
             recent_feedback:
                 estData.recent_feedback ??
                 estData.feedback_preview ??
@@ -466,6 +467,16 @@ export default function DestinationDetail() {
                     </TouchableOpacity>
                     }
                 />
+
+                {detail?.ai_feedback_summary?.ai_summary ? (
+                  <View style={styles.aiSummaryCard}>
+                    <View style={styles.aiSummaryHeader}>
+                      <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+                      <Text style={styles.aiSummaryTitle}>AI feedback summary</Text>
+                    </View>
+                    <Text style={styles.aiSummaryText}>{detail.ai_feedback_summary.ai_summary}</Text>
+                  </View>
+                ) : null}
 
                 <View style={styles.sortRow}>
                     {[
@@ -914,6 +925,29 @@ const styles = StyleSheet.create({
     loadingText: {
         fontFamily: 'Inter_600SemiBold',
         color: colors.text,
+    },
+    aiSummaryCard: {
+        backgroundColor: 'rgba(108,92,231,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(108,92,231,0.2)',
+        borderRadius: radii.md,
+        padding: spacing(1),
+        marginBottom: spacing(1),
+        gap: spacing(0.5),
+    },
+    aiSummaryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing(0.45),
+    },
+    aiSummaryTitle: {
+        fontFamily: 'Inter_600SemiBold',
+        color: colors.primary,
+    },
+    aiSummaryText: {
+        fontFamily: 'Inter_400Regular',
+        color: colors.text,
+        lineHeight: 20,
     },
     sortRow: { flexDirection: 'row', gap: spacing(0.75), marginBottom: spacing(1) },
     sortChip: {

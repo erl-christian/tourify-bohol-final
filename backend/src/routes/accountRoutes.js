@@ -23,8 +23,6 @@ router.post("/forgot-password", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 router.post("/verify-email/request", requestEmailVerification);
 router.post("/verify-email", verifyEmail);
-router.post("/forgot-password", requestPasswordReset);
-router.post("/reset-password", resetPassword);
 router.post("/change-password-first-login", auth, changePasswordFirstLogin);
 router.get('/me', auth, getMyAccount);
 router.patch('/me', auth, updateMyAccount);

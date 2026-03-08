@@ -26,7 +26,8 @@ import {
   updateLguAdmin,
   updateLguManagedAccount,
   lguModerateFeedback, 
-  createBTOStaff
+  createBTOStaff,
+  generateArrivalQr
 } from "../../controllers/adminControllers/adminStaffProfileController.js";
 import {
   listEstablishmentMedia,
@@ -52,6 +53,7 @@ const router = express.Router();
 // bto/lgu/staff
 router.post("/bto/create-lgu-admin", auth, requireRoles("bto_admin", "bto_staff"), createLGUAdmin);
 router.post("/bto/create-bto-staff", auth, requireRoles("bto_admin", "bto_staff"), createBTOStaff);
+router.post("/bto/arrival-qr", auth, requireRoles("bto_admin", "bto_staff"), generateArrivalQr);
 router.post("/lgu/create-lgu-staff", auth, requireRoles("lgu_admin"), createLGUStaff);
 
 router.get("/bto/list", auth, requireRoles("bto_admin", "bto_staff", "lgu_admin"), getLGUStaffs);

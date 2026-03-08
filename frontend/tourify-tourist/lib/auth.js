@@ -11,8 +11,8 @@ export const login = payload =>
 export const register = payload => 
     client.post('/accounts/register', payload).then(res => res.data);
 
-export const requestPasswordReset = email =>
-    client.post('/accounts/forgot-password', { email }).then(res => res.data);
+export const requestPasswordReset = ({ username, email }) =>
+    client.post('/accounts/forgot-password', { username, email }).then(res => res.data);
 
 export const resetPassword = ({ otp, token, newPassword }) =>
     client.post('/accounts/reset-password', { otp, token, newPassword }).then(res => res.data);

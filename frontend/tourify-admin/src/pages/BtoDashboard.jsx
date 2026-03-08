@@ -1,12 +1,18 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../styles/AdminDashboard.css';
-import { IoNotificationsOutline } from 'react-icons/io5';
+import {
+  IoDownloadOutline,
+  IoNotificationsOutline,
+  IoPrintOutline,
+  IoQrCodeOutline,
+} from 'react-icons/io5';
 import AdminLayout from '../components/AdminLayout';
 import {
   fetchAdminStaffProfiles,
   fetchAllEstablishments,
   createLguAdmin,
   fetchMunicipalities,
+  generateArrivalQr as generateArrivalQrRequest,
   // updateLguAdmin,
 } from '../services/btoApi';
 import { useActionStatus } from '../context/ActionStatusContext';
@@ -27,6 +33,27 @@ const initialAdminForm = {
   phone: '',
   notes: '',
 };
+
+const initialArrivalQrForm = {
+  entryPointType: 'airport',
+  entryPointName: 'Bohol-Panglao International Airport',
+  qrCodeId: '',
+};
+
+const slugifyFilename = value =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'bohol-arrival';
+
+const escapeHtml = value =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const statusToneMap = {
   Active: 'success',
@@ -58,6 +85,111 @@ function BtoDashboard() {
 
   const [municipalities, setMunicipalities] = useState([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(true);
+  const [isArrivalQrModalOpen, setArrivalQrModalOpen] = useState(false);
+  const [arrivalQrForm, setArrivalQrForm] = useState(initialArrivalQrForm);
+  const [arrivalQrResult, setArrivalQrResult] = useState(null);
+  const [generatingArrivalQr, setGeneratingArrivalQr] = useState(false);
+
+  const handlePrintDashboard = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.print();
+  }, []);
+
+  const openArrivalQrModal = useCallback(() => {
+    setArrivalQrForm(initialArrivalQrForm);
+    setArrivalQrResult(null);
+    setArrivalQrModalOpen(true);
+  }, []);
+
+  const closeArrivalQrModal = useCallback(() => {
+    setArrivalQrModalOpen(false);
+  }, []);
+
+  const handleArrivalQrFormChange = useCallback((event) => {
+    const { name, value } = event.target;
+    setArrivalQrForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }, []);
+
+  const handleGenerateArrivalQr = useCallback(
+    async (event) => {
+      event.preventDefault();
+      setGeneratingArrivalQr(true);
+      showLoading('Generating arrival QR...');
+      try {
+        const { data } = await generateArrivalQrRequest({
+          entry_point_type: arrivalQrForm.entryPointType,
+          entry_point_name: arrivalQrForm.entryPointName,
+          qr_code_id: arrivalQrForm.qrCodeId || undefined,
+        });
+        setArrivalQrResult(data);
+        showSuccess('Arrival QR ready for download/print.');
+      } catch (error) {
+        showError(error.response?.data?.message || 'Unable to generate arrival QR.');
+      } finally {
+        setGeneratingArrivalQr(false);
+      }
+    },
+    [arrivalQrForm, showError, showLoading, showSuccess],
+  );
+
+  const handleDownloadArrivalQr = useCallback(() => {
+    if (!arrivalQrResult?.data_url || typeof document === 'undefined') return;
+    const link = document.createElement('a');
+    link.href = arrivalQrResult.data_url;
+    link.download = `tourify-arrival-qr-${slugifyFilename(
+      arrivalQrResult?.payload?.entry_point_name || arrivalQrForm.entryPointName,
+    )}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [arrivalQrResult, arrivalQrForm.entryPointName]);
+
+  const handlePrintArrivalQr = useCallback(() => {
+    if (!arrivalQrResult?.data_url || typeof window === 'undefined') return;
+
+    const payload = arrivalQrResult?.payload || {};
+    const qrTitle = `${payload.entry_point_name || arrivalQrForm.entryPointName} (${(
+      payload.entry_point_type || arrivalQrForm.entryPointType || 'other'
+    ).toUpperCase()})`;
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1000');
+    if (!printWindow) {
+      showError('Please allow popups to print the arrival QR.');
+      return;
+    }
+
+    printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>Tourify Arrival QR</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+      h1 { font-size: 20px; margin: 0 0 6px; }
+      p { margin: 0 0 8px; color: #334155; }
+      .qr-wrap { margin-top: 14px; }
+      img { width: 420px; height: 420px; object-fit: contain; border: 1px solid #cbd5e1; padding: 8px; }
+      .meta { margin-top: 10px; font-size: 13px; color: #475569; }
+    </style>
+  </head>
+  <body>
+    <h1>Tourify Tourist Arrival QR</h1>
+    <p>${escapeHtml(qrTitle)}</p>
+    <div class="qr-wrap">
+      <img src="${arrivalQrResult.data_url}" alt="Tourify Arrival QR" />
+    </div>
+    <div class="meta">QR Code ID: ${escapeHtml(payload.qr_code_id || 'arrival-qr')}</div>
+  </body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  }, [arrivalQrResult, arrivalQrForm.entryPointName, arrivalQrForm.entryPointType, showError]);
 
 
   const displayInitials = (() => {
@@ -231,6 +363,24 @@ function BtoDashboard() {
       subtitle="Provincial overview, analytics insights, and account management in one page."
       headerActions={
         <>
+          <button
+            type="button"
+            className="icon-pill no-print"
+            aria-label="Generate Arrival QR"
+            title="Generate Arrival QR"
+            onClick={openArrivalQrModal}
+          >
+            <IoQrCodeOutline />
+          </button>
+          <button
+            type="button"
+            className="icon-pill no-print"
+            aria-label="Print Dashboard and Analytics"
+            title="Print Dashboard and Analytics"
+            onClick={handlePrintDashboard}
+          >
+            <IoPrintOutline />
+          </button>
           <button type="button" className="icon-pill" aria-label="Notifications">
             <IoNotificationsOutline />
           </button>
@@ -401,6 +551,131 @@ function BtoDashboard() {
       </div>
     </section>
     </div>
+      {isArrivalQrModalOpen && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="arrivalQrTitle"
+        >
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3 id="arrivalQrTitle">Tourist Arrival QR</h3>
+                <p>
+                  Generate QR for Bohol arrival entry points (airport/seaport). Tourists scan this on
+                  arrival to record entry.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={closeArrivalQrModal}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="modal-content">
+              <form className="modal-form" onSubmit={handleGenerateArrivalQr}>
+                <div className="form-row form-grid">
+                  <div>
+                    <label className="form-label" htmlFor="arrival-entry-type">
+                      Entry point type
+                    </label>
+                    <select
+                      id="arrival-entry-type"
+                      name="entryPointType"
+                      value={arrivalQrForm.entryPointType}
+                      onChange={handleArrivalQrFormChange}
+                      required
+                    >
+                      <option value="airport">Airport</option>
+                      <option value="seaport">Seaport</option>
+                      <option value="landport">Landport</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label" htmlFor="arrival-entry-name">
+                      Entry point name
+                    </label>
+                    <input
+                      id="arrival-entry-name"
+                      name="entryPointName"
+                      type="text"
+                      required
+                      value={arrivalQrForm.entryPointName}
+                      onChange={handleArrivalQrFormChange}
+                      placeholder="Tagbilaran Seaport"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="arrival-qr-code-id">
+                    QR Code ID (optional)
+                  </label>
+                  <input
+                    id="arrival-qr-code-id"
+                    name="qrCodeId"
+                    type="text"
+                    value={arrivalQrForm.qrCodeId}
+                    onChange={handleArrivalQrFormChange}
+                    placeholder="arrival-airport-bohol-panglao"
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="ghost-cta" onClick={closeArrivalQrModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-cta" disabled={generatingArrivalQr}>
+                    {generatingArrivalQr ? 'Generating…' : 'Generate QR'}
+                  </button>
+                </div>
+              </form>
+
+              {arrivalQrResult?.data_url ? (
+                <div className="arrival-qr-preview">
+                  <div className="arrival-qr-image-wrap">
+                    <img
+                      src={arrivalQrResult.data_url}
+                      alt="Tourify Tourist Arrival QR"
+                      className="arrival-qr-image"
+                    />
+                  </div>
+                  <div className="arrival-qr-meta">
+                    <p>
+                      <strong>Entry:</strong> {arrivalQrResult?.payload?.entry_point_name}
+                    </p>
+                    <p>
+                      <strong>Type:</strong>{' '}
+                      {String(arrivalQrResult?.payload?.entry_point_type || 'other').toUpperCase()}
+                    </p>
+                    <p>
+                      <strong>QR Code ID:</strong> {arrivalQrResult?.payload?.qr_code_id}
+                    </p>
+                  </div>
+
+                  <div className="arrival-qr-actions">
+                    <button type="button" className="ghost-cta" onClick={handleDownloadArrivalQr}>
+                      <IoDownloadOutline />
+                      Save as PNG
+                    </button>
+                    <button type="button" className="primary-cta" onClick={handlePrintArrivalQr}>
+                      <IoPrintOutline />
+                      Print QR
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isCreateModalOpen && (
         <div
           className="modal-backdrop"

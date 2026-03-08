@@ -16,12 +16,14 @@ import AuthCard from '../../components/AuthCard';
 import TextField from '../../components/TextField';
 import { colors, spacing } from '../../constants/theme';
 import { login } from '../../lib/auth';
-import { recordQrArrival } from '../../lib/tourist';
+import { linkTouristArrivalSession, recordQrArrival } from '../../lib/tourist';
 import { useAuth } from '../../hooks/useAuth';
 import client from '../../lib/http';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email'),
+  username: z
+    .string()
+    .min(1, 'Username is required'),
   password: z.string().min(8, 'Minimum 8 characters'),
 });
 
@@ -35,10 +37,22 @@ export default function LoginScreen() {
     typeof params.establishmentId === 'string' && params.establishmentId.length > 0
       ? params.establishmentId
       : null;
+  const arrivalSessionId =
+    typeof params.arrivalSessionId === 'string' && params.arrivalSessionId.length > 0
+      ? params.arrivalSessionId
+      : null;
+  const entryPointType =
+    typeof params.entryPointType === 'string' && params.entryPointType.length > 0
+      ? params.entryPointType
+      : null;
+  const entryPointName =
+    typeof params.entryPointName === 'string' && params.entryPointName.length > 0
+      ? params.entryPointName
+      : null;
 
   const { control, handleSubmit } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { username: '', password: '' },
   });
 
   useEffect(() => {
@@ -72,9 +86,15 @@ export default function LoginScreen() {
     try {
       setSubmitting(true);
 
-      const data = await login(values);
+      const data = await login({ username: values.username, password: values.password });
       const profileAfterLogin = await signIn(data);
       const hasProfile = Boolean(profileAfterLogin?.tourist_profile_id);
+
+      if (arrivalSessionId) {
+        await linkTouristArrivalSession(arrivalSessionId).catch(err =>
+          console.warn('[ARRIVAL LINK] failed', err?.message || err)
+        );
+      }
 
       if (establishmentId && hasProfile) {
         await recordQrArrival(establishmentId).catch(err =>
@@ -82,7 +102,21 @@ export default function LoginScreen() {
         );
       }
 
-      router.replace(hasProfile ? '/home' : '/profile/setup');
+      if (hasProfile) {
+        router.replace('/home');
+        return;
+      }
+
+      const profileParams = {};
+      if (arrivalSessionId) profileParams.arrivalSessionId = arrivalSessionId;
+      if (entryPointType) profileParams.entryPointType = entryPointType;
+      if (entryPointName) profileParams.entryPointName = entryPointName;
+      if (establishmentId) profileParams.establishmentId = establishmentId;
+      router.replace(
+        Object.keys(profileParams).length
+          ? { pathname: '/profile/setup', params: profileParams }
+          : '/profile/setup'
+      );
     } catch (error) {
       alert(error.message ?? 'Failed to log in. Check your credentials.');
     } finally {
@@ -114,8 +148,19 @@ export default function LoginScreen() {
               </View>
             </View>
           ) : null}
+          {!establishmentId && arrivalSessionId ? (
+            <View style={styles.scanBanner}>
+              <Ionicons name="airplane-outline" size={20} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.scanBannerLabel}>Arrival recorded</Text>
+                <Text style={styles.scanBannerValue} numberOfLines={1}>
+                  {entryPointName || entryPointType || 'Bohol entry point'}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
-          <TextField label="Email" name="email" control={control} keyboardType="email-address" />
+          <TextField label="Username" name="username" control={control} autoCapitalize="none" />
           <TextField label="Password" name="password" control={control} secureTextEntry />
           <Text style={styles.helperRow}>
             <Link href="/(auth)/forgot-password" style={styles.link}>Forgot password?</Link>

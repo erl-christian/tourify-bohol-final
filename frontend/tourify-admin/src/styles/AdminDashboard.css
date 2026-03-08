@@ -4339,3 +4339,110 @@ body.bto-fixed .dashboard-content {
     font-size: 16px;
   }
 }
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .dashboard-nav,
+  .search-field,
+  .header-actions,
+  .account-actions,
+  .analytics-export-bar,
+  .analytics-filter-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  .dashboard-shell {
+    display: block !important;
+    min-height: auto !important;
+    background: #fff !important;
+  }
+
+  .dashboard-content {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  .page-header {
+    margin: 0 0 12px !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .bto-merged-content--clean,
+  .account-establishment-grid--clean {
+    gap: 12px !important;
+  }
+
+  .merged-analytics-block--clean,
+  .merged-management-block,
+  .analytics-page--embedded .analytics-card,
+  .table-shell {
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    break-inside: avoid;
+  }
+
+  .table-shell,
+  .scrollable-table {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+}
+
+.arrival-qr-preview {
+  margin-top: 16px;
+  border: 1px solid rgba(1, 77, 78, 0.14);
+  border-radius: 16px;
+  padding: 14px;
+  background: #f8fbfa;
+}
+
+.arrival-qr-image-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px dashed rgba(15, 23, 42, 0.22);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}
+
+.arrival-qr-image {
+  width: min(100%, 320px);
+  height: auto;
+  display: block;
+}
+
+.arrival-qr-meta {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  display: grid;
+  gap: 4px;
+}
+
+.arrival-qr-meta p {
+  margin: 0;
+}
+
+.arrival-qr-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.arrival-qr-actions .ghost-cta,
+.arrival-qr-actions .primary-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

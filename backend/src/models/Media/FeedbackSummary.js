@@ -26,6 +26,9 @@ const feedbackSummarySchema = new mongoose.Schema({
   // optional text summary (AI / heuristic)
   ai_summary:              { type: String },
 
+  // summary audience
+  audience:                { type: String, enum: ["admin", "tourist"], default: "admin", index: true },
+
   generated_at:            { type: Date, default: Date.now }
 }, { timestamps:true });
 

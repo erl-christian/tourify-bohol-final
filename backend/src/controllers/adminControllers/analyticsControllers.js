@@ -3,6 +3,7 @@ import FeedbackSummary from '../../models/Media/FeedbackSummary.js';
 import OpenAI from 'openai';
 import Itinerary from '../../models/tourist/Itinerary.js';
 import TravelHistory from '../../models/tourist/TravelHistory.js';
+import TouristArrival from '../../models/tourist/TouristArrival.js';
 import BusinessEstablishment from '../../models/businessEstablishmentModels/BusinessEstablishment.js';
 import Municipality from '../../models/Municipality.js';
 import FrequentSequence from '../../models/recommendations/FrequentSequence.js';
@@ -320,6 +321,7 @@ Summary:
       count,
       average_rating: average,
       ai_summary,
+      audience: 'admin',
     });
 
     res.status(201).json({ message: 'Feedback summary generated', summary: doc });
@@ -331,7 +333,10 @@ Summary:
 export const getLatestFeedbackSummary = async (req, res, next) => {
   try {
     const { estId } = req.params;
-    const doc = await FeedbackSummary.findOne({ business_establishment_id: estId })
+    const doc = await FeedbackSummary.findOne({
+      business_establishment_id: estId,
+      $or: [{ audience: 'admin' }, { audience: { $exists: false } }, { audience: null }],
+    })
       .sort({ generated_at: -1, createdAt: -1 })
       .lean();
 
@@ -374,44 +379,145 @@ export const aggregateFeedbackDistribution = async (municipalityId = null) => {
 
 
 export const aggregateVisitorTrends = async (scope = 'province', municipalityId = null) => {
-  const match = {
+  const itineraryMatch = {
     status: { $in: ['Planned', 'Ongoing', 'Completed'] },
   };
   if (scope === 'municipality' && municipalityId) {
-    match['stops.municipality'] = municipalityId;
+    itineraryMatch['stops.municipality'] = municipalityId;
   }
 
-  const itineraries = await Itinerary.aggregate([
-    { $match: match },
-    {
-      $project: {
-        month: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
-        tourist_profile_id: 1,
+  const [itineraryRows, historyRows, arrivalRows] = await Promise.all([
+    Itinerary.aggregate([
+      { $match: itineraryMatch },
+      {
+        $project: {
+          month: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          tourist_profile_id: 1,
+        },
       },
-    },
-    {
-      $group: {
-        _id: '$month',
-        trips: { $sum: 1 },
-        tourists: { $addToSet: '$tourist_profile_id' },
+      {
+        $group: {
+          _id: '$month',
+          trips: { $sum: 1 },
+          tourists: { $addToSet: '$tourist_profile_id' },
+        },
       },
-    },
-    { $sort: { _id: 1 } },
+      { $sort: { _id: 1 } },
+    ]),
+    TravelHistory.aggregate([
+      { $match: { status: 'visited', tourist_profile_id: { $ne: null } } },
+      ...(scope === 'municipality' && municipalityId
+        ? [
+            {
+              $lookup: {
+                from: 'businessestablishments',
+                localField: 'business_establishment_id',
+                foreignField: 'businessEstablishment_id',
+                as: 'est',
+              },
+            },
+            { $unwind: '$est' },
+            { $match: { 'est.municipality_id': municipalityId } },
+          ]
+        : []),
+      {
+        $project: {
+          month: {
+            $dateToString: {
+              format: '%Y-%m',
+              date: { $ifNull: ['$date_visited', '$createdAt'] },
+            },
+          },
+          tourist_id: '$tourist_profile_id',
+        },
+      },
+      {
+        $group: {
+          _id: '$month',
+          tourists: { $addToSet: '$tourist_id' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]),
+    scope === 'province'
+      ? TouristArrival.aggregate([
+          { $match: { scanned_at: { $ne: null } } },
+          {
+            $project: {
+              month: { $dateToString: { format: '%Y-%m', date: '$scanned_at' } },
+              tourist_identity: {
+                $ifNull: [
+                  '$tourist_profile_id',
+                  {
+                    $ifNull: [
+                      '$account_id',
+                      {
+                        $concat: [
+                          'anon:',
+                          { $ifNull: ['$session_id', '$tourist_arrival_id'] },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: '$month',
+              tourists: { $addToSet: '$tourist_identity' },
+            },
+          },
+          { $sort: { _id: 1 } },
+        ])
+      : Promise.resolve([]),
   ]);
 
-  return itineraries.map(item => ({
-    month: item._id,
-    trips: item.trips,
-    touristCount: item.tourists.length,
-  }));
+  const trendMap = new Map();
+  const ensureMonth = month => {
+    if (!trendMap.has(month)) {
+      trendMap.set(month, {
+        month,
+        trips: 0,
+        tourists: new Set(),
+      });
+    }
+    return trendMap.get(month);
+  };
+
+  itineraryRows.forEach(item => {
+    const bucket = ensureMonth(item._id);
+    bucket.trips = Number(item.trips ?? 0);
+    (item.tourists ?? []).forEach(id => {
+      if (id) bucket.tourists.add(String(id));
+    });
+  });
+
+  historyRows.forEach(item => {
+    const bucket = ensureMonth(item._id);
+    (item.tourists ?? []).forEach(id => {
+      if (id) bucket.tourists.add(String(id));
+    });
+  });
+
+  arrivalRows.forEach(item => {
+    const bucket = ensureMonth(item._id);
+    (item.tourists ?? []).forEach(id => {
+      if (id) bucket.tourists.add(String(id));
+    });
+  });
+
+  return [...trendMap.values()]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(item => ({
+      month: item.month,
+      trips: item.trips,
+      touristCount: item.tourists.size,
+    }));
 };
 
 export const aggregateTopDestinations = async ({ limit = 10, scope = 'province', municipalityId = null }) => {
-  const match = {};
-  if (scope === 'municipality' && municipalityId) {
-    match.municipality_id = municipalityId;
-  }
-
   const establishments = await BusinessEstablishment.aggregate([
     { $match: { ...(scope === 'municipality' && municipalityId ? { municipality_id: municipalityId } : {}) } },
     {

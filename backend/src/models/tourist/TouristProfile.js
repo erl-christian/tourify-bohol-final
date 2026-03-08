@@ -28,6 +28,7 @@ const touristProfileSchema = new mongoose.Schema(
         tourist_profile_id:{ type: String, required: true, unique: true, index: true },
         account_id:        { type: String, required: true, unique: true, index: true },
         full_name:         { type: String, required: true, trim: true },
+        nickname:          { type: String, trim: true, default: "" },
         contact_no:        { type: String, trim: true },
         nationality:       { type: String, trim: true },
 

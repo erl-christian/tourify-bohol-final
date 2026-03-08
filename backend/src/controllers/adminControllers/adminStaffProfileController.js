@@ -4,7 +4,7 @@ import Municipality from "../../models/Municipality.js";
 import BusinessEstablishment from "../../models/businessEstablishmentModels/BusinessEstablishment.js";
 import EstablishmentApproval from "../../models/businessEstablishmentModels/EstablishmentApproval.js"
 import BusinessEstablishmentProfile from "../../models/businessEstablishmentModels/BusinessEstablishmentProfile.js"
-import { generateEstablishmentQr } from '../../services/qrService.js';
+import { generateArrivalQrDataUrl, generateEstablishmentQr } from '../../services/qrService.js';
 import { listFeedbackForEstablishment } from "../publicControllers/publicFeedbackController.js";
 import Feedback from "../../models/feedback/Feedback.js";
 import FeedbackResponse from "../../models/feedback/FeedbackResponse.js";
@@ -100,6 +100,7 @@ const buildLguAdminInviteHtml = ({
 `;
 
 const USERNAME_REGEX = /^[a-z0-9._-]{4,32}$/;
+const ARRIVAL_ENTRY_TYPES = new Set(['airport', 'seaport', 'landport', 'other']);
 
 const generateTempPassword = (length = 12) => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
@@ -473,6 +474,38 @@ export const createBTOStaff = async (req, res, next) => {
       },
       profile,
       inviteEmailSent,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// POST /api/admin/bto/arrival-qr
+export const generateArrivalQr = async (req, res, next) => {
+  try {
+    const { entry_point_type, entry_point_name, qr_code_id } = req.body ?? {};
+    const normalizedType = String(entry_point_type ?? 'other').trim().toLowerCase();
+    const normalizedName = String(entry_point_name ?? '').trim();
+
+    if (!ARRIVAL_ENTRY_TYPES.has(normalizedType)) {
+      res.status(400);
+      throw new Error('Invalid entry_point_type. Use airport, seaport, landport, or other.');
+    }
+    if (!normalizedName) {
+      res.status(400);
+      throw new Error('entry_point_name is required');
+    }
+
+    const generated = await generateArrivalQrDataUrl({
+      entryPointType: normalizedType,
+      entryPointName: normalizedName,
+      qrCodeId: qr_code_id,
+    });
+
+    res.json({
+      message: 'Arrival QR generated',
+      ...generated,
     });
   } catch (err) {
     next(err);

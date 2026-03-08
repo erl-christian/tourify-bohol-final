@@ -11,9 +11,11 @@ import {
   Modal,
   Pressable,
   Image,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker } from 'react-native-maps';
 import { useAuth } from '../hooks/useAuth';
 import { Alert } from 'react-native'; 
 import { colors, radii, spacing } from '../constants/theme';
@@ -25,6 +27,7 @@ import {
   getTouristItineraries,
   getMyFeedback,
   getRecommendations,
+  getPublicMapOverview,
   generateRecommendations,
 } from '../lib/tourist';
 import {
@@ -78,6 +81,47 @@ const formatDateRange = (start, end) => {
   return startLabel && endLabel ? `${startLabel} - ${endLabel}` : startLabel || endLabel;
 };
 
+const buildMapRegion = establishments => {
+  const coords = (establishments ?? [])
+    .map(item => ({
+      latitude: Number(item.latitude),
+      longitude: Number(item.longitude),
+    }))
+    .filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+
+  if (!coords.length) {
+    return {
+      latitude: 9.85,
+      longitude: 124.15,
+      latitudeDelta: 1.1,
+      longitudeDelta: 1.1,
+    };
+  }
+
+  if (coords.length === 1) {
+    return {
+      latitude: coords[0].latitude,
+      longitude: coords[0].longitude,
+      latitudeDelta: 0.2,
+      longitudeDelta: 0.2,
+    };
+  }
+
+  const latitudes = coords.map(item => item.latitude);
+  const longitudes = coords.map(item => item.longitude);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max((maxLat - minLat) * 1.5, 0.18),
+    longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.18),
+  };
+};
+
 export default function Home() {
   const router = useRouter();
   const { account, profile, signOut } = useAuth();
@@ -90,7 +134,26 @@ export default function Home() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [popularDestinations, setPopularDestinations] = useState([]);
   const [hiddenGemDestinations, setHiddenGemDestinations] = useState([]);
-  const isUnverified = account && account.email_verified === false;
+  const [mapOverview, setMapOverview] = useState({
+    establishments: [],
+    municipalities: [],
+    top_municipality: null,
+  });
+
+  const mapEstablishments = useMemo(
+    () =>
+      (mapOverview.establishments ?? [])
+        .map(item => ({
+          ...item,
+          latitude: Number(item.latitude),
+          longitude: Number(item.longitude),
+        }))
+        .filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+        .slice(0, 180),
+    [mapOverview.establishments]
+  );
+
+  const mapRegion = useMemo(() => buildMapRegion(mapEstablishments), [mapEstablishments]);
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -133,9 +196,14 @@ export default function Home() {
         recs = Array.isArray(generated) ? generated : generated?.items ?? [];
       }
 
-      const [popularRaw, underratedRaw] = await Promise.all([
+      const [popularRaw, underratedRaw, overviewRaw] = await Promise.all([
         listPublicEstablishments({ sort: 'visits_desc', pageSize: 8 }),
         listPublicEstablishments({ sort: 'rating_desc', pageSize: 12 }),
+        getPublicMapOverview().catch(() => ({
+          establishments: [],
+          municipalities: [],
+          top_municipality: null,
+        })),
       ]);
 
       const cleanedHidden = underratedRaw
@@ -144,6 +212,11 @@ export default function Home() {
 
       setPopularDestinations(popularRaw ?? []);
       setHiddenGemDestinations(cleanedHidden);
+      setMapOverview({
+        establishments: overviewRaw?.establishments ?? [],
+        municipalities: overviewRaw?.municipalities ?? [],
+        top_municipality: overviewRaw?.top_municipality ?? null,
+      });
 
       let withMeta = await enrichRecommendations(recs);
 
@@ -190,7 +263,7 @@ export default function Home() {
         <View style={styles.hero}>
           <View>
             <Text style={styles.greeting}>{greeting}</Text>
-            <Text style={styles.name}>{profile?.full_name ?? account?.email ?? 'Traveler'}</Text>
+            <Text style={styles.name}>{profile?.nickname || profile?.full_name || account?.username || 'Traveler'}</Text>
           </View>
           <TouchableOpacity style={styles.profileBtn} onPress={handleSignOut} activeOpacity={0.8}>
             <Ionicons name="log-out-outline" size={26} color={colors.white} />
@@ -198,30 +271,11 @@ export default function Home() {
           <TouchableOpacity style={styles.heroAvatar} onPress={openMenu} activeOpacity={0.85}>
             <AvatarBubble
               uri={profile?.avatar_url}
-              name={profile?.full_name ?? account?.email}
+              name={profile?.nickname || profile?.full_name || account?.username}
               size={48}
             />
           </TouchableOpacity>
         </View>
-
-        {isUnverified ? (
-          <View style={styles.verifyBanner}>
-            <Ionicons name="warning-outline" size={18} color="#f59e0b" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.verifyTitle}>Email not verified</Text>
-              <Text style={styles.verifyText}>Verify to secure your account.</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.verifyButton}
-              onPress={() => {
-                closeMenu();
-                router.push('/(auth)/verify-email-request');
-              }}
-            >
-              <Text style={styles.verifyButtonText}>Verify</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         {loading ? (
           <View style={styles.loader}>
@@ -249,10 +303,7 @@ export default function Home() {
                   icon={action.icon}
                   label={action.label}
                   onPress={() => {
-                    if (action.id === 'plan') {
-                      router.push('/itinerary');
-                    }
-                    else if (action.id === 'explore') {
+                    if (action.id === 'explore') {
                       router.push('/explore');
                     } else if (action.id === 'destinations'){
                       const featured = recommendations[0];
@@ -284,7 +335,65 @@ export default function Home() {
                 />
               ))}
             </View>
-              
+              <SectionHeader
+              title="Bohol Tourism Map"
+              subtitle="Approved establishments and municipality activity at a glance."
+            />
+            <View style={styles.mapCard}>
+              <MapView
+                style={styles.overviewMap}
+                initialRegion={mapRegion}
+                liteMode={Platform.OS === 'android'}
+              >
+                {mapEstablishments.map(item => (
+                  <Marker
+                    key={item.business_establishment_id}
+                    coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                    title={item.name}
+                    description={item.municipality_id}
+                    tracksViewChanges={false}
+                  />
+                ))}
+              </MapView>
+              <View style={styles.mapLegendRow}>
+                <View style={styles.mapLegendItem}>
+                  <Ionicons name="location" size={14} color={colors.primary} />
+                  <Text style={styles.mapLegendText}>
+                    {(mapOverview.establishments ?? []).length} approved establishments
+                  </Text>
+                </View>
+                {(mapOverview.establishments ?? []).length > mapEstablishments.length ? (
+                  <View style={styles.mapLegendItem}>
+                    <Ionicons name="information-circle-outline" size={14} color={colors.muted} />
+                    <Text style={styles.mapLegendText}>
+                      Showing first {mapEstablishments.length} markers for performance
+                    </Text>
+                  </View>
+                ) : null}
+                {mapOverview.top_municipality ? (
+                  <View style={[styles.mapLegendItem, styles.mapLegendHighlight]}>
+                    <Ionicons name="trophy" size={14} color="#14532d" />
+                    <Text style={styles.mapLegendText}>
+                      Top municipality: {mapOverview.top_municipality.name} ({mapOverview.top_municipality.establishment_count})
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.municipalityRow}>
+                {(mapOverview.municipalities ?? []).map(item => (
+                  <View
+                    key={item.municipality_id}
+                    style={[
+                      styles.municipalityChip,
+                      mapOverview.top_municipality?.municipality_id === item.municipality_id && styles.municipalityChipTop,
+                    ]}
+                  >
+                    <Text style={styles.municipalityName}>{item.name}</Text>
+                    <Text style={styles.municipalityCount}>{item.establishment_count}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
                <SectionHeader
                   title="Recommended for you"
                   subtitle="Top verified destinations based on your interests."
@@ -430,9 +539,9 @@ export default function Home() {
         <Pressable style={styles.modalBackdrop} onPress={closeMenu}>
           <View style={styles.sheet}>
             <View style={styles.avatarWrapper}>
-              <AvatarBubble uri={profile?.avatar_url} name={profile?.full_name ?? account?.email} />
+              <AvatarBubble uri={profile?.avatar_url} name={profile?.nickname || profile?.full_name || account?.username} />
               <View>
-                <Text style={styles.nameLabel}>{profile?.full_name ?? 'Traveler'}</Text>
+                <Text style={styles.nameLabel}>{profile?.nickname || profile?.full_name || 'Traveler'}</Text>
                 <Text style={styles.emailLabel}>{account?.email ?? '—'}</Text>
               </View>
             </View>
@@ -442,6 +551,11 @@ export default function Home() {
             <View style={styles.detailBlock}>
               <Text style={styles.detailLabel}>Full name</Text>
               <Text style={styles.detailValue}>{profile?.full_name ?? 'Not set yet'}</Text>
+            </View>
+
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Nickname</Text>
+              <Text style={styles.detailValue}>{profile?.nickname || 'Optional'}</Text>
             </View>
 
             <View style={styles.detailBlock}>
@@ -494,6 +608,21 @@ const styles = StyleSheet.create({
   },
   greeting: { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.85)', fontSize: 14 },
   name: { fontFamily: 'Inter_700Bold', color: colors.white, fontSize: 22, marginTop: spacing(0.5) },
+  profileBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.25)',
+    marginLeft: 'auto',
+    marginRight: spacing(0.75),
+  },
+  heroAvatar: {
+    borderRadius: 999,
+    padding: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
   roundBtn: { padding: spacing(0.25) },
 
   loader: {
@@ -519,6 +648,59 @@ const styles = StyleSheet.create({
   },
   errorTitle: { fontFamily: 'Inter_700Bold', color: '#be123c', fontSize: 18 },
   errorMessage: { fontFamily: 'Inter_400Regular', color: '#be123c' },
+  mapCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.15)',
+    overflow: 'hidden',
+    gap: spacing(1),
+  },
+  overviewMap: {
+    width: '100%',
+    height: 260,
+  },
+  mapLegendRow: {
+    paddingHorizontal: spacing(1.25),
+    gap: spacing(0.6),
+  },
+  mapLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.5),
+  },
+  mapLegendHighlight: {
+    backgroundColor: 'rgba(74, 222, 128, 0.18)',
+    borderRadius: 999,
+    paddingHorizontal: spacing(0.8),
+    paddingVertical: spacing(0.3),
+    alignSelf: 'flex-start',
+  },
+  mapLegendText: {
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+    fontSize: 13,
+  },
+  municipalityRow: {
+    paddingHorizontal: spacing(1.25),
+    paddingBottom: spacing(1.2),
+    gap: spacing(0.75),
+  },
+  municipalityChip: {
+    minWidth: 90,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.08)',
+    paddingHorizontal: spacing(0.9),
+    paddingVertical: spacing(0.6),
+    backgroundColor: '#f8fafc',
+  },
+  municipalityChipTop: {
+    backgroundColor: 'rgba(74, 222, 128, 0.18)',
+    borderColor: 'rgba(22,163,74,0.35)',
+  },
+  municipalityName: { fontFamily: 'Inter_600SemiBold', color: colors.text, fontSize: 13 },
+  municipalityCount: { fontFamily: 'Inter_700Bold', color: colors.primaryDark, fontSize: 16 },
 
   actionsRow: {
     flexDirection: 'row',
@@ -722,22 +904,5 @@ const styles = StyleSheet.create({
   badgeRecommended: {
     backgroundColor: 'rgba(99,102,241,0.9)', // indigo
   },
-  verifyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(0.75),
-    padding: spacing(1),
-    borderRadius: radii.md,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-  },
-  verifyTitle: { fontFamily: 'Inter_700Bold', color: '#b45309' },
-  verifyText: { fontFamily: 'Inter_400Regular', color: '#92400e' },
-  verifyButton: {
-    paddingHorizontal: spacing(1),
-    paddingVertical: spacing(0.5),
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-  },
-  verifyButtonText: { fontFamily: 'Inter_600SemiBold', color: colors.white },
 
 });

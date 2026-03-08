@@ -27,3 +27,58 @@ export const generateEstablishmentQr = async establishmentId => {
     publicId: uploadResult.public_id,
   };
 };
+
+const sanitizeToken = value =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+export const buildArrivalQrPayload = ({
+  entryPointType = 'other',
+  entryPointName = '',
+  qrCodeId = '',
+}) => {
+  const cleanType = sanitizeToken(entryPointType) || 'other';
+  const cleanName = String(entryPointName ?? '').trim();
+  const resolvedQrId =
+    sanitizeToken(qrCodeId) ||
+    `arrival-${cleanType}-${sanitizeToken(cleanName) || 'entry-point'}`;
+
+  return {
+    qr_type: 'arrival',
+    entry_point_type: cleanType,
+    entry_point_name: cleanName,
+    qr_code_id: resolvedQrId,
+  };
+};
+
+export const generateArrivalQrDataUrl = async ({
+  entryPointType = 'other',
+  entryPointName = '',
+  qrCodeId = '',
+}) => {
+  const payload = buildArrivalQrPayload({
+    entryPointType,
+    entryPointName,
+    qrCodeId,
+  });
+
+  const encodedPayload = JSON.stringify(payload);
+  const dataUrl = await QRCode.toDataURL(encodedPayload, {
+    errorCorrectionLevel: 'H',
+    margin: 2,
+    width: 720,
+    color: {
+      dark: '#0f172a',
+      light: '#ffffff',
+    },
+  });
+
+  return {
+    payload,
+    payload_json: encodedPayload,
+    data_url: dataUrl,
+  };
+};

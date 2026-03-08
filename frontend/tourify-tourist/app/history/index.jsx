@@ -2,90 +2,101 @@ import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
-  Dimensions,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-// import { MapView, Marker, Polyline } from '../../components/MapLibreMap';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, spacing, radii } from '../../constants/theme';
 import { getTravelHistory } from '../../lib/tourist';
-import { useRouter } from 'expo-router';
-
-const { width } = Dimensions.get('window');
 
 const buildRegion = stops => {
-  const coords = stops
+  const coords = (stops ?? [])
     .map(stop => ({
-      latitude: stop?.establishment?.latitude,
-      longitude: stop?.establishment?.longitude,
+      latitude: stop?.establishment?.latitude ?? stop?.latitude,
+      longitude: stop?.establishment?.longitude ?? stop?.longitude,
     }))
-    .filter(c => typeof c.latitude === 'number' && typeof c.longitude === 'number');
+    .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+
   if (!coords.length) {
     return {
-      latitude: 9.75,
-      longitude: 124.1,
-      latitudeDelta: 1.5,
-      longitudeDelta: 1.5,
+      latitude: 9.85,
+      longitude: 124.15,
+      latitudeDelta: 1.2,
+      longitudeDelta: 1.2,
     };
   }
+
   if (coords.length === 1) {
     return {
       latitude: coords[0].latitude,
       longitude: coords[0].longitude,
-      latitudeDelta: 0.5,
-      longitudeDelta: 0.5,
+      latitudeDelta: 0.2,
+      longitudeDelta: 0.2,
     };
   }
-  const latitudes = coords.map(c => c.latitude);
-  const longitudes = coords.map(c => c.longitude);
+
+  const latitudes = coords.map(item => item.latitude);
+  const longitudes = coords.map(item => item.longitude);
   const minLat = Math.min(...latitudes);
   const maxLat = Math.max(...latitudes);
   const minLng = Math.min(...longitudes);
   const maxLng = Math.max(...longitudes);
+
   return {
     latitude: (minLat + maxLat) / 2,
     longitude: (minLng + maxLng) / 2,
-    latitudeDelta: (maxLat - minLat) * 1.4 || 0.5,
-    longitudeDelta: (maxLng - minLng) * 1.4 || 0.5,
+    latitudeDelta: Math.max((maxLat - minLat) * 1.5, 0.18),
+    longitudeDelta: Math.max((maxLng - minLng) * 1.5, 0.18),
   };
+};
+
+const formatDateRange = itinerary => {
+  const start = itinerary?.start_date ? new Date(itinerary.start_date).toLocaleDateString() : 'N/A';
+  const end = itinerary?.end_date ? new Date(itinerary.end_date).toLocaleDateString() : start;
+  return `${start} - ${end}`;
 };
 
 export default function TravelHistory() {
   const router = useRouter();
-  const [state, setState] = useState({
-    loading: true,
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState(null);
+  const [payload, setPayload] = useState({
     itineraries: [],
     stats: { totalTrips: 0, totalDestinations: 0, totalBudget: 0, favoriteCategories: [] },
   });
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
     (async () => {
       try {
         const data = await getTravelHistory();
-        if (!mounted) return;
-        setState({ loading: false, itineraries: data?.itineraries ?? [], stats: data?.stats ?? {} });
-      } catch (err) {
-        console.error('Failed to load travel history', err);
-        if (mounted) setState(prev => ({ ...prev, loading: false }));
+        if (!active) return;
+        setPayload({
+          itineraries: data?.itineraries ?? [],
+          stats: data?.stats ?? { totalTrips: 0, totalDestinations: 0, totalBudget: 0, favoriteCategories: [] },
+        });
+      } catch (error) {
+        console.warn('Failed to load travel history', error);
+      } finally {
+        if (active) setLoading(false);
       }
     })();
     return () => {
-      mounted = false;
+      active = false;
     };
   }, []);
 
-  const favoriteBadges = useMemo(() => {
-    const list = state.stats?.favoriteCategories ?? [];
-    return list.slice(0, 5);
-  }, [state.stats]);
+  const favoriteChips = useMemo(
+    () => (payload.stats?.favoriteCategories ?? []).slice(0, 4),
+    [payload.stats]
+  );
 
-  if (state.loading) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: spacing(4) }} />
@@ -95,294 +106,263 @@ export default function TravelHistory() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <View>
-            <Text style={styles.heroTitle}>Travel history</Text>
-            <Text style={styles.heroSubtitle}>
-              Relive your Bohol journeys, see stats, and share your favorite routes.
-            </Text>
-          </View>
-          <Ionicons name="time-outline" size={36} color={colors.primary} />
-        </View>
-
-        <View style={styles.statRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Completed itineraries</Text>
-            <Text style={styles.statValue}>{state.stats?.totalTrips ?? 0}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Destinations visited</Text>
-            <Text style={styles.statValue}>{state.stats?.totalDestinations ?? 0}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Total budget used</Text>
-            <Text style={styles.statValue}>
-              ₱{Number(state.stats?.totalBudget ?? 0).toLocaleString()}
-            </Text>
-          </View>
-        </View>
-
-        {favoriteBadges.length ? (
-          <View style={styles.favoriteCard}>
-            <Text style={styles.favoriteTitle}>Top categories you love</Text>
-            <View style={styles.favoriteChips}>
-              {favoriteBadges.map(item => (
-                <View key={item.category} style={styles.favoriteChip}>
-                  <Ionicons name="prism-outline" size={14} color={colors.primary} />
-                  <Text style={styles.favoriteText}>
-                    {item.category} · {item.count} visits
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {state.itineraries.length ? (
-          state.itineraries.map(itinerary => (
-            <View key={itinerary.itinerary_id ?? itinerary._id} style={styles.itineraryCard}>
-              <View style={styles.itineraryHeader}>
-                <View>
-                  <Text style={styles.itineraryTitle}>{itinerary.title ?? 'Untitled route'}</Text>
-                  <Text style={styles.itineraryDates}>
-                    {itinerary.start_date ?? 'N/A'} – {itinerary.end_date ?? 'N/A'}
-                  </Text>
-                </View>
-                <View style={styles.itineraryActions}>
-                  <TouchableOpacity
-                    style={styles.actionChip}
-                    onPress={() => router.push(`/itinerary/live?data=${encodeURIComponent(
-                      JSON.stringify(itinerary)
-                    )}`)}
-                  >
-                    <Ionicons name="navigate-outline" size={14} color={colors.primary} />
-                    <Text style={styles.actionText}>Replay route</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionChip}
-                    onPress={() => router.push(`/share/itinerary/${itinerary.itinerary_id}`)}
-                  >
-                    <Ionicons name="share-outline" size={14} color={colors.primary} />
-                    <Text style={styles.actionText}>Share</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.mapWrapper}>
-                <MapView
-                  style={styles.map}
-                  pointerEvents="none"
-                  initialRegion={buildRegion(itinerary.stops ?? [])}
-                >
-                  {(itinerary.stops ?? []).map((stop, idx) => {
-                    const lat = stop?.establishment?.latitude;
-                    const lng = stop?.establishment?.longitude;
-                    if (typeof lat !== 'number' || typeof lng !== 'number') return null;
-                    return (
-                      <Marker
-                        key={stop.business_establishment_id ?? idx}
-                        coordinate={{ latitude: lat, longitude: lng }}
-                        title={stop.establishment?.name ?? 'Destination'}
-                        description={stop.establishment?.address ?? ''}
-                      >
-                        <View style={styles.markerBubble}>
-                          <Text style={styles.markerLabel}>{String.fromCharCode(65 + idx)}</Text>
-                        </View>
-                      </Marker>
-                    );
-                  })}
-                  {(itinerary.route ?? []).length > 1 ? (
-                    <Polyline
-                      coordinates={itinerary.route.map(point => ({
-                        latitude: point.latitude,
-                        longitude: point.longitude,
-                      }))}
-                      strokeWidth={4}
-                      strokeColor="rgba(108,92,231,0.6)"
-                    />
-                  ) : null}
-                </MapView>
-              </View>
-
-              <View style={styles.timeline}>
-                {(itinerary.stops ?? []).length ? (
-                  itinerary.stops.map((stop, idx) => (
-                    <View key={stop.business_establishment_id ?? idx} style={styles.timelineRow}>
-                      <View style={styles.timelineMarker}>
-                        <Ionicons name="location" size={16} color={colors.primary} />
-                        <View style={styles.timelineConnector} />
-                      </View>
-                      <View style={styles.timelineDetails}>
-                        <Text style={styles.timelineTitle}>
-                          {String.fromCharCode(65 + idx)} · {stop.establishment?.name ?? 'Destination'}
-                        </Text>
-                        <Text style={styles.timelineSubtitle}>
-                          {stop.establishment?.municipality_id ?? 'Bohol'} ·{' '}
-                          {stop.establishment?.type ?? 'Experience'}
-                        </Text>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.bodyText}>No stop details saved for this itinerary.</Text>
-                )}
-              </View>
-
-              <View style={styles.metaFooter}>
-                <Text style={styles.metaFooterText}>
-                  Total budget recorded: ₱{Number(itinerary.total_budget ?? 0).toLocaleString()}
+      <FlatList
+        data={payload.itineraries}
+        keyExtractor={item => item.itinerary_id ?? item._id}
+        ListHeaderComponent={
+          <View style={styles.headerWrap}>
+            <View style={styles.heroCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroTitle}>Travel history</Text>
+                <Text style={styles.heroSubtitle}>
+                  Tap an item to expand trip details.
                 </Text>
-                <TouchableOpacity
-                  style={styles.linkButton}
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/feedback/compose',
-                      params: {
-                        estId:
-                          itinerary.stops?.[0]?.business_establishment_id ??
-                          itinerary.stops?.[0]?.establishment?.businessEstablishment_id ??
-                          '',
-                        estName: itinerary.stops?.[0]?.establishment?.name ?? 'Bohol destination',
-                        itineraryId: itinerary.itinerary_id ?? itinerary._id ?? '',
-                      },
-                    })
-                  }
-                >
-                  <Ionicons name="pencil" size={14} color={colors.primary} />
-                  <Text style={styles.linkButtonText}>Write a testimonial</Text>
-                </TouchableOpacity>
+              </View>
+              <Ionicons name="time-outline" size={34} color={colors.primary} />
+            </View>
+
+            <View style={styles.statGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Trips</Text>
+                <Text style={styles.statValue}>{payload.stats?.totalTrips ?? 0}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Destinations</Text>
+                <Text style={styles.statValue}>{payload.stats?.totalDestinations ?? 0}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Budget</Text>
+                <Text style={styles.statValue}>PHP {Number(payload.stats?.totalBudget ?? 0).toLocaleString()}</Text>
               </View>
             </View>
-          ))
-        ) : (
-          <View style={styles.empty}>
-            <Ionicons name="sparkles-outline" size={36} color={colors.primary} />
+
+            {favoriteChips.length ? (
+              <View style={styles.favoriteRow}>
+                {favoriteChips.map(item => (
+                  <View key={item.category} style={styles.favoriteChip}>
+                    <Text style={styles.favoriteChipText}>
+                      {item.category} · {item.count}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        }
+        renderItem={({ item }) => {
+          const itineraryId = item.itinerary_id ?? item._id;
+          const isExpanded = expandedId === itineraryId;
+          const routePoints = Array.isArray(item.route_geometry) ? item.route_geometry : item.route ?? [];
+
+          return (
+            <View style={styles.itemCard}>
+              <TouchableOpacity
+                style={styles.itemHeader}
+                activeOpacity={0.86}
+                onPress={() => setExpandedId(prev => (prev === itineraryId ? null : itineraryId))}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>
+                    {item.title ?? 'Untitled route'}
+                  </Text>
+                  <Text style={styles.itemMeta}>
+                    {formatDateRange(item)} · {(item.stops ?? []).length} stops
+                  </Text>
+                </View>
+                <View style={styles.itemPill}>
+                  <Text style={styles.itemPillText}>PHP {Number(item.total_budget ?? 0).toLocaleString()}</Text>
+                </View>
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.muted}
+                />
+              </TouchableOpacity>
+
+              {isExpanded ? (
+                <View style={styles.itemBody}>
+                  <MapView
+                    style={styles.map}
+                    pointerEvents="none"
+                    initialRegion={buildRegion(item.stops ?? [])}
+                  >
+                    {(item.stops ?? []).map((stop, index) => {
+                      const latitude = stop?.establishment?.latitude ?? stop?.latitude;
+                      const longitude = stop?.establishment?.longitude ?? stop?.longitude;
+                      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                      return (
+                        <Marker
+                          key={`${itineraryId}-${index}`}
+                          coordinate={{ latitude, longitude }}
+                          title={stop?.establishment?.name ?? stop?.title ?? 'Destination'}
+                        />
+                      );
+                    })}
+                    {Array.isArray(routePoints) && routePoints.length > 1 ? (
+                      <Polyline
+                        coordinates={routePoints.map(point => ({
+                          latitude: Number(point.latitude),
+                          longitude: Number(point.longitude),
+                        }))}
+                        strokeWidth={4}
+                        strokeColor="rgba(108,92,231,0.55)"
+                      />
+                    ) : null}
+                  </MapView>
+
+                  <View style={styles.stopList}>
+                    {(item.stops ?? []).map((stop, index) => (
+                      <View key={`${itineraryId}-stop-${index}`} style={styles.stopRow}>
+                        <View style={styles.stopMarker}>
+                          <Text style={styles.stopMarkerText}>{index + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.stopTitle}>
+                            {stop?.establishment?.name ?? stop?.title ?? 'Destination'}
+                          </Text>
+                          <Text style={styles.stopMeta}>
+                            {stop?.establishment?.municipality_id ?? 'Bohol'} · {stop?.establishment?.type ?? 'Experience'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() =>
+                        router.push(`/itinerary/live?data=${encodeURIComponent(JSON.stringify(item))}`)
+                      }
+                    >
+                      <Ionicons name="navigate-outline" size={16} color={colors.primary} />
+                      <Text style={styles.actionText}>Replay route</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() =>
+                        router.push(`/share/itinerary/${item.itinerary_id ?? item._id}`)
+                      }
+                    >
+                      <Ionicons name="share-outline" size={16} color={colors.primary} />
+                      <Text style={styles.actionText}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="sparkles-outline" size={34} color={colors.primary} />
             <Text style={styles.emptyTitle}>No completed trips yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Finish an itinerary to see it here. Your travel map and stats appear as soon as you mark a trip complete.
+            <Text style={styles.emptyText}>
+              Complete an itinerary to see it in your travel history.
             </Text>
           </View>
-        )}
-      </ScrollView>
+        }
+        contentContainerStyle={styles.listContent}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing(1.5), gap: spacing(1.5), paddingBottom: spacing(4) },
-  hero: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: spacing(2),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: colors.text,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, color: colors.text },
-  heroSubtitle: { fontFamily: 'Inter_400Regular', color: colors.muted, lineHeight: 20 },
-  statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1), justifyContent: 'space-between' },
-  statCard: {
-    flex: 1,
-    minWidth: width / 3 - spacing(2),
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: spacing(1.5),
-    borderWidth: 1,
-    borderColor: 'rgba(108,92,231,0.12)',
-    gap: spacing(0.5),
-  },
-  statLabel: { fontFamily: 'Inter_500Medium', color: colors.muted, fontSize: 12 },
-  statValue: { fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.text },
-  favoriteCard: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: spacing(1.5),
-    borderWidth: 1,
-    borderColor: 'rgba(108,92,231,0.1)',
-    gap: spacing(1),
-  },
-  favoriteTitle: { fontFamily: 'Inter_600SemiBold', color: colors.text },
-  favoriteChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(0.75) },
-  favoriteChip: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(108,92,231,0.12)',
+  listContent: {
     paddingHorizontal: spacing(1.25),
-    paddingVertical: spacing(0.4),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(0.4),
-  },
-  favoriteText: { fontFamily: 'Inter_500Medium', color: colors.primary },
-  itineraryCard: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: spacing(1.5),
-    borderWidth: 1,
-    borderColor: 'rgba(108,92,231,0.12)',
+    paddingBottom: spacing(3),
     gap: spacing(1.2),
   },
-  itineraryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing(1) },
-  itineraryTitle: { fontFamily: 'Inter_700Bold', color: colors.text, fontSize: 18 },
-  itineraryDates: { fontFamily: 'Inter_400Regular', color: colors.muted },
-  itineraryActions: { flexDirection: 'row', gap: spacing(0.75) },
-  actionChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(108,92,231,0.25)',
-    paddingHorizontal: spacing(1),
-    paddingVertical: spacing(0.4),
+  headerWrap: { gap: spacing(1.2), marginTop: spacing(1), marginBottom: spacing(0.5) },
+  heroCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    padding: spacing(1.5),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing(0.4),
+    gap: spacing(1),
   },
-  actionText: { fontFamily: 'Inter_500Medium', color: colors.primary, fontSize: 13 },
-  mapWrapper: {
-    borderRadius: radii.lg,
-    overflow: 'hidden',
+  heroTitle: { fontFamily: 'Inter_700Bold', color: colors.text, fontSize: 22 },
+  heroSubtitle: { fontFamily: 'Inter_400Regular', color: colors.muted },
+  statGrid: { flexDirection: 'row', gap: spacing(0.75) },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: radii.md,
+    padding: spacing(1),
     borderWidth: 1,
     borderColor: 'rgba(108,92,231,0.12)',
-    height: 200,
   },
-  map: { flex: 1 },
-  markerBubble: {
-    minWidth: 24,
-    minHeight: 24,
-    borderRadius: 12,
+  statLabel: { fontFamily: 'Inter_500Medium', color: colors.muted, fontSize: 12 },
+  statValue: { fontFamily: 'Inter_700Bold', color: colors.text, fontSize: 16, marginTop: spacing(0.3) },
+  favoriteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(0.5) },
+  favoriteChip: {
+    paddingHorizontal: spacing(0.85),
+    paddingVertical: spacing(0.45),
+    borderRadius: 999,
+    backgroundColor: 'rgba(108,92,231,0.12)',
+  },
+  favoriteChipText: { fontFamily: 'Inter_500Medium', color: colors.primary, fontSize: 12 },
+  itemCard: {
     backgroundColor: colors.white,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: 'rgba(108,92,231,0.6)',
+    borderColor: 'rgba(108,92,231,0.12)',
+    overflow: 'hidden',
+  },
+  itemHeader: {
+    paddingHorizontal: spacing(1.2),
+    paddingVertical: spacing(1),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.6),
+  },
+  itemTitle: { fontFamily: 'Inter_700Bold', color: colors.text, fontSize: 16 },
+  itemMeta: { fontFamily: 'Inter_400Regular', color: colors.muted, marginTop: 2 },
+  itemPill: {
+    borderRadius: 999,
+    paddingHorizontal: spacing(0.8),
+    paddingVertical: spacing(0.28),
+    backgroundColor: 'rgba(108,92,231,0.1)',
+  },
+  itemPillText: { fontFamily: 'Inter_600SemiBold', color: colors.primary, fontSize: 11 },
+  itemBody: { padding: spacing(1.1), gap: spacing(0.9), borderTopWidth: 1, borderTopColor: 'rgba(108,92,231,0.1)' },
+  map: { width: '100%', height: 170, borderRadius: radii.md },
+  stopList: { gap: spacing(0.7) },
+  stopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.65) },
+  stopMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(108,92,231,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markerLabel: { fontFamily: 'Inter_600SemiBold', color: colors.primary, fontSize: 12 },
-  timeline: { gap: spacing(1) },
-  timelineRow: { flexDirection: 'row', gap: spacing(1) },
-  timelineMarker: { alignItems: 'center' },
-  timelineConnector: { width: 1, flex: 1, backgroundColor: 'rgba(148,163,184,0.5)', marginTop: spacing(0.25) },
-  timelineDetails: { flex: 1, gap: spacing(0.25) },
-  timelineTitle: { fontFamily: 'Inter_600SemiBold', color: colors.text },
-  timelineSubtitle: { fontFamily: 'Inter_400Regular', color: colors.muted, fontSize: 12 },
-  bodyText: { fontFamily: 'Inter_400Regular', color: colors.muted },
-  metaFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaFooterText: { fontFamily: 'Inter_500Medium', color: colors.muted },
-  linkButton: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.4) },
-  linkButtonText: { fontFamily: 'Inter_600SemiBold', color: colors.primary, fontSize: 13 },
-  empty: {
+  stopMarkerText: { fontFamily: 'Inter_700Bold', color: colors.primary, fontSize: 12 },
+  stopTitle: { fontFamily: 'Inter_600SemiBold', color: colors.text },
+  stopMeta: { fontFamily: 'Inter_400Regular', color: colors.muted, fontSize: 12 },
+  actionRow: { flexDirection: 'row', gap: spacing(0.75), marginTop: spacing(0.2) },
+  actionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing(1),
-    borderRadius: radii.lg,
+    gap: spacing(0.4),
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.4)',
-    backgroundColor: 'rgba(241,245,249,0.4)',
-    padding: spacing(2),
+    borderColor: 'rgba(108,92,231,0.25)',
+    borderRadius: 999,
+    paddingHorizontal: spacing(0.9),
+    paddingVertical: spacing(0.45),
   },
-  emptyTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 18, color: colors.text },
-  emptySubtitle: { fontFamily: 'Inter_400Regular', color: colors.muted, textAlign: 'center', lineHeight: 18 },
+  actionText: { fontFamily: 'Inter_600SemiBold', color: colors.primary, fontSize: 12 },
+  emptyState: {
+    marginTop: spacing(2),
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    padding: spacing(1.5),
+    alignItems: 'center',
+    gap: spacing(0.6),
+  },
+  emptyTitle: { fontFamily: 'Inter_700Bold', color: colors.text, fontSize: 16 },
+  emptyText: { fontFamily: 'Inter_400Regular', color: colors.muted, textAlign: 'center' },
 });
