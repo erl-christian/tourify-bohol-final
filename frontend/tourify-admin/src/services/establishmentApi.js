@@ -28,4 +28,7 @@ export const deleteEstablishmentMedia = (estId, mediaId) =>
 export const updateOwnerEstablishment = (estId, payload) =>
   http.patch(`/admin/establishments/${estId}`, payload);
 
+export const fetchOwnerEstablishmentActivity = (estId) =>
+  http.get(`/admin/establishments/${estId}/activity`);
+
 

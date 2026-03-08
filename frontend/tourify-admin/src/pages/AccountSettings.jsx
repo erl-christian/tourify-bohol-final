@@ -20,7 +20,10 @@ const layoutByRole = {
 
 function AccountSettings() {
   const role = sessionStorage.getItem('mockRole') || '';
+  const accountScope = sessionStorage.getItem('mockAccountScope') || '';
   const Layout = layoutByRole[role] || AdminLayout;
+  const isScopedEstablishmentAccount =
+    role === 'business_establishment' && accountScope === 'establishment';
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -125,11 +128,16 @@ function AccountSettings() {
     setProfileNotice({ type: '', message: '' });
 
     try {
-      await updateMyAccount({
+      const payload = {
         username: profileForm.username.trim(),
-        full_name: profileForm.fullName.trim(),
-        contact_no: profileForm.contactNo,
-      });
+      };
+
+      if (!isScopedEstablishmentAccount) {
+        payload.full_name = profileForm.fullName.trim();
+        payload.contact_no = profileForm.contactNo;
+      }
+
+      await updateMyAccount(payload);
 
       sessionStorage.setItem('mockDisplayName', profileForm.fullName || profileForm.username);
       setProfileNotice({ type: 'success', message: 'Profile updated successfully.' });
@@ -213,7 +221,11 @@ function AccountSettings() {
   return (
     <Layout
       title="My Account"
-      subtitle="Only your own account can be edited here. Municipality and position are locked."
+      subtitle={
+        isScopedEstablishmentAccount
+          ? 'Only username and password are editable for this establishment account.'
+          : 'Only your own account can be edited here. Municipality and position are locked.'
+      }
     >
       <section className="account-management account-settings-wrap">
         {loading ? <p className="muted">Loading account details...</p> : null}
@@ -224,7 +236,11 @@ function AccountSettings() {
             <article className="table-shell account-settings-card">
               <div className="section-heading account-settings-heading">
                 <h2>Profile Details</h2>
-                <p>Editable: username, full name, contact number.</p>
+                <p>
+                  {isScopedEstablishmentAccount
+                    ? 'Editable: username only.'
+                    : 'Editable: username, full name, contact number.'}
+                </p>
               </div>
 
               <form className="modal-form account-settings-form" onSubmit={submitProfile}>
@@ -251,9 +267,11 @@ function AccountSettings() {
                     id="my-fullName"
                     name="fullName"
                     type="text"
-                    required
+                    required={!isScopedEstablishmentAccount}
                     value={profileForm.fullName}
                     onChange={handleProfileChange}
+                    readOnly={isScopedEstablishmentAccount}
+                    className={isScopedEstablishmentAccount ? 'readonly-input' : ''}
                   />
                 </div>
 
@@ -265,6 +283,8 @@ function AccountSettings() {
                     type="tel"
                     value={profileForm.contactNo}
                     onChange={handleProfileChange}
+                    readOnly={isScopedEstablishmentAccount}
+                    className={isScopedEstablishmentAccount ? 'readonly-input' : ''}
                   />
                 </div>
 

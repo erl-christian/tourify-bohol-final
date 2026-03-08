@@ -5,6 +5,9 @@ import {
   fetchLguEstablishments,
   fetchLguEstablishmentDetails,
   fetchLguEstablishmentMedia,
+  fetchMunicipalOwners,
+  createLguEstablishment,
+  createOwnerProfile,
 } from '../../services/lguApi';
 
 const statusToneMap = {
@@ -17,6 +20,38 @@ const statusToneMap = {
   rejected: 'danger',
 };
 
+const establishmentTypeOptions = [
+  'Accommodation',
+  'Restaurant',
+  'Tour Operator',
+  'Dive Shop',
+  'Homestay',
+  'Activity',
+  'Transport',
+];
+
+const ownershipTypeOptions = [
+  { value: 'private', label: 'Private' },
+  { value: 'government', label: 'Government' },
+];
+
+const initialCreateEstForm = {
+  ownerAccountId: '',
+  officialName: '',
+  type: '',
+  ownershipType: 'private',
+  address: '',
+  contactInfo: '',
+  accreditationNo: '',
+};
+
+const initialQuickOwnerForm = {
+  fullName: '',
+  username: '',
+  email: '',
+  contactNo: '',
+};
+
 function Establishments() {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +62,17 @@ function Establishments() {
 
   const pageSize = 10;
   const [page, setPage] = useState(1);
+  const [owners, setOwners] = useState([]);
+  const [loadingOwners, setLoadingOwners] = useState(true);
+  const [isCreateEstModalOpen, setCreateEstModalOpen] = useState(false);
+  const [isQuickOwnerModalOpen, setQuickOwnerModalOpen] = useState(false);
+  const [createEstForm, setCreateEstForm] = useState(initialCreateEstForm);
+  const [quickOwnerForm, setQuickOwnerForm] = useState(initialQuickOwnerForm);
+  const [savingEst, setSavingEst] = useState(false);
+  const [savingOwner, setSavingOwner] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createdEstAccount, setCreatedEstAccount] = useState(null);
+  const currentRole = sessionStorage.getItem('mockRole') || '';
 
 
   const [detailModal, setDetailModal] = useState({
@@ -35,6 +81,8 @@ function Establishments() {
     error: '',
     data: null,
     ownerProfile: null,
+    ownerAccount: null,
+    establishmentAccount: null,
     spotMedia: [],
     requirementDocs: [],
     latestApproval: null,
@@ -66,6 +114,19 @@ function Establishments() {
     }
   };
 
+  const loadOwners = async () => {
+    try {
+      setLoadingOwners(true);
+      const { data } = await fetchMunicipalOwners();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setOwners(items);
+    } catch (err) {
+      console.error('Failed to load owners', err);
+    } finally {
+      setLoadingOwners(false);
+    }
+  };
+
   const formatDateTime = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -75,6 +136,7 @@ function Establishments() {
 
   useEffect(() => {
     loadEstablishments();
+    loadOwners();
   }, []);
 
   const rows = useMemo(() => establishments, [establishments]);
@@ -151,6 +213,8 @@ function Establishments() {
       error: '',
       data: null,
       ownerProfile: null,
+      ownerAccount: null,
+      establishmentAccount: null,
       spotMedia: [],
       requirementDocs: [],
       latestApproval: null,
@@ -172,6 +236,8 @@ function Establishments() {
         error: '',
         data: detailPayload.establishment || detailPayload || null,
         ownerProfile: detailPayload.ownerProfile || null,
+        ownerAccount: detailPayload.ownerAccount || null,
+        establishmentAccount: detailPayload.establishmentAccount || null,
         spotMedia: toMediaList(spotRes?.data),
         requirementDocs: toMediaList(docsRes?.data),
         latestApproval: detailPayload.latestApproval || null,
@@ -184,6 +250,8 @@ function Establishments() {
         error: err.response?.data?.message || 'Unable to load establishment details.',
         data: null,
         ownerProfile: null,
+        ownerAccount: null,
+        establishmentAccount: null,
         spotMedia: [],
         requirementDocs: [],
         latestApproval: null,
@@ -199,17 +267,124 @@ function Establishments() {
       error: '',
       data: null,
       ownerProfile: null,
+      ownerAccount: null,
+      establishmentAccount: null,
       spotMedia: [],
       requirementDocs: [],
       latestApproval: null,
       latestApprovalActor: null,
     });
 
+  const ownerOptions = useMemo(
+    () =>
+      owners
+        .filter((item) => item?.account?.account_id)
+        .map((item) => ({
+          accountId: item.account.account_id,
+          fullName: item.profile?.full_name || item.account.username || item.account.email,
+          username: item.account.username || '-',
+          email: item.account.email || '-',
+          isActive: item.account.is_active !== false,
+        })),
+    [owners],
+  );
+
+  const handleCreateEstablishmentFormChange = (event) => {
+    const { name, value } = event.target;
+    setCreateEstForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleQuickOwnerFormChange = (event) => {
+    const { name, value } = event.target;
+    setQuickOwnerForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const closeCreateEstModal = () => {
+    setCreateEstModalOpen(false);
+    setCreateEstForm(initialCreateEstForm);
+    setCreateError('');
+  };
+
+  const closeQuickOwnerModal = () => {
+    setQuickOwnerModalOpen(false);
+    setQuickOwnerForm(initialQuickOwnerForm);
+  };
+
+  const handleCreateEstablishmentSubmit = async (event) => {
+    event.preventDefault();
+    setSavingEst(true);
+    setCreateError('');
+
+    try {
+      const { data } = await createLguEstablishment({
+        owner_account_id: createEstForm.ownerAccountId,
+        official_name: createEstForm.officialName,
+        type: createEstForm.type,
+        ownership_type: createEstForm.ownershipType,
+        address: createEstForm.address || undefined,
+        contact_info: createEstForm.contactInfo || undefined,
+        accreditation_no: createEstForm.accreditationNo || undefined,
+      });
+
+      closeCreateEstModal();
+      setCreatedEstAccount({
+        establishmentName: data?.establishment?.name || createEstForm.officialName,
+        ownerUsername: data?.owner?.username || '',
+        accountId: data?.establishment_account?.account_id || '',
+        username: data?.establishment_account?.username || '',
+        tempPassword: data?.establishment_account?.temp_password || '',
+        loginUrl: data?.establishment_account?.account_login_url || '/login',
+      });
+      await Promise.all([loadEstablishments(), loadOwners()]);
+    } catch (err) {
+      setCreateError(err.response?.data?.message || 'Unable to create establishment.');
+    } finally {
+      setSavingEst(false);
+    }
+  };
+
+  const handleQuickOwnerSubmit = async (event) => {
+    event.preventDefault();
+    setSavingOwner(true);
+    setCreateError('');
+
+    try {
+      const { data } = await createOwnerProfile({
+        full_name: quickOwnerForm.fullName,
+        username: quickOwnerForm.username,
+        email: quickOwnerForm.email,
+        contact_no: quickOwnerForm.contactNo || undefined,
+      });
+
+      await loadOwners();
+      const newAccountId = data?.account?.account_id || '';
+      if (newAccountId) {
+        setCreateEstForm((prev) => ({ ...prev, ownerAccountId: newAccountId }));
+      }
+      closeQuickOwnerModal();
+    } catch (err) {
+      setCreateError(err.response?.data?.message || 'Unable to create owner account.');
+    } finally {
+      setSavingOwner(false);
+    }
+  };
+
   return (
     <LguLayout
       title="Municipal Establishments"
       subtitle="Monitor establishments in your municipality."
-      headerActions={<></>}
+      headerActions={
+        <button
+          type="button"
+          className="primary-cta"
+          onClick={() => {
+            setCreateError('');
+            setCreateEstModalOpen(true);
+          }}
+        >
+          Create Establishment
+        </button>
+      }
     >
       <section className="account-management">
         <div className="section-heading">
@@ -268,6 +443,7 @@ function Establishments() {
         <div className="table-shell">
           <div className="table-head table-grid">
             <span>Establishment</span>
+            <span>Establishment Account</span>
             <span>Category</span>
             <span>Status</span>
             <span>Dates</span>
@@ -294,6 +470,11 @@ function Establishments() {
                     <p className="account-name">{item.name}</p>
                     <p className="account-email">ID: {item.businessEstablishment_id || item.id}</p>
                   </div>
+                  <div className="muted">
+                    <div>{item.establishment_account?.username || '-'}</div>
+                    <div>{item.establishment_account?.email || '-'}</div>
+                    <div>ID: {item.establishment_account?.account_id || '-'}</div>
+                  </div>
                   <div className="muted">{item.type || item.category || '—'}</div>
                   <div>
                     <span className={`status-chip status-${resolveTone(item.status)}`}>
@@ -305,6 +486,14 @@ function Establishments() {
                     <div>Updated: {formatDateTime(item.approvedAt || item.verifiedAt || item.updatedAt)}</div>
                   </div>
                   <div className="table-actions">
+                    <a
+                      className="ghost-cta"
+                      href={item.account_login_url || '/login'}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open Login
+                    </a>
                     <button
                       type="button"
                       className="table-action-button"
@@ -343,6 +532,249 @@ function Establishments() {
             </div>
           </div>
       </section>
+
+      {isCreateEstModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Create Establishment</h3>
+                <p>Register the official establishment first, then owner can complete details.</p>
+              </div>
+              <button type="button" className="modal-close" aria-label="Close" onClick={closeCreateEstModal}>
+                ×
+              </button>
+            </header>
+
+            <div className="modal-content">
+              <form className="modal-form" onSubmit={handleCreateEstablishmentSubmit}>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-owner-account">
+                    Business owner
+                  </label>
+                  <select
+                    id="create-owner-account"
+                    name="ownerAccountId"
+                    required
+                    value={createEstForm.ownerAccountId}
+                    onChange={handleCreateEstablishmentFormChange}
+                    disabled={loadingOwners || savingEst}
+                  >
+                    <option value="" disabled>
+                      {loadingOwners ? 'Loading owners...' : 'Select owner account'}
+                    </option>
+                    {ownerOptions.map((item) => (
+                      <option key={item.accountId} value={item.accountId}>
+                        {item.fullName} ({item.username}) {item.isActive ? '' : '[Inactive]'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-row">
+                  <button
+                    type="button"
+                    className="ghost-cta"
+                    onClick={() => setQuickOwnerModalOpen(true)}
+                    disabled={currentRole !== 'lgu_admin'}
+                    title={currentRole !== 'lgu_admin' ? 'Only LGU Admin can create owner accounts' : ''}
+                  >
+                    Create Owner Account
+                  </button>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-official-name">
+                    Official registered name
+                  </label>
+                  <input
+                    id="create-official-name"
+                    name="officialName"
+                    type="text"
+                    required
+                    value={createEstForm.officialName}
+                    onChange={handleCreateEstablishmentFormChange}
+                    placeholder="Official establishment name"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-type">
+                    Category
+                  </label>
+                  <select
+                    id="create-type"
+                    name="type"
+                    required
+                    value={createEstForm.type}
+                    onChange={handleCreateEstablishmentFormChange}
+                  >
+                    <option value="" disabled>
+                      Select category
+                    </option>
+                    {establishmentTypeOptions.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-ownership-type">
+                    Ownership type
+                  </label>
+                  <select
+                    id="create-ownership-type"
+                    name="ownershipType"
+                    value={createEstForm.ownershipType}
+                    onChange={handleCreateEstablishmentFormChange}
+                  >
+                    {ownershipTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-address">
+                    Address
+                  </label>
+                  <input
+                    id="create-address"
+                    name="address"
+                    type="text"
+                    value={createEstForm.address}
+                    onChange={handleCreateEstablishmentFormChange}
+                    placeholder="Barangay, municipality"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-contact-info">
+                    Contact info
+                  </label>
+                  <input
+                    id="create-contact-info"
+                    name="contactInfo"
+                    type="text"
+                    value={createEstForm.contactInfo}
+                    onChange={handleCreateEstablishmentFormChange}
+                    placeholder="+63 9xx / email"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-accreditation">
+                    Accreditation/permit no.
+                  </label>
+                  <input
+                    id="create-accreditation"
+                    name="accreditationNo"
+                    type="text"
+                    value={createEstForm.accreditationNo}
+                    onChange={handleCreateEstablishmentFormChange}
+                    placeholder="DOT/LGU permit"
+                  />
+                </div>
+
+                {createError ? <div className="modal-error">{createError}</div> : null}
+
+                <div className="modal-actions">
+                  <button type="button" className="ghost-cta" onClick={closeCreateEstModal} disabled={savingEst}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-cta" disabled={savingEst}>
+                    {savingEst ? 'Creating...' : 'Create Establishment'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isQuickOwnerModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Create Owner Account</h3>
+                <p>Create owner now, then link owner to the establishment.</p>
+              </div>
+              <button type="button" className="modal-close" aria-label="Close" onClick={closeQuickOwnerModal}>
+                ×
+              </button>
+            </header>
+
+            <div className="modal-content">
+              <form className="modal-form" onSubmit={handleQuickOwnerSubmit}>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="quick-owner-name">
+                    Full name
+                  </label>
+                  <input
+                    id="quick-owner-name"
+                    name="fullName"
+                    type="text"
+                    required
+                    value={quickOwnerForm.fullName}
+                    onChange={handleQuickOwnerFormChange}
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="quick-owner-username">
+                    Username
+                  </label>
+                  <input
+                    id="quick-owner-username"
+                    name="username"
+                    type="text"
+                    required
+                    value={quickOwnerForm.username}
+                    onChange={handleQuickOwnerFormChange}
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="quick-owner-email">
+                    Email
+                  </label>
+                  <input
+                    id="quick-owner-email"
+                    name="email"
+                    type="email"
+                    required
+                    value={quickOwnerForm.email}
+                    onChange={handleQuickOwnerFormChange}
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label" htmlFor="quick-owner-contact">
+                    Contact no. (optional)
+                  </label>
+                  <input
+                    id="quick-owner-contact"
+                    name="contactNo"
+                    type="text"
+                    value={quickOwnerForm.contactNo}
+                    onChange={handleQuickOwnerFormChange}
+                  />
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="ghost-cta" onClick={closeQuickOwnerModal} disabled={savingOwner}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-cta" disabled={savingOwner}>
+                    {savingOwner ? 'Creating...' : 'Create Owner Account'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {detailModal.open && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -453,6 +885,17 @@ function Establishments() {
                 </div>
 
                 <div className="detail-block">
+                  <p className="detail-label">Establishment Account</p>
+                  <p className="detail-value">Username: {detailModal.establishmentAccount?.username || '-'}</p>
+                  <p className="detail-value">Email: {detailModal.establishmentAccount?.email || '-'}</p>
+                  <p className="detail-value">Account ID: {detailModal.establishmentAccount?.account_id || '-'}</p>
+                  <p className="detail-value">
+                    Account Status: {detailModal.establishmentAccount?.is_active === false ? 'Deactivated' : 'Active'}
+                  </p>
+                  <p className="detail-value">Owner Username: {detailModal.ownerAccount?.username || '-'}</p>
+                </div>
+
+                <div className="detail-block">
                   <p className="detail-label">Latest Decision</p>
                   <p className="detail-value">{detailModal.latestApproval?.approval_status || 'No decision yet'}</p>
                   <p className="detail-value">
@@ -516,6 +959,54 @@ function Establishments() {
           </div>
         </div>
       )}
+
+      {createdEstAccount ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <header className="modal-header">
+              <div>
+                <h3>Establishment Account Generated</h3>
+                <p>Share these login credentials directly with the owner. No email is sent for this account.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={() => setCreatedEstAccount(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="modal-content">
+              <div className="detail-block">
+                <p className="detail-label">Establishment</p>
+                <p className="detail-value">{createdEstAccount.establishmentName || '-'}</p>
+              </div>
+              <div className="detail-block">
+                <p className="detail-label">Linked Owner Username</p>
+                <p className="detail-value">{createdEstAccount.ownerUsername || '-'}</p>
+              </div>
+              <div className="detail-block">
+                <p className="detail-label">Generated Account Details</p>
+                <p className="detail-value">Account ID: {createdEstAccount.accountId || '-'}</p>
+                <p className="detail-value">Username: {createdEstAccount.username || '-'}</p>
+                <p className="detail-value">Temporary Password: {createdEstAccount.tempPassword || '-'}</p>
+                <p className="detail-value">
+                  Login URL:{' '}
+                  <a href={createdEstAccount.loginUrl || '/login'} target="_blank" rel="noreferrer">
+                    {createdEstAccount.loginUrl || '/login'}
+                  </a>
+                </p>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="primary-cta" onClick={() => setCreatedEstAccount(null)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </LguLayout>
   );
 }

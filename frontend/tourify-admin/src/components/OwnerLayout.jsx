@@ -1,6 +1,7 @@
 ﻿import PropTypes from 'prop-types';
 import { NavLink, useNavigate  } from 'react-router-dom';
 import { IoNotificationsOutline, IoSearchOutline } from 'react-icons/io5';
+import { FaBuilding, FaUserCog } from 'react-icons/fa';
 import { ownerNavSections } from '../data/ownerNavigation';
 import '../styles/AdminDashboard.css';
 import { signOut } from '../utils/auth';
@@ -14,6 +15,25 @@ function OwnerLayout({
   children,
 }) {
   const navigate = useNavigate();
+  const accountScope = sessionStorage.getItem('mockAccountScope');
+  const scopedEstablishmentId = sessionStorage.getItem('mockEstablishmentId');
+  const navSections =
+    accountScope === 'establishment' && scopedEstablishmentId
+      ? [
+          {
+            title: 'Workspace',
+            items: [
+              {
+                id: 'establishment-workspace',
+                label: 'Establishment Page',
+                icon: FaBuilding,
+                path: `/establishment/${scopedEstablishmentId}/dashboard`,
+              },
+              { id: 'my-account', label: 'My Account', icon: FaUserCog, path: '/account/settings' },
+            ],
+          },
+        ]
+      : ownerNavSections;
 
   const handleSearchSubmit = (event) => {
     if (!onSearchSubmit) return;
@@ -38,7 +58,7 @@ function OwnerLayout({
         </div>
 
         <nav>
-          {ownerNavSections.map((section) => (
+          {navSections.map((section) => (
             <div key={section.title} className="nav-section">
               <span className="section-title">{section.title}</span>
               <ul>

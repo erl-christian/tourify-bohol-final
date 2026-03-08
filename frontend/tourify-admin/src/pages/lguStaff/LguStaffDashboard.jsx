@@ -4,7 +4,6 @@ import '../../styles/AdminDashboard.css';
 import LguStaffAnalytics from './Analytics.jsx';
 import {
   fetchLguEstablishments,
-  fetchLguPendingEstablishments,
   fetchLguEstablishmentDetails,
   fetchLguEstablishmentMedia,
 } from '../../services/lguApi';
@@ -48,7 +47,6 @@ const formatDate = (value) => {
 function LguStaffDashboard() {
   const [municipalityName, setMunicipalityName] = useState('Your Municipality');
   const [establishments, setEstablishments] = useState([]);
-  const [pendingEstablishments, setPendingEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -107,9 +105,8 @@ function LguStaffDashboard() {
       try {
         setLoading(true);
 
-        const [estRes, pendingRes, municipalitiesRes] = await Promise.all([
+        const [estRes, municipalitiesRes] = await Promise.all([
           fetchLguEstablishments({ limit: 50 }),
-          fetchLguPendingEstablishments({ limit: 50 }),
           fetchMunicipalities().catch((err) => {
             console.warn('Municipality lookup failed', err);
             return null;
@@ -117,10 +114,8 @@ function LguStaffDashboard() {
         ]);
 
         const estItems = normalizeList(estRes?.data);
-        const pendingItems = normalizeList(pendingRes?.data);
 
         setEstablishments(estItems);
-        setPendingEstablishments(pendingItems);
 
         const municipalities = normalizeMunicipalities(municipalitiesRes?.data);
         const sessionMunicipality =
@@ -129,7 +124,6 @@ function LguStaffDashboard() {
             : null;
 
         const municipalityCandidate =
-          pendingItems[0]?.municipality_id ||
           estItems[0]?.municipality_id ||
           sessionMunicipality;
 
@@ -163,7 +157,6 @@ function LguStaffDashboard() {
       ).length,
     [establishments],
   );
-  const pendingCount = pendingEstablishments.length;
   const rejectedCount = useMemo(
     () =>
       establishments.filter(
@@ -176,14 +169,12 @@ function LguStaffDashboard() {
     () => [
       { label: 'Municipality', value: municipalityName },
       { label: 'Total Establishments', value: totalEstablishments },
-      { label: 'Pending Reviews', value: pendingCount },
       { label: 'Approved / Verified', value: approvedCount },
       { label: 'Rejected', value: rejectedCount },
     ],
     [
       approvedCount,
       municipalityName,
-      pendingCount,
       rejectedCount,
       totalEstablishments,
     ],
@@ -209,14 +200,17 @@ function LguStaffDashboard() {
 
   const resolvedDecisions = [...approvedItems, ...rejectedItems];
   const priorities = useMemo(
-    () => pendingEstablishments.slice(0, 10),
-    [pendingEstablishments],
+    () =>
+      [...establishments]
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+        .slice(0, 10),
+    [establishments],
   );
 
   return (
     <LguStaffLayout
       title={`${municipalityName} Dashboard & Analytics`}
-      subtitle={`Logged in as LGU staff. Validate submissions and review analytics for ${municipalityName} in one page.`}
+      subtitle={`Logged in as LGU staff. Review analytics and establishment updates for ${municipalityName} in one page.`}
       searchPlaceholder="Search submissions or establishments..."
     >
       <div className="lgu-merged-content">
@@ -230,8 +224,8 @@ function LguStaffDashboard() {
 
         <section className="merged-management-block lgu-management-block">
           <header className="merged-section-head">
-            <h2>Validation Operations</h2>
-            <p>Monitor municipal metrics, recent decisions, and pending priorities.</p>
+            <h2>Operations Overview</h2>
+            <p>Monitor municipal metrics and recent establishment updates.</p>
           </header>
 
           <section className="account-management">
@@ -277,7 +271,7 @@ function LguStaffDashboard() {
             <section className="account-management">
               <div className="section-heading">
                 <h2>Recent Decisions</h2>
-                <p>Approved and rejected submissions that need follow-up coordination.</p>
+                <p>Approved and rejected establishments for follow-up coordination.</p>
               </div>
 
               <div className="table-shell">
@@ -299,7 +293,7 @@ function LguStaffDashboard() {
                     </li>
                   ) : resolvedDecisions.length === 0 ? (
                     <li className="table-row table-grid table-grid-4">
-                      <div className="muted">No approvals or rejections recorded yet.</div>
+                      <div className="muted">No decisions recorded yet.</div>
                     </li>
                   ) : (
                     resolvedDecisions.map((item) => (
@@ -339,8 +333,8 @@ function LguStaffDashboard() {
 
             <section className="account-management">
               <div className="section-heading">
-                <h2>Today's Priorities</h2>
-                <p>Pending submissions that need LGU staff validation before endorsement.</p>
+                <h2>Recent Establishment Updates</h2>
+                <p>Latest establishments created and updated in your municipality.</p>
               </div>
 
               <div className="table-shell">
@@ -355,7 +349,7 @@ function LguStaffDashboard() {
                 <ul className="table-body">
                   {loading ? (
                     <li className="table-row table-grid table-grid-5">
-                      <div className="muted">Loading pending items...</div>
+                      <div className="muted">Loading establishments...</div>
                     </li>
                   ) : error ? (
                     <li className="table-row table-grid table-grid-5">
@@ -363,7 +357,7 @@ function LguStaffDashboard() {
                     </li>
                   ) : priorities.length === 0 ? (
                     <li className="table-row table-grid table-grid-5">
-                      <div className="muted">No pending submissions. You're all caught up.</div>
+                      <div className="muted">No establishments yet.</div>
                     </li>
                   ) : (
                     priorities.map((item) => (
@@ -380,7 +374,7 @@ function LguStaffDashboard() {
                         <div className="muted">{item.type || 'N/A'}</div>
                         <div>
                           <span className={`status-chip status-${resolveTone(item.status)}`}>
-                            {item.status || 'pending'}
+                            {item.status || 'approved'}
                           </span>
                         </div>
                         <div className="muted">

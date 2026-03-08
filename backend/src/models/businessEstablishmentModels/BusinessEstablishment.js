@@ -10,9 +10,17 @@ const businessEstablishmentSchema = new mongoose.Schema(
         businessEstablishment_approval_id: { type: String, index: true},
         municipality_id: { type: String, required: true, index: true },
         business_establishment_profile_id: { type: String, index: true },
+        establishment_account_id: { type: String, index: true, unique: true, sparse: true },
 
         //colums
         name:            { type: String, required: true, trim: true },
+        official_name_locked: { type: Boolean, default: true, index: true },
+        created_via: {
+            type: String,
+            enum: ["lgu_seeded", "owner_submission"],
+            default: "lgu_seeded",
+            index: true,
+        },
         type:            { type: String, required: true, trim: true }, // hotel|restaurant|attraction...
         address:         { type: String, trim: true },
         description:     { type: String },

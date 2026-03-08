@@ -2,7 +2,6 @@ import {
   FaHome,
   FaUserCog,
   FaStoreAlt,
-  FaClipboardCheck,
   FaCommentDots,
 } from 'react-icons/fa';
 
@@ -18,7 +17,6 @@ export const lguNavSections = [
     title: 'Operations',
     items: [
       { id: 'establishments', label: 'Establishments', icon: FaStoreAlt, path: '/lgu/establishments' },
-      { id: 'approvals', label: 'Approvals', icon: FaClipboardCheck, path: '/lgu/approvals' },
       { id: 'feedback', label: 'Feedback', icon: FaCommentDots, path: '/lgu/feedback' },
       { id: 'my-account', label: 'My Account', icon: FaUserCog, path: '/account/settings' },
     ],

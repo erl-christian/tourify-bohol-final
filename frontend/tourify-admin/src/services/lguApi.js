@@ -6,6 +6,12 @@ export const createLguStaff = (payload) =>
 export const createOwnerProfile = (payload) =>
   http.post('/admin/lgu/create-owner', payload);
 
+export const fetchMunicipalOwners = () =>
+  http.get('/admin/lgu/owners');
+
+export const createLguEstablishment = (payload) =>
+  http.post('/admin/lgu/establishments', payload);
+
 // LGU-scoped establishments
 export const fetchLguEstablishments = (params) =>
   http.get('/admin/lgu/establishments', { params });

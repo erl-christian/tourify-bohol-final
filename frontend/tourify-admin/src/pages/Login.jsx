@@ -53,7 +53,7 @@ function Login() {
     navigate(targetRoute);
   };
 
-  const resolveNextRoute = (normalizedRole) => {
+  const resolveNextRoute = (normalizedRole, accountScope, establishmentId) => {
     switch (normalizedRole) {
       case 'bto_admin':
       case 'bto_staff':
@@ -63,6 +63,9 @@ function Login() {
       case 'lgu_staff':
         return '/lgu-staff/dashboard';
       case 'business_establishment':
+        if (accountScope === 'establishment' && establishmentId) {
+          return `/establishment/${establishmentId}/dashboard`;
+        }
         return '/owner/dashboard';
       default:
         throw new Error(`Unsupported role: ${normalizedRole}`);
@@ -70,17 +73,54 @@ function Login() {
   };
 
 
-  const persistSession = ({ token, normalizedRole, municipality, businessName, displayName, displayRole }) => {
+  const persistSession = ({
+    token,
+    normalizedRole,
+    municipality,
+    businessName,
+    displayName,
+    displayRole,
+    accountScope,
+    establishmentId,
+    ownerAccountId,
+  }) => {
     sessionStorage.setItem('accessToken', token);
     sessionStorage.setItem('mockRole', normalizedRole);
     if (municipality) sessionStorage.setItem('mockMunicipality', municipality);
     if (businessName) sessionStorage.setItem('mockBusiness', businessName);
     if (displayName) sessionStorage.setItem('mockDisplayName', displayName);
     if (displayRole) sessionStorage.setItem('mockDisplayRole', displayRole);
+    if (accountScope) sessionStorage.setItem('mockAccountScope', accountScope);
+    else sessionStorage.removeItem('mockAccountScope');
+    if (establishmentId) sessionStorage.setItem('mockEstablishmentId', establishmentId);
+    else sessionStorage.removeItem('mockEstablishmentId');
+    if (ownerAccountId) sessionStorage.setItem('mockOwnerAccountId', ownerAccountId);
+    else sessionStorage.removeItem('mockOwnerAccountId');
   };
 
-  const completeLogin = ({ token, normalizedRole, municipality, businessName, displayName, displayRole, nextRoute }) => {
-    persistSession({ token, normalizedRole, municipality, businessName, displayName, displayRole });
+  const completeLogin = ({
+    token,
+    normalizedRole,
+    municipality,
+    businessName,
+    displayName,
+    displayRole,
+    accountScope,
+    establishmentId,
+    ownerAccountId,
+    nextRoute,
+  }) => {
+    persistSession({
+      token,
+      normalizedRole,
+      municipality,
+      businessName,
+      displayName,
+      displayRole,
+      accountScope,
+      establishmentId,
+      ownerAccountId,
+    });
 
     setShowSuccessModal(true);
     setModalStep('loading');
@@ -111,6 +151,9 @@ function Login() {
       };
 
       const normalizedRole = roleMap[apiRole] || apiRole;
+      const accountScope = account?.account_scope || null;
+      const establishmentId = account?.establishment_id || null;
+      const ownerAccountId = account?.owner_account_id || null;
       const displayName = account?.full_name || account?.username || account?.email || 'User';
       const displayRole =
         normalizedRole === 'bto_staff'
@@ -122,14 +165,16 @@ function Login() {
           : normalizedRole === 'lgu_staff'
           ? 'LGU Staff'
           : normalizedRole === 'business_establishment'
-          ? 'Establishment Owner'
+          ? accountScope === 'establishment'
+            ? 'Establishment Account'
+            : 'Establishment Owner'
           : 'User';
 
       if (!token || !normalizedRole) {
         throw new Error('Invalid login response.');
       }
 
-      const nextRoute = resolveNextRoute(normalizedRole);
+      const nextRoute = resolveNextRoute(normalizedRole, accountScope, establishmentId);
       const mustChangePassword = Boolean(account?.must_change_password);
 
       if (mustChangePassword) {
@@ -140,6 +185,9 @@ function Login() {
           businessName: data.businessName,
           displayName,
           displayRole,
+          accountScope,
+          establishmentId,
+          ownerAccountId,
           nextRoute,
         });
         setChangePasswordForm({ newPassword: '', confirmPassword: '' });
@@ -157,6 +205,9 @@ function Login() {
         businessName: data.businessName,
         displayName,
         displayRole,
+        accountScope,
+        establishmentId,
+        ownerAccountId,
         nextRoute,
       });
     } catch (err) {
@@ -431,4 +482,3 @@ function Login() {
 }
 
 export default Login;
-

@@ -2,6 +2,7 @@
 import Account from '../models/Account.js';
 import AdminStaffProfile from '../models/adminModels/AdminStaffProfile.js';
 import BusinessEstablishmentProfile from '../models/businessEstablishmentModels/BusinessEstablishmentProfile.js';
+import BusinessEstablishment from '../models/businessEstablishmentModels/BusinessEstablishment.js';
 import { sendMail } from '../services/mailer.js';
 
 const APP_BASE = process.env.APP_BASE_URL || 'http://192.168.1.7:8081'; // unused in OTP flow, kept for reference
@@ -196,6 +197,23 @@ export const getMyAccount = async (req, res, next) => {
       profile = await BusinessEstablishmentProfile.findOne({ account_id: acc.account_id })
         .select('full_name contact_no municipality_id role')
         .lean();
+
+      if (!profile) {
+        const linkedEstablishment = await BusinessEstablishment.findOne({
+          establishment_account_id: acc.account_id,
+        })
+          .select('name municipality_id')
+          .lean();
+
+        if (linkedEstablishment) {
+          profile = {
+            full_name: linkedEstablishment.name || '',
+            contact_no: '',
+            municipality_id: linkedEstablishment.municipality_id || '',
+            role: 'Establishment Account',
+          };
+        }
+      }
     }
 
     const municipality =
@@ -328,26 +346,43 @@ export const updateMyAccount = async (req, res, next) => {
       profile = toPlain(adminProfile);
     } else if (acc.role === 'business_establishment') {
       const ownerProfile = await BusinessEstablishmentProfile.findOne({ account_id: acc.account_id });
-      if (!ownerProfile) {
-        res.status(404);
-        throw new Error('Owner profile not found');
-      }
-
-      if (full_name !== undefined) {
-        const value = String(full_name).trim();
-        if (!value) {
-          res.status(400);
-          throw new Error('full_name cannot be empty');
+      if (ownerProfile) {
+        if (full_name !== undefined) {
+          const value = String(full_name).trim();
+          if (!value) {
+            res.status(400);
+            throw new Error('full_name cannot be empty');
+          }
+          ownerProfile.full_name = value;
         }
-        ownerProfile.full_name = value;
-      }
 
-      if (contact_no !== undefined) {
-        ownerProfile.contact_no = String(contact_no ?? '').trim();
-      }
+        if (contact_no !== undefined) {
+          ownerProfile.contact_no = String(contact_no ?? '').trim();
+        }
 
-      await ownerProfile.save();
-      profile = toPlain(ownerProfile);
+        await ownerProfile.save();
+        profile = toPlain(ownerProfile);
+      } else {
+        if (full_name !== undefined || contact_no !== undefined) {
+          res.status(400);
+          throw new Error('This establishment account can update username and password only.');
+        }
+
+        const linkedEstablishment = await BusinessEstablishment.findOne({
+          establishment_account_id: acc.account_id,
+        })
+          .select('name municipality_id')
+          .lean();
+
+        if (linkedEstablishment) {
+          profile = {
+            full_name: linkedEstablishment.name || '',
+            contact_no: '',
+            municipality_id: linkedEstablishment.municipality_id || '',
+            role: 'Establishment Account',
+          };
+        }
+      }
     }
 
     await acc.save();
@@ -532,6 +567,9 @@ export const loginAccount = async (req, res, next) => {
     }
 
     let fullName = null;
+    let accountScope = null;
+    let establishmentId = null;
+    let ownerAccountId = null;
 
     if (['bto_admin', 'bto_staff', 'lgu_admin', 'lgu_staff'].includes(acc.role)) {
       const adminProfile = await AdminStaffProfile.findOne({ account_id: acc.account_id })
@@ -540,9 +578,34 @@ export const loginAccount = async (req, res, next) => {
       fullName = adminProfile?.full_name || null;
     } else if (acc.role === 'business_establishment') {
       const ownerProfile = await BusinessEstablishmentProfile.findOne({ account_id: acc.account_id })
-        .select('full_name')
+        .select('full_name account_id')
         .lean();
-      fullName = ownerProfile?.full_name || null;
+      if (ownerProfile) {
+        fullName = ownerProfile.full_name || null;
+        accountScope = 'owner';
+        ownerAccountId = ownerProfile.account_id || acc.account_id;
+      } else {
+        const linkedEstablishment = await BusinessEstablishment.findOne({
+          establishment_account_id: acc.account_id,
+        })
+          .select('businessEstablishment_id name business_establishment_profile_id')
+          .lean();
+
+        if (linkedEstablishment) {
+          fullName = linkedEstablishment.name || null;
+          accountScope = 'establishment';
+          establishmentId = linkedEstablishment.businessEstablishment_id || null;
+
+          if (linkedEstablishment.business_establishment_profile_id) {
+            const linkedOwnerProfile = await BusinessEstablishmentProfile.findOne({
+              business_establishment_profile_id: linkedEstablishment.business_establishment_profile_id,
+            })
+              .select('account_id')
+              .lean();
+            ownerAccountId = linkedOwnerProfile?.account_id || null;
+          }
+        }
+      }
     }
 
 
@@ -558,6 +621,9 @@ export const loginAccount = async (req, res, next) => {
         role: acc.role,
         email_verified: acc.email_verified,
         must_change_password: acc.must_change_password,
+        account_scope: accountScope,
+        establishment_id: establishmentId,
+        owner_account_id: ownerAccountId,
       },
       token,
     });
@@ -774,4 +840,3 @@ export const resetPassword = async (req, res, next) => {
     next(err);
   }
 };
-

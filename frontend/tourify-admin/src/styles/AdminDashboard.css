@@ -3927,6 +3927,48 @@ body.bto-fixed .dashboard-content {
   background: rgba(1, 77, 78, 0.22);
 }
 
+/* ===== Establishment Location Picker ===== */
+.establishment-location-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.establishment-location-tools .ghost-cta {
+  min-height: 40px;
+}
+
+.location-map-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.location-error-text {
+  margin: 0;
+  color: var(--accent-danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.location-map-shell {
+  border: 1px solid rgba(1, 77, 78, 0.18);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8fbfa;
+}
+
+.location-map {
+  height: 340px;
+  width: 100%;
+}
+
+.location-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
 @media (max-width: 1100px) {
   .account-settings-grid {
     grid-template-columns: 1fr;
@@ -4201,6 +4243,18 @@ body.bto-fixed .dashboard-content {
   .analytics-card {
     margin: 0;
     padding: 1rem;
+  }
+
+  .location-map {
+    height: 280px;
+  }
+
+  .establishment-location-tools {
+    align-items: stretch;
+  }
+
+  .establishment-location-tools .ghost-cta {
+    width: 100%;
   }
 
   .map-shell,

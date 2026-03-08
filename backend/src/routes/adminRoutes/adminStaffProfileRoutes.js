@@ -6,7 +6,9 @@ import {
   createLGUStaff,
   getEstablishmentDetails,
   getLGUStaffs,
+  listMunicipalOwners,
   lguCreateOwnerProfile,
+  lguCreateEstablishmentForOwner,
   listApprovalHistory,
   listAllEstablishments,
   listMyEstablishments,
@@ -18,6 +20,7 @@ import {
   endorseEstablishmentToAdmin,
   listMunicipalFeedbackForEstablishment,
   listOwnerFeedbackForEstablishment,
+  getOwnerEstablishmentActivity,
   updateLguAdminStatus,
   updateLguManagedAccountStatus,
   updateLguAdmin,
@@ -57,6 +60,8 @@ router.patch( '/lgu/accounts/:accountId', auth, requireRoles('lgu_admin'), updat
 
 // establishments
 router.post("/lgu/create-owner", auth, requireRoles("lgu_admin"), lguCreateOwnerProfile);
+router.get("/lgu/owners", auth, requireRoles("lgu_admin", "lgu_staff"), listMunicipalOwners);
+router.post("/lgu/establishments", auth, requireRoles("lgu_admin", "lgu_staff"), lguCreateEstablishmentForOwner);
 router.post("/lgu/establishments/:estId/approval", auth, requireRoles("lgu_admin", "lgu_staff"), actOnEstablishment);
 router.post("/establishments", auth, requireRoles("business_establishment"), ownerCreateEstablishment);
 
@@ -123,6 +128,13 @@ router.get(
   auth,
   requireRoles("business_establishment"),
   listOwnerFeedbackForEstablishment
+);
+
+router.get(
+  "/establishments/:estId/activity",
+  auth,
+  requireRoles("business_establishment"),
+  getOwnerEstablishmentActivity
 );
 
 router.get(

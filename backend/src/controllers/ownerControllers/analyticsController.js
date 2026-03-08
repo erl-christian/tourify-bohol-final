@@ -12,19 +12,27 @@ async function assertOwnerAccess(estId, accountId) {
     .select('business_establishment_profile_id')
     .lean();
 
-  if (!ownerProfile) {
-    const err = new Error('Owner profile not found');
-    err.statusCode = 403;
-    throw err;
+  if (ownerProfile) {
+    const establishment = await BusinessEstablishment.findOne({
+      businessEstablishment_id: estId,
+      business_establishment_profile_id: ownerProfile.business_establishment_profile_id,
+    }).select('businessEstablishment_id');
+
+    if (!establishment) {
+      const err = new Error('Establishment not found or not owned by you');
+      err.statusCode = 404;
+      throw err;
+    }
+    return;
   }
 
-  const establishment = await BusinessEstablishment.findOne({
+  const establishmentAccountScoped = await BusinessEstablishment.findOne({
     businessEstablishment_id: estId,
-    business_establishment_profile_id: ownerProfile.business_establishment_profile_id,
+    establishment_account_id: accountId,
   }).select('businessEstablishment_id');
 
-  if (!establishment) {
-    const err = new Error('Establishment not found or not owned by you');
+  if (!establishmentAccountScoped) {
+    const err = new Error('Establishment not found or not assigned to this account');
     err.statusCode = 404;
     throw err;
   }

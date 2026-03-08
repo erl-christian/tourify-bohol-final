@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import OwnerLayout from '../../components/OwnerLayout';
 import '../../styles/AdminDashboard.css';
 import {
@@ -81,6 +82,7 @@ const resolveQrLink = (url) => {
 };
 
 function OwnerEstablishments() {
+  const navigate = useNavigate();
   const [listings, setListings] = useState([]);
   const [municipalities, setMunicipalities] = useState([]);
   const [municipalityLookup, setMunicipalityLookup] = useState({});
@@ -342,11 +344,7 @@ const handleEditRequirementDocsSelection = (event) => {
       await fetchMediaFor(editEstablishment.businessEstablishment_id);
 
 
-      const wasPending = editEstablishment?.status === 'pending';
-      setEditFeedback(    wasPending
-          ? 'Establishment details updated.'
-          : 'Changes submitted and will be reviewed by your LGU again.'
-      );
+      setEditFeedback('Establishment details updated.');
       await loadListings();
       closeEditModal();
     } catch (err) {
@@ -457,18 +455,10 @@ const handleEditRequirementDocsSelection = (event) => {
 
   return (
     <OwnerLayout
-      title="Manage Establishments"
-      subtitle="Submit new establishments or track LGU validation status."
+      title="My Establishments"
+      subtitle="LGU registers official establishment records; owners complete operational details."
       searchPlaceholder="Search your establishments..."
-      headerActions={
-        <button
-          type="button"
-          className="primary-cta"
-          onClick={() => setModalOpen(true)}
-        >
-          Add New Establishment
-        </button>
-      }
+      headerActions={<></>}
     >
       {isModalOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -767,7 +757,7 @@ const handleEditRequirementDocsSelection = (event) => {
       <section className="account-management">
         <div className="section-heading">
           <h2>Your Establishments</h2>
-          <p>These submissions automatically route to your municipality's LGU team.</p>
+          <p>QR remains available. Open each establishment page to manage details, analytics, and feedback.</p>
         </div>
 
         <div className="table-shell">
@@ -778,7 +768,8 @@ const handleEditRequirementDocsSelection = (event) => {
             <span>Status</span>
             <span>Submitted / Updated</span>
             <span>QR Code</span>
-            <span>Details</span>
+            <span>Establishment Account</span>
+            <span>Actions</span>
           </div>
 
           <ul className="table-body">
@@ -818,7 +809,7 @@ const handleEditRequirementDocsSelection = (event) => {
                     </div>
                     <div>
                       <span className={`status-chip status-${resolveTone(listing.status)}`}>
-                        {listing.status || 'pending'}
+                        {listing.status || 'approved'}
                       </span>
                     </div>
                    <div className="muted">
@@ -846,27 +837,25 @@ const handleEditRequirementDocsSelection = (event) => {
                         Refresh QR
                       </button>
                     </div>
-                    <div className="table-actions">
-                      <button
-                        type="button"
-                        className="ghost-cta"
-                        onClick={() => openMediaModal(listing)}
-                      >
-                        View details
-                      </button>
+                    <div className="muted">
+                      <div>{listing.establishment_account?.username || '-'}</div>
+                      <div>{listing.establishment_account?.email || '-'}</div>
+                      <div>ID: {listing.establishment_account?.account_id || '-'}</div>
                     </div>
                     <div className="table-actions">
-                      {listing.status !== 'pending' ? (
-                        <button
-                          type="button"
-                          className="ghost-cta"
-                          onClick={() => openEditModal(listing)}
-                        >
-                          {listing.status === 'needs_owner_revision' ? 'Edit details' : 'Request update'}
-                        </button>
-                      ) : (
-                        <span className="muted">Awaiting review</span>
-                      )}
+                      <button type="button" className="ghost-cta" onClick={() => openMediaModal(listing)}>
+                        View details
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-cta"
+                        onClick={() => navigate(`/owner/establishments/${estId}`)}
+                      >
+                        Open Page
+                      </button>
+                      <a className="ghost-cta" href={listing.account_login_url || '/login'} target="_blank" rel="noreferrer">
+                        Login Link
+                      </a>
                     </div>
                   </li>
                 );
@@ -939,6 +928,24 @@ const handleEditRequirementDocsSelection = (event) => {
                 </div>
 
                 <div className="detail-block">
+                  <p className="detail-label">Account Info</p>
+                  <p className="detail-value">Username: {activeMediaEst?.establishment_account?.username || '-'}</p>
+                  <p className="detail-value">Email: {activeMediaEst?.establishment_account?.email || '-'}</p>
+                  <p className="detail-value">Account ID: {activeMediaEst?.establishment_account?.account_id || '-'}</p>
+                  <p className="detail-value">Owner Username: {activeMediaEst?.owner_account?.username || '-'}</p>
+                  <p className="detail-value">
+                    Login URL:{' '}
+                    <a
+                      href={activeMediaEst?.account_login_url || '/login'}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {activeMediaEst?.account_login_url || '/login'}
+                    </a>
+                  </p>
+                </div>
+
+                <div className="detail-block">
                   <p className="detail-label">Media</p>
                   <div className="media-grid">
                     {(mediaCache[activeMediaEst?.estId] || []).length === 0 ? (
@@ -979,9 +986,9 @@ const handleEditRequirementDocsSelection = (event) => {
         <div className="modal-card wide">
           <header className="modal-header">
             <div>
-              <h3>Edit establishment</h3>
-              <p>You can update the details while the submission is still pending.</p>
-            </div>
+                <h3>Edit establishment</h3>
+                <p>Update operational details for this establishment.</p>
+              </div>
             <button
               type="button"
               className="modal-close"

@@ -5,7 +5,6 @@ import LguAnalytics from './Analytics.jsx';
 import {
   fetchLguAccounts,
   fetchLguEstablishments,
-  fetchLguPendingEstablishments,
 } from '../../services/lguApi';
 
 const statusToneMap = {
@@ -28,7 +27,6 @@ function LguDashboard() {
   const [municipalityName, setMunicipalityName] = useState('Your Municipality');
   const [accounts, setAccounts] = useState([]);
   const [establishments, setEstablishments] = useState([]);
-  const [pendingEstablishments, setPendingEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -36,16 +34,14 @@ function LguDashboard() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [accountsRes, establishmentsRes, pendingRes] = await Promise.all([
+        const [accountsRes, establishmentsRes] = await Promise.all([
           fetchLguAccounts(),
           fetchLguEstablishments(),
-          fetchLguPendingEstablishments(),
         ]);
 
         const staff = accountsRes.data?.staff || [];
         setAccounts(staff);
         setEstablishments(normalizeList(establishmentsRes.data));
-        setPendingEstablishments(normalizeList(pendingRes.data));
 
         const firstProfile = staff[0]?.profile;
         if (firstProfile?.municipality_name) {
@@ -85,17 +81,22 @@ function LguDashboard() {
     [establishments],
   );
 
-  const pendingCount = useMemo(
-    () => pendingEstablishments.length,
-    [pendingEstablishments],
+  const totalEstablishments = establishments.length;
+
+  const recentEstablishments = useMemo(
+    () =>
+      [...establishments]
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+        .slice(0, 8),
+    [establishments],
   );
 
   const metrics = [
     { label: 'Municipality', value: municipalityName },
     { label: 'LGU Staff', value: staffCount },
     { label: 'Establishment Owners', value: ownerCount },
+    { label: 'Total Establishments', value: totalEstablishments },
     { label: 'Approved Establishments', value: approvedCount },
-    { label: 'Pending Establishments', value: pendingCount },
   ];
 
   const resolveTone = (status) =>
@@ -104,7 +105,7 @@ function LguDashboard() {
   return (
     <LguLayout
       title={`${municipalityName} Dashboard & Analytics`}
-      subtitle={`Logged in as LGU administrator for ${municipalityName}. Review insights, accounts, and pending approvals in one page.`}
+      subtitle={`Logged in as LGU administrator for ${municipalityName}. Review insights, accounts, and establishments in one page.`}
       searchPlaceholder="Search municipal metrics..."
     >
       <div className="lgu-merged-content">
@@ -118,8 +119,8 @@ function LguDashboard() {
 
         <section className="merged-management-block lgu-management-block">
           <header className="merged-section-head">
-            <h2>Accounts and Approvals</h2>
-            <p>Track account coverage and pending establishment actions.</p>
+            <h2>Accounts and Establishments</h2>
+            <p>Track account coverage and recent establishment updates.</p>
           </header>
 
           <section className="account-management">
@@ -213,8 +214,8 @@ function LguDashboard() {
 
             <section className="establishments-section">
               <div className="section-heading">
-                <h2>Pending Approvals</h2>
-                <p>Submissions needing LGU action.</p>
+                <h2>Recent Establishment Updates</h2>
+                <p>Latest establishments created and updated in your municipality.</p>
               </div>
 
               <div className="table-shell">
@@ -227,14 +228,14 @@ function LguDashboard() {
                 <ul className="table-body">
                   {loading ? (
                     <li className="table-row table-grid table-grid-3">
-                      <div className="muted">Loading pending items...</div>
+                      <div className="muted">Loading establishments...</div>
                     </li>
-                  ) : pendingEstablishments.length === 0 ? (
+                  ) : recentEstablishments.length === 0 ? (
                     <li className="table-row table-grid table-grid-3">
-                      <div className="muted">No pending submissions.</div>
+                      <div className="muted">No establishments yet.</div>
                     </li>
                   ) : (
-                    pendingEstablishments.map((item) => (
+                    recentEstablishments.map((item) => (
                       <li
                         key={item.businessEstablishment_id || item.id}
                         className="table-row table-grid table-grid-3"
@@ -247,7 +248,7 @@ function LguDashboard() {
                         </div>
                         <div>
                           <span className={`status-chip status-${resolveTone(item.status)}`}>
-                            {item.status || 'pending'}
+                            {item.status || 'approved'}
                           </span>
                         </div>
                         <div className="muted">
