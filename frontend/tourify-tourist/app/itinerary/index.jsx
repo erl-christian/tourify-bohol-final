@@ -68,6 +68,228 @@ const formatDistance = km => {
 const formatISODate = date => date.toISOString().slice(0, 10);
 const routeOptionPalette = ['#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#ef4444', '#0ea5e9'];
 
+const normalizeRouteGeometry = points =>
+  (Array.isArray(points) ? points : [])
+    .map(point => {
+      const latitude = Number(point?.latitude);
+      const longitude = Number(point?.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return {
+        latitude: Number(latitude.toFixed(5)),
+        longitude: Number(longitude.toFixed(5)),
+      };
+    })
+    .filter(Boolean);
+
+const perpendicularDistance = (point, start, end) => {
+  if (!point || !start || !end) return 0;
+
+  if (start.latitude === end.latitude && start.longitude === end.longitude) {
+    const dx = point.latitude - start.latitude;
+    const dy = point.longitude - start.longitude;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const numerator = Math.abs(
+    (end.longitude - start.longitude) * (start.latitude - point.latitude) -
+      (start.longitude - point.longitude) * (end.latitude - start.latitude)
+  );
+  const denominator = Math.sqrt(
+    (end.longitude - start.longitude) ** 2 + (end.latitude - start.latitude) ** 2
+  );
+
+  return denominator > 0 ? numerator / denominator : 0;
+};
+
+const douglasPeucker = (points, tolerance) => {
+  if (points.length <= 2) return points;
+
+  let maxDistance = 0;
+  let splitIndex = 0;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistance(
+      points[index],
+      points[0],
+      points[points.length - 1]
+    );
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      splitIndex = index;
+    }
+  }
+
+  if (maxDistance <= tolerance) {
+    return [points[0], points[points.length - 1]];
+  }
+
+  const left = douglasPeucker(points.slice(0, splitIndex + 1), tolerance);
+  const right = douglasPeucker(points.slice(splitIndex), tolerance);
+  return [...left.slice(0, -1), ...right];
+};
+
+const capRouteGeometry = (points, maxPoints) => {
+  if (points.length <= maxPoints) return points;
+
+  const capped = [points[0]];
+  const step = (points.length - 1) / (maxPoints - 1);
+
+  for (let index = 1; index < maxPoints - 1; index += 1) {
+    const sourceIndex = Math.round(index * step);
+    const point = points[sourceIndex];
+    if (!point) continue;
+
+    const previous = capped[capped.length - 1];
+    if (
+      previous?.latitude === point.latitude &&
+      previous?.longitude === point.longitude
+    ) {
+      continue;
+    }
+
+    capped.push(point);
+  }
+
+  const lastPoint = points[points.length - 1];
+  const previous = capped[capped.length - 1];
+  if (
+    !previous ||
+    previous.latitude !== lastPoint.latitude ||
+    previous.longitude !== lastPoint.longitude
+  ) {
+    capped.push(lastPoint);
+  }
+
+  return capped;
+};
+
+const reduceRouteGeometry = (points, options = {}) => {
+  const normalized = normalizeRouteGeometry(points);
+  if (normalized.length <= 2) return normalized;
+
+  const tolerance = Number.isFinite(options.tolerance) ? options.tolerance : 0.00018;
+  const maxPoints = Number.isFinite(options.maxPoints) ? options.maxPoints : 160;
+  const simplified = douglasPeucker(normalized, tolerance);
+  return capRouteGeometry(simplified, maxPoints);
+};
+
+const getStopEstablishmentId = item =>
+  item?.business_establishment_id ??
+  item?.businessEstablishment_id ??
+  item?.establishment?.businessEstablishment_id ??
+  item?.establishment?.business_establishment_id ??
+  item?.id ??
+  null;
+
+const hasSameStopOrder = (left = [], right = []) => {
+  if (left.length !== right.length) return false;
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (String(getStopEstablishmentId(left[index])) !== String(getStopEstablishmentId(right[index]))) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const reorderPlanFromPreview = (currentPlan = [], orderedStops = []) => {
+  if (!Array.isArray(currentPlan) || !currentPlan.length) return currentPlan;
+  if (!Array.isArray(orderedStops) || !orderedStops.length) return currentPlan;
+
+  const planById = new Map(
+    currentPlan.map(item => [String(getStopEstablishmentId(item)), item])
+  );
+  const usedIds = new Set();
+  const reordered = [];
+
+  orderedStops.forEach((stop, index) => {
+    const stopId = getStopEstablishmentId(stop);
+    if (!stopId) return;
+
+    const existing = planById.get(String(stopId));
+    if (!existing) return;
+
+    usedIds.add(String(stopId));
+    reordered.push({
+      ...existing,
+      preferredOrder: index,
+    });
+  });
+
+  currentPlan.forEach(item => {
+    const stopId = getStopEstablishmentId(item);
+    if (!stopId || usedIds.has(String(stopId))) return;
+    reordered.push({
+      ...item,
+      preferredOrder: reordered.length,
+    });
+  });
+
+  return reordered.length ? reordered : currentPlan;
+};
+
+const getRouteMetric = (option, key, fallback = Number.POSITIVE_INFINITY) => {
+  const value = Number(option?.summary?.[key]);
+  return Number.isFinite(value) ? value : fallback;
+};
+
+const describeRouteOptions = (options = []) => {
+  if (!options.length) return [];
+
+  const minDuration = Math.min(...options.map(option => getRouteMetric(option, 'duration_minutes')));
+  const minDistance = Math.min(...options.map(option => getRouteMetric(option, 'distance_km')));
+  const minTraffic = Math.min(...options.map(option => getRouteMetric(option, 'traffic_penalty')));
+  const minWeather = Math.min(...options.map(option => getRouteMetric(option, 'weather_penalty')));
+  const maxEfficiency = Math.max(
+    ...options.map(option => getRouteMetric(option, 'efficiency_score', Number.NEGATIVE_INFINITY))
+  );
+
+  return options.map((option, index) => {
+    const duration = getRouteMetric(option, 'duration_minutes');
+    const distance = getRouteMetric(option, 'distance_km');
+    const traffic = getRouteMetric(option, 'traffic_penalty');
+    const weather = getRouteMetric(option, 'weather_penalty');
+    const efficiency = getRouteMetric(option, 'efficiency_score', Number.NEGATIVE_INFINITY);
+    const source = option?.source ?? option?.summary?.optimization_method ?? null;
+
+    let label = option?.label ?? `Route ${index + 1}`;
+    let advantage = 'Best when you want a reliable overall route.';
+
+    if (index === 0) {
+      label = 'Best overall route';
+      advantage = 'Best when you want the most balanced route overall.';
+    } else if (duration === minDuration) {
+      label = 'Fastest route';
+      advantage = 'Best when you want the shortest travel time.';
+    } else if (distance === minDistance) {
+      label = 'Shortest route';
+      advantage = 'Best when you want fewer kilometers on the road.';
+    } else if (traffic === minTraffic) {
+      label = 'Low-traffic route';
+      advantage = 'Best when you want smoother road conditions.';
+    } else if (weather === minWeather) {
+      label = 'Weather-safer route';
+      advantage = 'Best when you want lower weather impact.';
+    } else if (efficiency === maxEfficiency) {
+      label = 'Efficient route';
+      advantage = 'Best when you want strong distance-to-time efficiency.';
+    } else if (source === 'aco_variant') {
+      label = 'Alternate stop order';
+      advantage = 'Best when you want a different destination sequence.';
+    } else if (source === 'road_variant') {
+      label = 'Alternate road path';
+      advantage = 'Best when you want a different road alignment.';
+    }
+
+    return {
+      ...option,
+      label,
+      advantage,
+    };
+  });
+};
+
 export default function ItineraryPlanner() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -102,6 +324,7 @@ export default function ItineraryPlanner() {
   const [isLocating, setIsLocating] = useState(true);
 
   const mapRef = useRef(null);
+  const skipAutoOptimizeRef = useRef(false);
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [activeStop, setActiveStop] = useState(null);
@@ -511,6 +734,29 @@ export default function ItineraryPlanner() {
     }
   };
 
+  const selectRouteOption = option => {
+    if (!option) return;
+
+    setSelectedRouteKey(option.key);
+    setRouteSummary(option.summary ?? null);
+    setRoadPolyline(Array.isArray(option.route_geometry) ? option.route_geometry : []);
+
+    if (Array.isArray(option.route_geometry) && option.route_geometry.length > 1 && mapRef.current) {
+      mapRef.current.fitToCoordinates(option.route_geometry, {
+        edgePadding: { top: 64, right: 64, bottom: 64, left: 64 },
+        animated: true,
+      });
+    }
+
+    if (Array.isArray(option.orderedStops) && option.orderedStops.length) {
+      const reorderedPlan = reorderPlanFromPreview(sortedPlan, option.orderedStops);
+      if (!hasSameStopOrder(sortedPlan, reorderedPlan)) {
+        skipAutoOptimizeRef.current = true;
+        setPlan(reorderedPlan);
+      }
+    }
+  };
+
 
   useEffect(() => {
     const consumePending = async () => {
@@ -585,6 +831,8 @@ export default function ItineraryPlanner() {
       return;
     }
 
+    const savedRouteGeometry = reduceRouteGeometry(roadPolyline);
+
     setSaving(true);
     try {
       const response = await saveItinerary({
@@ -592,13 +840,25 @@ export default function ItineraryPlanner() {
         start_date: formatISODate(startDate),
         end_date: formatISODate(endDate),
         total_budget: Number(budget) || null,
-        stops: sortedPlan.map((item, index) => ({
+        // Previous save payload only stored stop ids.
+        // stops: sortedPlan.map((item, index) => ({
+        //   order: index + 1,
+        //   business_establishment_id:
+        //     item.business_establishment_id ??
+        //     item.businessEstablishment_id ??
+        //     item.establishment?.business_establishment_id,
+        // })),
+        stops: serializableStops.map((stop, index) => ({
           order: index + 1,
-          business_establishment_id:
-            item.business_establishment_id ??
-            item.businessEstablishment_id ??
-            item.establishment?.business_establishment_id,
+          business_establishment_id: stop.id,
+          title: stop.title,
+          municipality: stop.municipality,
+          latitude: stop.latitude,
+          longitude: stop.longitude,
         })),
+        route_geometry: savedRouteGeometry,
+        summary: routeSummary,
+        origin: userLocation,
       });
 
       loadSaved(); // refresh “Saved itineraries”
@@ -609,7 +869,7 @@ export default function ItineraryPlanner() {
           start_date: formatISODate(startDate),
           end_date: formatISODate(endDate),
           stops: serializableStops,
-          route: roadPolyline,
+          route: savedRouteGeometry,
           summary: routeSummary,
           origin: userLocation,
         })
@@ -666,12 +926,27 @@ export default function ItineraryPlanner() {
               est.businessEstablishment_id,
             latitude,
             longitude,
+            rating_avg: est.rating_avg ?? item.rating ?? null,
+            rating_count: est.rating_count ?? item.rating_count ?? 0,
           };
         }),
-        manual_order: true,
+        // Previous preview request forced the submitted order.
+        // manual_order: true,
+        manual_order: false,
+        use_aco: true,
       };
 
       const result = await optimizeRoute(payload);
+      const previewOrderedStops = Array.isArray(result?.orderedStops)
+        ? result.orderedStops
+        : Array.isArray(result?.ordered_stops)
+        ? result.ordered_stops
+        : [];
+
+      const reorderedPlan = reorderPlanFromPreview(sortedPlan, previewOrderedStops);
+      if (!hasSameStopOrder(sortedPlan, reorderedPlan)) {
+        setPlan(reorderedPlan);
+      }
 
       let resolvedBestGeometry =
         Array.isArray(result?.route_geometry) ? result.route_geometry : [];
@@ -684,6 +959,12 @@ export default function ItineraryPlanner() {
           efficiency_score: 0,
           final_score: 0,
         };
+      resolvedSummary = {
+        ...resolvedSummary,
+        optimization_method:
+          result?.optimization?.selected_source ?? result?.optimization?.method ?? null,
+        aco_weighted_cost: previewOrderedStops[0]?.aco_weighted_cost ?? null,
+      };
 
       if (resolvedBestGeometry.length <= 1 && sortedPlan.length === 1) {
         const onlyStop = sortedPlan[0];
@@ -703,19 +984,29 @@ export default function ItineraryPlanner() {
           label: 'Best route',
           route_geometry: resolvedBestGeometry,
           summary: resolvedSummary,
+          orderedStops: previewOrderedStops.length ? previewOrderedStops : sortedPlan,
+          source: result?.optimization?.selected_source ?? result?.optimization?.method ?? 'aco',
         },
         ...((Array.isArray(result?.alternate_routes) ? result.alternate_routes : []).map(
           (route, index) => ({
             key: `alt-${index + 1}`,
             label: `Option ${index + 1}`,
             route_geometry: Array.isArray(route?.route_geometry) ? route.route_geometry : [],
-            summary: route?.summary ?? null,
+            summary: route?.summary
+              ? {
+                  ...route.summary,
+                  optimization_method: route?.source ?? null,
+                }
+              : null,
+            orderedStops: Array.isArray(route?.ordered_stops) ? route.ordered_stops : previewOrderedStops,
+            source: route?.source ?? route?.summary?.optimization_method ?? null,
           })
         )),
       ];
+      const describedRouteOptions = describeRouteOptions(routeOptions);
 
-      setAlternates(routeOptions);
-      setSelectedRouteKey(routeOptions[0]?.key ?? 'best');
+      setAlternates(describedRouteOptions);
+      setSelectedRouteKey(describedRouteOptions[0]?.key ?? 'best');
       setRouteSummary(resolvedSummary);
 
       if (Array.isArray(resolvedBestGeometry) && resolvedBestGeometry.length > 1) {
@@ -744,6 +1035,11 @@ export default function ItineraryPlanner() {
   };
 
   useEffect(() => {
+    if (skipAutoOptimizeRef.current) {
+      skipAutoOptimizeRef.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       computeRouteOptions({ silent: true });
     }, 350);
@@ -929,17 +1225,7 @@ export default function ItineraryPlanner() {
                       lineCap="round"
                       lineJoin="round"
                       tappable
-                      onPress={() => {
-                        setSelectedRouteKey(option.key);
-                        setRouteSummary(option.summary ?? null);
-                        setRoadPolyline(option.route_geometry);
-                        if (mapRef.current) {
-                          mapRef.current.fitToCoordinates(option.route_geometry, {
-                            edgePadding: { top: 64, right: 64, bottom: 64, left: 64 },
-                            animated: true,
-                          });
-                        }
-                      }}
+                      onPress={() => selectRouteOption(option)}
                     />
                   );
                 })
@@ -1044,7 +1330,9 @@ export default function ItineraryPlanner() {
             {alternates.length > 0 ? (
               <View style={styles.routeOptionsWrap}>
                 <Text style={styles.routeOptionsLabel}>Route options</Text>
-                <Text style={styles.routeOptionsHint}>Tap a route line on the map to select your preferred path.</Text>
+                <Text style={styles.routeOptionsHint}>
+                  Tap a route line on the map or choose one of the route cards below.
+                </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -1056,8 +1344,10 @@ export default function ItineraryPlanner() {
                       (!selectedRouteKey && index === 0);
                     const routeColor = routeOptionPalette[index % routeOptionPalette.length];
                     return (
-                      <View
+                      <TouchableOpacity
                         key={option.key}
+                        activeOpacity={0.88}
+                        onPress={() => selectRouteOption(option)}
                         style={[styles.routeOptionChip, isActive && styles.routeOptionChipActive]}
                       >
                         <View style={styles.routeOptionTitleRow}>
@@ -1080,7 +1370,15 @@ export default function ItineraryPlanner() {
                           {formatDuration(option?.summary?.duration_minutes)} ·{' '}
                           {formatDistance(option?.summary?.distance_km)}
                         </Text>
-                      </View>
+                        <Text
+                          style={[
+                            styles.routeOptionAdvantage,
+                            isActive && styles.routeOptionAdvantageActive,
+                          ]}
+                        >
+                          {option.advantage}
+                        </Text>
+                      </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
@@ -1435,6 +1733,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   routeOptionMetaActive: { color: colors.primaryDark },
+  routeOptionAdvantage: {
+    marginTop: spacing(0.35),
+    fontFamily: 'Inter_400Regular',
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  routeOptionAdvantageActive: {
+    color: colors.primaryDark,
+  },
   timelineCard: {
     borderRadius: radii.md,
     borderWidth: 1,

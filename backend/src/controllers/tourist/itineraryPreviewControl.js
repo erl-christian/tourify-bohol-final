@@ -1,6 +1,7 @@
 import axios from "axios";
 import polyline from "@mapbox/polyline";
 import TouristProfile from "../../models/tourist/TouristProfile.js";
+import optimizeRouteOrderWithAco from "../../services/acoRouteOptimizer.js";
 const OPENWEATHER_ENDPOINT = "https://api.openweathermap.org/data/2.5/weather";
 const OPENWEATHER_KEY = process.env.OPENWEATHER_API_KEY || "";
 const weatherCache = new Map();
@@ -360,6 +361,80 @@ const buildVariants = legCandidates => {
   }));
 };
 
+const EMPTY_SUMMARY = {
+  distance_km: null,
+  duration_minutes: null,
+  traffic_penalty: null,
+  weather_penalty: null,
+  efficiency_score: null,
+  final_score: null,
+};
+
+const buildSummary = (route) =>
+  route
+    ? {
+        distance_km: route.distance_km,
+        duration_minutes: route.duration_minutes,
+        traffic_penalty: route.traffic_penalty,
+        weather_penalty: route.weather_penalty,
+        efficiency_score: route.efficiency_score,
+        final_score: route.final_score,
+      }
+    : { ...EMPTY_SUMMARY };
+
+const createPointKey = (point) =>
+  `${Number(point.latitude).toFixed(6)},${Number(point.longitude).toFixed(6)}`;
+
+const createLegCacheKey = (from, to) => `${createPointKey(from)}=>${createPointKey(to)}`;
+
+const fetchLegCandidatesCached = async (cache, from, to) => {
+  const key = createLegCacheKey(from, to);
+  if (!cache.has(key)) {
+    cache.set(key, fetchLegCandidates(from, to));
+  }
+  return cache.get(key);
+};
+
+const evaluateOrderedRoute = async ({
+  orderedStops,
+  originPoint,
+  legCandidateCache,
+}) => {
+  const routePoints = originPoint ? [originPoint, ...orderedStops] : orderedStops;
+
+  if (routePoints.length < 2) {
+    return {
+      orderedStops,
+      summary: {
+        distance_km: 0,
+        duration_minutes: 0,
+        traffic_penalty: 0,
+        weather_penalty: 0,
+        efficiency_score: 0,
+        final_score: 0,
+      },
+      route_geometry: [],
+      variants: [],
+    };
+  }
+
+  const legCandidates = await Promise.all(
+    routePoints.slice(0, -1).map((point, index) =>
+      fetchLegCandidatesCached(legCandidateCache, point, routePoints[index + 1])
+    )
+  );
+
+  const variants = buildVariants(legCandidates);
+  const best = variants[0] ?? null;
+
+  return {
+    orderedStops,
+    summary: buildSummary(best),
+    route_geometry: best?.route_geometry ?? [],
+    variants,
+  };
+};
+
 export const previewItinerary = async (req, res, next) => {
   try {
     const accountId = req.user?.account_id;
@@ -376,22 +451,16 @@ export const previewItinerary = async (req, res, next) => {
       throw err;
     }
 
-    const { stops = [], origin } = req.body;
+    const { stops = [], origin, manual_order, use_aco } = req.body;
     if (!Array.isArray(stops) || !stops.length) {
       return res.json({
         orderedStops: [],
         ordered_stops: [],
-        summary: {
-          distance_km: null,
-          duration_minutes: null,
-          traffic_penalty: null,
-          weather_penalty: null,
-          efficiency_score: null,
-          final_score: null,
-        },
+        summary: { ...EMPTY_SUMMARY },
         route_geometry: [],
         alternate_routes: [],
         origin: null,
+        optimization: null,
       });
     }
 
@@ -423,17 +492,50 @@ export const previewItinerary = async (req, res, next) => {
           }
         : null;
 
-    // Preserve stop sequence from the tourist's selected order.
-    const orderedStops = normalizedStops.map((stop, index) => ({
-      ...stop,
-      order: index,
-    }));
+    // Previous behavior preserved the tourist's submitted stop sequence.
+    // const orderedStops = normalizedStops.map((stop, index) => ({
+    //   ...stop,
+    //   order: index,
+    // }));
+    const shouldUseAco =
+      use_aco === true || (use_aco !== false && manual_order !== true);
 
-    const routePoints = originPoint ? [originPoint, ...orderedStops] : orderedStops;
-    if (routePoints.length < 2) {
+    const acoResult =
+      shouldUseAco && normalizedStops.length > 1
+        ? optimizeRouteOrderWithAco({
+            origin: originPoint,
+            stops: normalizedStops,
+          })
+        : {
+            orderedStops: normalizedStops.map((stop, index) => ({
+              ...stop,
+              order: index,
+            })),
+            alternates: [],
+            meta: {
+              method: "manual_order",
+              ants: 0,
+              iterations: 0,
+              route_count: 1,
+            },
+          };
+
+    const candidateOrders = [
+      acoResult.orderedStops,
+      ...acoResult.alternates.map((item) => item.orderedStops),
+    ]
+      .filter((candidate) => Array.isArray(candidate) && candidate.length)
+      .map((candidate) =>
+        candidate.map((stop, index) => ({
+          ...stop,
+          order: index,
+        }))
+      );
+
+    if (!candidateOrders.length) {
       return res.json({
-        orderedStops,
-        ordered_stops: orderedStops,
+        orderedStops: [],
+        ordered_stops: [],
         summary: {
           distance_km: 0,
           duration_minutes: 0,
@@ -445,55 +547,69 @@ export const previewItinerary = async (req, res, next) => {
         route_geometry: [],
         alternate_routes: [],
         origin: originPoint,
+        optimization: acoResult.meta,
       });
     }
 
-    const legPromises = [];
-    for (let i = 0; i < routePoints.length - 1; i += 1) {
-      legPromises.push(fetchLegCandidates(routePoints[i], routePoints[i + 1]));
-    }
-    const legCandidates = await Promise.all(legPromises);
+    const legCandidateCache = new Map();
+    const evaluatedRoutes = await Promise.all(
+      candidateOrders.map((orderedStops) =>
+        evaluateOrderedRoute({
+          orderedStops,
+          originPoint,
+          legCandidateCache,
+        })
+      )
+    );
 
-    const variants = buildVariants(legCandidates);
-    const best = variants[0] ?? null;
-    const alternates = variants.slice(1).map(route => ({
-      route_index: route.route_index,
+    const rankedRoutes = evaluatedRoutes.sort(
+      (a, b) => (a.summary.final_score ?? Number.POSITIVE_INFINITY) - (b.summary.final_score ?? Number.POSITIVE_INFINITY)
+    );
+
+    const bestRoute = rankedRoutes[0] ?? null;
+    const sameOrderAlternates =
+      bestRoute?.variants?.slice(1).map((route, index) => ({
+        route_index: index,
+        route_geometry: route.route_geometry,
+        summary: {
+          ...buildSummary(route),
+          optimization_method: "road_variant",
+          aco_weighted_cost: bestRoute?.orderedStops?.[0]?.aco_weighted_cost ?? null,
+        },
+        ordered_stops: bestRoute.orderedStops,
+        source: "road_variant",
+      })) ?? [];
+
+    const acoAlternates = rankedRoutes.slice(1).map((route, index) => ({
+      route_index: index + sameOrderAlternates.length,
       route_geometry: route.route_geometry,
       summary: {
-        distance_km: route.distance_km,
-        duration_minutes: route.duration_minutes,
-        traffic_penalty: route.traffic_penalty,
-        weather_penalty: route.weather_penalty,
-        efficiency_score: route.efficiency_score,
-        final_score: route.final_score,
+        ...route.summary,
+        optimization_method: "aco_variant",
+        aco_weighted_cost: route.orderedStops?.[0]?.aco_weighted_cost ?? null,
       },
+      ordered_stops: route.orderedStops,
+      source: "aco_variant",
     }));
 
-    const summary = best
-      ? {
-          distance_km: best.distance_km,
-          duration_minutes: best.duration_minutes,
-          traffic_penalty: best.traffic_penalty,
-          weather_penalty: best.weather_penalty,
-          efficiency_score: best.efficiency_score,
-          final_score: best.final_score,
-        }
-      : {
-          distance_km: null,
-          duration_minutes: null,
-          traffic_penalty: null,
-          weather_penalty: null,
-          efficiency_score: null,
-          final_score: null,
-        };
+    const alternates = [...acoAlternates, ...sameOrderAlternates].slice(0, 5);
+    const summary = {
+      ...(bestRoute?.summary ?? { ...EMPTY_SUMMARY }),
+      optimization_method: shouldUseAco ? "aco" : "manual_order",
+      aco_weighted_cost: bestRoute?.orderedStops?.[0]?.aco_weighted_cost ?? null,
+    };
 
     return res.json({
-      orderedStops,
-      ordered_stops: orderedStops,
+      orderedStops: bestRoute?.orderedStops ?? [],
+      ordered_stops: bestRoute?.orderedStops ?? [],
       summary,
-      route_geometry: best?.route_geometry ?? [],
+      route_geometry: bestRoute?.route_geometry ?? [],
       alternate_routes: alternates,
       origin: originPoint,
+      optimization: {
+        ...acoResult.meta,
+        selected_source: shouldUseAco ? "aco" : "manual_order",
+      },
     });
   } catch (err) {
     next(err);

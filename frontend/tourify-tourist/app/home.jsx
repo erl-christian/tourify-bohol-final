@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -11,7 +11,6 @@ import {
   Modal,
   Pressable,
   Image,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -81,6 +80,13 @@ const formatDateRange = (start, end) => {
   return startLabel && endLabel ? `${startLabel} - ${endLabel}` : startLabel || endLabel;
 };
 
+const BOHOL_OVERVIEW_REGION = {
+  latitude: 9.85,
+  longitude: 124.15,
+  latitudeDelta: 1.1,
+  longitudeDelta: 1.1,
+};
+
 const buildMapRegion = establishments => {
   const coords = (establishments ?? [])
     .map(item => ({
@@ -90,12 +96,7 @@ const buildMapRegion = establishments => {
     .filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
 
   if (!coords.length) {
-    return {
-      latitude: 9.85,
-      longitude: 124.15,
-      latitudeDelta: 1.1,
-      longitudeDelta: 1.1,
-    };
+    return BOHOL_OVERVIEW_REGION;
   }
 
   if (coords.length === 1) {
@@ -122,9 +123,20 @@ const buildMapRegion = establishments => {
   };
 };
 
+const canResumeItinerary = itinerary => {
+  const status = String(itinerary?.status ?? '').toLowerCase();
+  return (
+    ['planned', 'ongoing'].includes(status) &&
+    Array.isArray(itinerary?.stops) &&
+    itinerary.stops.length > 0 &&
+    Boolean(itinerary?.itinerary_id ?? itinerary?._id)
+  );
+};
+
 export default function Home() {
   const router = useRouter();
   const { account, profile, signOut } = useAuth();
+  const mapRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -154,6 +166,29 @@ export default function Home() {
   );
 
   const mapRegion = useMemo(() => buildMapRegion(mapEstablishments), [mapEstablishments]);
+  const availableQuickActions = useMemo(
+    () =>
+      canResumeItinerary(itinerary)
+        ? [{ id: 'continue-itinerary', label: 'Continue Itinerary', icon: 'navigate' }, ...quickActions]
+        : quickActions,
+    [itinerary]
+  );
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.animateToRegion(mapRegion, 600);
+  }, [mapRegion]);
+
+  const handleContinueItinerary = () => {
+    if (!canResumeItinerary(itinerary)) return;
+
+    router.push({
+      pathname: '/itinerary/live',
+      params: {
+        data: encodeURIComponent(JSON.stringify(itinerary)),
+      },
+    });
+  };
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -233,9 +268,11 @@ export default function Home() {
         getTouristItineraries(),
         getMyFeedback(),
       ]);
+      const resumableItinerary =
+        (itineraries ?? []).find(item => canResumeItinerary(item)) ?? null;
 
       setRecommendations(withMeta);
-      setItinerary(itineraries?.[0] ?? null);
+      setItinerary(resumableItinerary);
       setFeedback((myFeedback ?? []).slice(0, 3));
     } catch (err) {
       console.error(err);
@@ -297,13 +334,15 @@ export default function Home() {
               subtitle="Manage your travel essentials quickly."
             />
             <View style={styles.actionsRow}>
-              {quickActions.map(action => (
+              {availableQuickActions.map(action => (
                 <QuickAction
                   key={action.id}
                   icon={action.icon}
                   label={action.label}
                   onPress={() => {
-                    if (action.id === 'explore') {
+                    if (action.id === 'continue-itinerary') {
+                      handleContinueItinerary();
+                    } else if (action.id === 'explore') {
                       router.push('/explore');
                     } else if (action.id === 'destinations'){
                       const featured = recommendations[0];
@@ -341,9 +380,13 @@ export default function Home() {
             />
             <View style={styles.mapCard}>
               <MapView
+                ref={mapRef}
                 style={styles.overviewMap}
-                initialRegion={mapRegion}
-                liteMode={Platform.OS === 'android'}
+                initialRegion={BOHOL_OVERVIEW_REGION}
+                scrollEnabled
+                zoomEnabled
+                rotateEnabled={false}
+                pitchEnabled={false}
               >
                 {mapEstablishments.map(item => (
                   <Marker

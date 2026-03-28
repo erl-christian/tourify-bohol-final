@@ -47,6 +47,12 @@ const itinerarySchema = new mongoose.Schema(
     summary: {
       distance_km: { type: Number, default: null },
       duration_minutes: { type: Number, default: null },
+      traffic_penalty: { type: Number, default: null },
+      weather_penalty: { type: Number, default: null },
+      efficiency_score: { type: Number, default: null },
+      final_score: { type: Number, default: null },
+      optimization_method: { type: String, default: null },
+      aco_weighted_cost: { type: Number, default: null },
     },
     origin: {
       latitude: { type: Number },

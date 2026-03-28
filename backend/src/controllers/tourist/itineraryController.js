@@ -2,6 +2,105 @@ import Itinerary from "../../models/tourist/Itinerary.js";
 import TouristProfile from "../../models/tourist/TouristProfile.js";
 import BusinessEstablishment from "../../models/businessEstablishmentModels/BusinessEstablishment.js";
 
+const perpendicularDistance = (point, start, end) => {
+  if (!point || !start || !end) return 0;
+
+  if (start.latitude === end.latitude && start.longitude === end.longitude) {
+    const dx = point.latitude - start.latitude;
+    const dy = point.longitude - start.longitude;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const numerator = Math.abs(
+    (end.longitude - start.longitude) * (start.latitude - point.latitude) -
+      (start.longitude - point.longitude) * (end.latitude - start.latitude)
+  );
+  const denominator = Math.sqrt(
+    (end.longitude - start.longitude) ** 2 + (end.latitude - start.latitude) ** 2
+  );
+
+  return denominator > 0 ? numerator / denominator : 0;
+};
+
+const douglasPeucker = (points, tolerance) => {
+  if (points.length <= 2) return points;
+
+  let maxDistance = 0;
+  let splitIndex = 0;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistance(
+      points[index],
+      points[0],
+      points[points.length - 1]
+    );
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      splitIndex = index;
+    }
+  }
+
+  if (maxDistance <= tolerance) {
+    return [points[0], points[points.length - 1]];
+  }
+
+  const left = douglasPeucker(points.slice(0, splitIndex + 1), tolerance);
+  const right = douglasPeucker(points.slice(splitIndex), tolerance);
+  return [...left.slice(0, -1), ...right];
+};
+
+const capRouteGeometry = (points, maxPoints) => {
+  if (points.length <= maxPoints) return points;
+
+  const capped = [points[0]];
+  const step = (points.length - 1) / (maxPoints - 1);
+
+  for (let index = 1; index < maxPoints - 1; index += 1) {
+    const sourceIndex = Math.round(index * step);
+    const point = points[sourceIndex];
+    if (!point) continue;
+
+    const previous = capped[capped.length - 1];
+    if (
+      previous?.latitude === point.latitude &&
+      previous?.longitude === point.longitude
+    ) {
+      continue;
+    }
+
+    capped.push(point);
+  }
+
+  const lastPoint = points[points.length - 1];
+  const previous = capped[capped.length - 1];
+  if (
+    !previous ||
+    previous.latitude !== lastPoint.latitude ||
+    previous.longitude !== lastPoint.longitude
+  ) {
+    capped.push(lastPoint);
+  }
+
+  return capped;
+};
+
+const reduceRouteGeometry = (points) => {
+  const normalized = (Array.isArray(points) ? points : [])
+    .map(point => {
+      if (!Number.isFinite(point?.latitude) || !Number.isFinite(point?.longitude)) return null;
+      return {
+        latitude: Number(Number(point.latitude).toFixed(5)),
+        longitude: Number(Number(point.longitude).toFixed(5)),
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length <= 2) return normalized;
+
+  const simplified = douglasPeucker(normalized, 0.00018);
+  return capRouteGeometry(simplified, 160);
+};
+
 // POST /api/tourist/itineraries
 export const createItinerary = async (req, res, next) => {
   try {
@@ -41,17 +140,7 @@ export const createItinerary = async (req, res, next) => {
       .filter(Boolean)
       .sort((a, b) => a.order - b.order);
 
-    const normalizedRoute = Array.isArray(route_geometry)
-      ? route_geometry
-          .map(point => {
-            if (!Number.isFinite(point?.latitude) || !Number.isFinite(point?.longitude)) return null;
-            return {
-              latitude: Number(point.latitude),
-              longitude: Number(point.longitude),
-            };
-          })
-          .filter(Boolean)
-      : [];
+    const normalizedRoute = reduceRouteGeometry(route_geometry);
 
     const itinerary = await Itinerary.create({
       tourist_profile_id: tourist.tourist_profile_id,
