@@ -1,6 +1,5 @@
 import {
   FaHome,
-  FaChartLine,
   FaCommentDots,
   FaUserCog,
 } from 'react-icons/fa';
@@ -14,12 +13,6 @@ export const buildEstablishmentNavSections = estId => [
         label: 'Dashboard',
         icon: FaHome,
         path: `/establishment/${estId}/dashboard`,
-      },
-      {
-        id: 'est-analytics',
-        label: 'Analytics',
-        icon: FaChartLine,
-        path: `/establishment/${estId}/analytics`,
       },
       {
         id: 'est-feedback',

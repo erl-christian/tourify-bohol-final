@@ -40,12 +40,10 @@ const loadAllOwnerEstablishments = async () => {
   while (true) {
     const { data } = await fetchOwnerEstablishments({ page, limit });
     const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-
     if (!items.length) break;
 
     all.push(...items);
     total = Number(data?.total ?? all.length);
-
     if (all.length >= total) break;
     page += 1;
   }
@@ -59,8 +57,7 @@ const loadAllOwnerEstablishments = async () => {
   return Array.from(unique.values());
 };
 
-
-function OwnerAnalytics() {
+function OwnerAnalytics({ embedded = false }) {
   const [establishments, setEstablishments] = useState([]);
   const [selectedEst, setSelectedEst] = useState('all');
   const [state, setState] = useState({
@@ -76,14 +73,12 @@ function OwnerAnalytics() {
 
         const list = await loadAllOwnerEstablishments();
         if (!list.length) throw new Error('No establishments found for this account.');
-
         setEstablishments(list);
 
         const analytics = await Promise.all(
           list.map(async est => {
             const id = getEstablishmentId(est);
             if (!id) return null;
-
             const name = est.name ?? est.establishment_name ?? id;
 
             try {
@@ -124,7 +119,6 @@ function OwnerAnalytics() {
 
         const normalized = analytics.filter(entry => entry?.id);
         const aggregateEntry = aggregateAnalytics(normalized);
-
         setState({
           loading: false,
           error: '',
@@ -151,13 +145,10 @@ function OwnerAnalytics() {
     return state.analytics.filter(entry => entry.id === selectedEst);
   }, [selectedEst, state.analytics]);
 
-  return (
-    <OwnerLayout
-      title="Performance analytics"
-      subtitle="Monitor star ratings, review volume, visitor check-ins, and tag insights per establishment."
-    >
+  const analyticsContent = (
+    <>
       {state.error ? <p className="error-text">{state.error}</p> : null}
-      {state.loading ? <p className="muted">Loading analytics…</p> : null}
+      {state.loading ? <p className="muted">Loading analytics...</p> : null}
 
       {!state.loading && !state.error ? (
         <>
@@ -198,8 +189,18 @@ function OwnerAnalytics() {
                       <LineChart data={entry.ratingTrend}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" />
-                        <YAxis domain={[0, 5]} width={56} tickFormatter={value => Number(value).toFixed(1)}/>
-                        <Tooltip formatter={(value, name) => (name === 'rating' ? [Number(value).toFixed(2), 'rating'] : [value, name])} />
+                        <YAxis
+                          domain={[0, 5]}
+                          width={56}
+                          tickFormatter={value => Number(value).toFixed(1)}
+                        />
+                        <Tooltip
+                          formatter={(value, name) =>
+                            name === 'rating'
+                              ? [Number(value).toFixed(2), 'rating']
+                              : [value, name]
+                          }
+                        />
                         <Line type="monotone" dataKey="rating" stroke="#f2994a" strokeWidth={3} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -224,7 +225,7 @@ function OwnerAnalytics() {
                   <article className="analytics-card span-4">
                     <header>
                       <h3>Visitor Check-ins</h3>
-                      <p>QR scans vs. manual captures per month.</p>
+                      <p>QR scans vs manual captures per month.</p>
                     </header>
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={entry.checkins}>
@@ -268,24 +269,6 @@ function OwnerAnalytics() {
 
                   <article className="analytics-card span-2">
                     <header>
-                      <h3>Top Tags</h3>
-                      <p>Most-used establishment tags ranked by visitor check-ins.</p>
-                    </header>
-
-                    {entry.tags.length ? (
-                      <ol className="owner-tag-list">
-                        {entry.tags.map(tag => (
-                          <li key={tag.tag}>
-                            <strong>{tag.tag}</strong> • {tag.visits} visits
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <p className="muted">No tags recorded for this establishment.</p>
-                    )}
-                  </article>
-                  <article className="analytics-card span-2">
-                    <header>
                       <h3>Visitor nationalities</h3>
                       <p>Top nationalities of visitors (unique tourists).</p>
                     </header>
@@ -301,7 +284,10 @@ function OwnerAnalytics() {
                             label
                           >
                             {entry.nationalities.map((item, index) => (
-                              <Cell key={`${item.nationality}-${index}`} fill={pieColors[index % pieColors.length]} />
+                              <Cell
+                                key={`${item.nationality}-${index}`}
+                                fill={pieColors[index % pieColors.length]}
+                              />
                             ))}
                           </Pie>
                           <Tooltip />
@@ -313,12 +299,40 @@ function OwnerAnalytics() {
                     )}
                   </article>
 
+                  <article className="analytics-card span-4">
+                    <header>
+                      <h3>Top Tags</h3>
+                      <p>Most-used establishment tags ranked by visitor check-ins.</p>
+                    </header>
+                    {entry.tags.length ? (
+                      <ol className="owner-tag-list">
+                        {entry.tags.map(tag => (
+                          <li key={tag.tag}>
+                            <strong>{tag.tag}</strong> - {tag.visits} visits
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="muted">No tags recorded for this establishment.</p>
+                    )}
+                  </article>
                 </div>
               </section>
             ))
           )}
         </>
       ) : null}
+    </>
+  );
+
+  if (embedded) return analyticsContent;
+
+  return (
+    <OwnerLayout
+      title="Performance analytics"
+      subtitle="Monitor star ratings, review volume, visitor check-ins, and tag insights per establishment."
+    >
+      {analyticsContent}
     </OwnerLayout>
   );
 }
@@ -379,7 +393,6 @@ function aggregateAnalytics(entries) {
 
   const mergedRating = (() => {
     const monthMap = new Map();
-
     entries.forEach(item => {
       item.ratingTrend.forEach(point => {
         const rating = Number(point.rating);
@@ -390,7 +403,6 @@ function aggregateAnalytics(entries) {
           ratingSum: 0,
           ratingCount: 0,
         };
-
         existing.ratingSum += rating;
         existing.ratingCount += 1;
         monthMap.set(point.month, existing);
@@ -404,7 +416,6 @@ function aggregateAnalytics(entries) {
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
   })();
-
 
   return {
     id: 'all',

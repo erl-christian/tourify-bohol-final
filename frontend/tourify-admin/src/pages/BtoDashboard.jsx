@@ -40,6 +40,9 @@ const initialArrivalQrForm = {
   qrCodeId: '',
 };
 
+const ACCOUNT_PAGE_SIZE = 8;
+const ESTABLISHMENT_PAGE_SIZE = 8;
+
 const slugifyFilename = value =>
   String(value ?? '')
     .trim()
@@ -69,6 +72,8 @@ const statusToneMap = {
 
 function BtoDashboard() {
   const [activeTab, setActiveTab] = useState('all');
+  const [accountPage, setAccountPage] = useState(1);
+  const [establishmentPage, setEstablishmentPage] = useState(1);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [adminForm, setAdminForm] = useState(initialAdminForm);
 
@@ -216,14 +221,45 @@ function BtoDashboard() {
       setLoadingEstablishments(true);
       setLoadingMunicipalities(true);
 
+      const loadAllEstablishments = async () => {
+        const limit = 100;
+        let page = 1;
+        let total = 0;
+        const allItems = [];
+
+        while (page <= 200) {
+          const { data } = await fetchAllEstablishments({ page, limit });
+          const pagedItems = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data)
+            ? data
+            : [];
+
+          allItems.push(...pagedItems);
+
+          if (!Array.isArray(data?.items)) {
+            break;
+          }
+
+          total = Number(data?.total) || allItems.length;
+          if (!pagedItems.length || allItems.length >= total) {
+            break;
+          }
+
+          page += 1;
+        }
+
+        return allItems;
+      };
+
       const [staffRes, establishmentsRes, muniRes] = await Promise.all([
         fetchAdminStaffProfiles(),
-        fetchAllEstablishments(),
+        loadAllEstablishments(),
         fetchMunicipalities(),
       ]);
 
       setStaff(staffRes.data?.staff || []);
-      setEstablishments(establishmentsRes.data?.items || establishmentsRes.data || []);
+      setEstablishments(establishmentsRes || []);
       setMunicipalities(normalizeMunicipalityPayload(muniRes?.data));
       setStaffError('');
       setEstablishmentsError('');
@@ -307,9 +343,89 @@ function BtoDashboard() {
     [accounts, activeTab],
   );
 
+  const accountTotalPages = Math.max(1, Math.ceil(filteredAccounts.length / ACCOUNT_PAGE_SIZE));
+  const safeAccountPage = Math.min(accountPage, accountTotalPages);
+  const pagedAccounts = useMemo(() => {
+    const start = (safeAccountPage - 1) * ACCOUNT_PAGE_SIZE;
+    return filteredAccounts.slice(start, start + ACCOUNT_PAGE_SIZE);
+  }, [filteredAccounts, safeAccountPage]);
+  const accountRangeStart = filteredAccounts.length
+    ? (safeAccountPage - 1) * ACCOUNT_PAGE_SIZE + 1
+    : 0;
+  const accountRangeEnd = filteredAccounts.length
+    ? Math.min(safeAccountPage * ACCOUNT_PAGE_SIZE, filteredAccounts.length)
+    : 0;
+
+  const establishmentTotalPages = Math.max(
+    1,
+    Math.ceil(establishmentRows.length / ESTABLISHMENT_PAGE_SIZE),
+  );
+  const safeEstablishmentPage = Math.min(establishmentPage, establishmentTotalPages);
+  const pagedEstablishments = useMemo(() => {
+    const start = (safeEstablishmentPage - 1) * ESTABLISHMENT_PAGE_SIZE;
+    return establishmentRows.slice(start, start + ESTABLISHMENT_PAGE_SIZE);
+  }, [establishmentRows, safeEstablishmentPage]);
+  const establishmentRangeStart = establishmentRows.length
+    ? (safeEstablishmentPage - 1) * ESTABLISHMENT_PAGE_SIZE + 1
+    : 0;
+  const establishmentRangeEnd = establishmentRows.length
+    ? Math.min(safeEstablishmentPage * ESTABLISHMENT_PAGE_SIZE, establishmentRows.length)
+    : 0;
+
+  useEffect(() => {
+    setAccountPage(1);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (accountPage > accountTotalPages) {
+      setAccountPage(accountTotalPages);
+    }
+  }, [accountPage, accountTotalPages]);
+
+  useEffect(() => {
+    if (establishmentPage > establishmentTotalPages) {
+      setEstablishmentPage(establishmentTotalPages);
+    }
+  }, [establishmentPage, establishmentTotalPages]);
+
   const activeTabMeta = accountTabs.find((tab) => tab.id === activeTab);
   const currentCount =
     activeTab === 'all' ? roleCounts.all : roleCounts[activeTab] || 0;
+
+  const dashboardHighlights = useMemo(() => {
+    const pendingEstablishments = establishmentRows.filter((item) =>
+      ['pending', 'needs_admin_review', 'needs_owner_revision'].includes(
+        String(item.status || '').toLowerCase(),
+      ),
+    ).length;
+
+    return [
+      {
+        id: 'accounts-total',
+        label: 'Total Accounts',
+        value: roleCounts.all || 0,
+        hint: 'All active provincial accounts',
+      },
+      {
+        id: 'lgu-admins',
+        label: 'LGU Admins',
+        value: roleCounts.lgu_admin || 0,
+        hint: 'Municipal tourism leads',
+      },
+      {
+        id: 'establishments-total',
+        label: 'Registered Establishments',
+        value: establishmentRows.length,
+        hint: 'Across all municipalities',
+      },
+      {
+        id: 'establishments-pending',
+        label: 'Pending Reviews',
+        value: pendingEstablishments,
+        hint: 'Needs follow-up action',
+      },
+    ];
+  }, [establishmentRows, roleCounts]);
 
   const resolveStatusTone = (status) =>
     statusToneMap[status] || statusToneMap[status?.toLowerCase()] || 'neutral';
@@ -387,171 +503,249 @@ function BtoDashboard() {
           <div className="header-avatar">{displayInitials}</div>
         </>
       }
-    >
-      <div className="bto-merged-content bto-merged-content--clean">
-        <section className="merged-analytics-block merged-analytics-block--clean">
-          <header className="merged-section-head">
-            <h2>Provincial Insights</h2>
-            <p>Tourism trends, visitor movement, and service sentiment in one view.</p>
-          </header>
-          <AdminAnalytics embedded />
-        </section>
-        <section className="merged-management-block">
-          <header className="merged-section-head">
-            <h2>Operations and Accounts</h2>
-            <p>Manage LGU accounts and monitor registered establishments.</p>
-          </header>
-
-          <div className="account-establishment-grid account-establishment-grid--clean">
-          <section className="account-management">
-          <div className="section-heading">
-            <h2>All Accounts</h2>
-            <p>
-              Showing {currentCount}{' '}
-              {activeTabMeta ? activeTabMeta.label.toLowerCase() : 'accounts'}. Use filters to focus on a specific role.
-            </p>
-          </div>
-
-          <div className="account-controls">
-            <div className="tab-group">
-              {accountTabs.map((tab) => (
-                <button
-                  type="button"
-                  key={tab.id}
-                  className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                  <span className="tab-count">
-                    {tab.id === 'all' ? roleCounts.all : roleCounts[tab.id] || 0}
-                  </span>
-                </button>
+      >
+        <div className="bto-merged-content bto-merged-content--clean">
+          <section className="bto-overview-strip">
+            <header className="merged-section-head bto-overview-head">
+              <h2>Dashboard Overview</h2>
+              <p>Quick access to operations and analytics in one clean workflow.</p>
+            </header>
+            <div className="bto-overview-actions">
+              <a href="#operations-accounts-section" className="ghost-cta bto-link-cta">
+                Go to Operations
+              </a>
+              <a href="#analytics-insights-section" className="primary-cta bto-link-cta">
+                Go to Analytics
+              </a>
+            </div>
+            <div className="bto-overview-grid">
+              {dashboardHighlights.map((item) => (
+                <article key={item.id} className="bto-overview-card">
+                  <p className="bto-overview-label">{item.label}</p>
+                  <h3>{item.value}</h3>
+                  <p className="bto-overview-hint">{item.hint}</p>
+                </article>
               ))}
             </div>
+          </section>
 
-            <div className="account-actions">
-              <button type="button" className="primary-cta" onClick={openCreateModal}>
-                Pre-register LGU Admin
-              </button>
-              <button type="button" className="ghost-cta">
-                Export CSV
-              </button>
-            </div>
-          </div>
+          <section id="operations-accounts-section" className="merged-management-block">
+            <header className="merged-section-head">
+              <h2>Operations and Accounts</h2>
+              <p>Manage LGU accounts and monitor registered establishments.</p>
+            </header>
 
-          <div className="table-shell scrollable-table">
-            <div className="table-head table-grid">
-              <span>Name</span>
-              <span>Municipality</span>
-              <span>Role</span>
-              <span>Status</span>
-              <span>Last Activity</span>
-            </div>
+            <div className="account-establishment-grid account-establishment-grid--clean">
+              <section className="account-management">
+                <div className="section-heading">
+                  <h2>All Accounts</h2>
+                  <p>
+                    Showing {currentCount}{' '}
+                    {activeTabMeta ? activeTabMeta.label.toLowerCase() : 'accounts'}. Use filters to
+                    focus on a specific role.
+                  </p>
+                </div>
 
-            <ul className="table-body">
-              {loadingStaff ? (
-                <li className="table-row table-grid">
-                  <div className="muted">Loading accounts…</div>
-                </li>
-              ) : staffError ? (
-                <li className="table-row table-grid">
-                  <div className="muted">{staffError}</div>
-                </li>
-              ) : filteredAccounts.length === 0 ? (
-                <li className="table-row table-grid">
-                  <div className="muted">No accounts found for this filter.</div>
-                </li>
-              ) : (
-                filteredAccounts.map((account) => (
-                  <li key={account.id} className="table-row table-grid">
-                    <div className="account-cell">
-                      <p className="account-name">{account.name}</p>
-                      <p className="account-email">{account.email}</p>
-                    </div>
-                    <div className="muted">{account.municipality}</div>
-                    <div>
-                      <span className="role-chip">{account.role}</span>
-                    </div>
-                    <div>
-                      <span className={`status-chip status-${resolveStatusTone(account.status)}`}>
-                        {account.status}
+                <div className="account-controls">
+                  <div className="tab-group">
+                    {accountTabs.map((tab) => (
+                      <button
+                        type="button"
+                        key={tab.id}
+                        className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+                        onClick={() => setActiveTab(tab.id)}
+                      >
+                        {tab.label}
+                        <span className="tab-count">
+                          {tab.id === 'all' ? roleCounts.all : roleCounts[tab.id] || 0}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="account-actions">
+                    <button type="button" className="primary-cta" onClick={openCreateModal}>
+                      Pre-register LGU Admin
+                    </button>
+                    <button type="button" className="ghost-cta">
+                      Export CSV
+                    </button>
+                  </div>
+                </div>
+
+                <div className="table-shell scrollable-table">
+                  <div className="table-head table-grid">
+                    <span>Name</span>
+                    <span>Municipality</span>
+                    <span>Role</span>
+                    <span>Status</span>
+                    <span>Last Activity</span>
+                  </div>
+
+                  <ul className="table-body">
+                    {loadingStaff ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">Loading accounts…</div>
+                      </li>
+                    ) : staffError ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">{staffError}</div>
+                      </li>
+                    ) : filteredAccounts.length === 0 ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">No accounts found for this filter.</div>
+                      </li>
+                    ) : (
+                      pagedAccounts.map((account) => (
+                        <li key={account.id} className="table-row table-grid">
+                          <div className="account-cell">
+                            <p className="account-name">{account.name}</p>
+                            <p className="account-email">{account.email}</p>
+                          </div>
+                          <div className="muted">{account.municipality}</div>
+                          <div>
+                            <span className="role-chip">{account.role}</span>
+                          </div>
+                          <div>
+                            <span className={`status-chip status-${resolveStatusTone(account.status)}`}>
+                              {account.status}
+                            </span>
+                          </div>
+                          <div className="muted">{account.lastSeen}</div>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+
+                  <div className="pagination-bar">
+                    <span className="pagination-info">
+                      Showing {accountRangeStart}-{accountRangeEnd} of {filteredAccounts.length}
+                    </span>
+                    <div className="pagination-controls">
+                      <button
+                        type="button"
+                        className="pagination-button"
+                        onClick={() => setAccountPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={safeAccountPage <= 1}
+                      >
+                        Prev
+                      </button>
+                      <span className="pagination-page">
+                        Page {safeAccountPage} of {accountTotalPages}
                       </span>
+                      <button
+                        type="button"
+                        className="pagination-button"
+                        onClick={() =>
+                          setAccountPage((prev) => Math.min(prev + 1, accountTotalPages))
+                        }
+                        disabled={safeAccountPage >= accountTotalPages}
+                      >
+                        Next
+                      </button>
                     </div>
-                    <div className="muted">{account.lastSeen}</div>
-                    {/* <div className="table-actions">
-                      {account.roleId === 'lgu_admin' && (
-                        <button
-                          type="button"
-                          className="table-action-button"
-                          onClick={() => openEditModal(account)}
-                        >
-                          Update
-                        </button>
-                      )}
-                    </div> */}
-                  </li>
-                  
-                ))
-              )}
-            </ul>
-          </div>
-        </section>
+                  </div>
+                </div>
+              </section>
 
-        <section className="establishments-section">
-          <div className="section-heading">
-            <h2>Registered Establishments</h2>
-            <p>Track verification and compliance requirements for all Bohol tourism operators.</p>
-          </div>
+              <section className="establishments-section">
+                <div className="section-heading">
+                  <h2>Registered Establishments</h2>
+                  <p>Track verification and compliance requirements for all Bohol tourism operators.</p>
+                </div>
 
-          <div className="table-shell scrollable-table">
-            <div className="table-head table-grid">
-              <span>Establishment</span>
-              <span>Municipality</span>
-              <span>Category</span>
-              <span>Status</span>
-              <span>Next Action</span>
-            </div>
+                <div className="table-shell scrollable-table">
+                  <div className="table-head table-grid">
+                    <span>Establishment</span>
+                    <span>Municipality</span>
+                    <span>Category</span>
+                    <span>Status</span>
+                    <span>Next Action</span>
+                  </div>
 
-            <ul className="table-body">
-              {loadingEstablishments ? (
-                <li className="table-row table-grid">
-                  <div className="muted">Loading establishments…</div>
-                </li>
-              ) : establishmentsError ? (
-                <li className="table-row table-grid">
-                  <div className="muted">{establishmentsError}</div>
-                </li>
-              ) : establishmentRows.length === 0 ? (
-                <li className="table-row table-grid">
-                  <div className="muted">No establishments found.</div>
-                </li>
-              ) : (
-                establishmentRows.map((item) => (
-                  <li key={item.id} className="table-row table-grid">
-                    <div className="account-cell">
-                      <p className="account-name">{item.name}</p>
-                      <p className="account-email">ID: {item.id}</p>
-                    </div>
-                    <div className="muted">{item.municipality}</div>
-                    <div>
-                      <span className="role-chip role-muted">{item.category}</span>
-                    </div>
-                    <div>
-                      <span className={`status-chip status-${resolveStatusTone(item.status)}`}>
-                        {item.status}
+                  <ul className="table-body">
+                    {loadingEstablishments ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">Loading establishments…</div>
+                      </li>
+                    ) : establishmentsError ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">{establishmentsError}</div>
+                      </li>
+                    ) : establishmentRows.length === 0 ? (
+                      <li className="table-row table-grid">
+                        <div className="muted">No establishments found.</div>
+                      </li>
+                    ) : (
+                      pagedEstablishments.map((item) => (
+                        <li key={item.id} className="table-row table-grid">
+                          <div className="account-cell">
+                            <p className="account-name">{item.name}</p>
+                            <p className="account-email">ID: {item.id}</p>
+                          </div>
+                          <div className="muted">{item.municipality}</div>
+                          <div>
+                            <span className="role-chip role-muted">{item.category}</span>
+                          </div>
+                          <div>
+                            <span className={`status-chip status-${resolveStatusTone(item.status)}`}>
+                              {item.status}
+                            </span>
+                          </div>
+                          <div className="muted">{item.nextAction}</div>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+
+                  <div className="pagination-bar">
+                    <span className="pagination-info">
+                      Showing {establishmentRangeStart}-{establishmentRangeEnd} of{' '}
+                      {establishmentRows.length}
+                    </span>
+                    <div className="pagination-controls">
+                      <button
+                        type="button"
+                        className="pagination-button"
+                        onClick={() => setEstablishmentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={safeEstablishmentPage <= 1}
+                      >
+                        Prev
+                      </button>
+                      <span className="pagination-page">
+                        Page {safeEstablishmentPage} of {establishmentTotalPages}
                       </span>
+                      <button
+                        type="button"
+                        className="pagination-button"
+                        onClick={() =>
+                          setEstablishmentPage((prev) =>
+                            Math.min(prev + 1, establishmentTotalPages),
+                          )
+                        }
+                        disabled={safeEstablishmentPage >= establishmentTotalPages}
+                      >
+                        Next
+                      </button>
                     </div>
-                    <div className="muted">{item.nextAction}</div>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        </section>
-      </div>
-    </section>
-    </div>
-      {isArrivalQrModalOpen && (
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            id="analytics-insights-section"
+            className="merged-analytics-block merged-analytics-block--clean"
+          >
+            <header className="merged-section-head">
+              <h2>Analytics Insights</h2>
+              <p>Tourism trends, visitor movement, and service sentiment in one view.</p>
+            </header>
+            <AdminAnalytics embedded />
+          </section>
+        </div>
+        {isArrivalQrModalOpen && (
         <div
           className="modal-backdrop"
           role="dialog"

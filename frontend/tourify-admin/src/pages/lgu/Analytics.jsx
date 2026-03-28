@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -45,38 +45,13 @@ import {
   normalizeMonthRange,
 } from '../../utils/exportDateRange';
 
-const wrapTickLabel = text => {
-  if (!text) return ['—'];
-  const words = text.split(' ');
-  const lines = [];
-  let current = '';
-
-  words.forEach(word => {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > 12 && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
-  });
-
-  if (current) lines.push(current);
-  return lines;
+const truncateAxisLabel = value => {
+  const text = String(value ?? '').trim();
+  if (!text) return '—';
+  return text.length > 16 ? `${text.slice(0, 13)}...` : text;
 };
 
-const EstablishmentTick = ({ x, y, payload }) => {
-  const lines = wrapTickLabel(payload?.value ?? '');
-  return (
-    <text x={x} y={y + 10} textAnchor="middle" fill="#556868">
-      {lines.map((line, index) => (
-        <tspan key={`${payload?.value ?? ''}-${index}`} x={x} dy={index === 0 ? 0 : 12}>
-          {line}
-        </tspan>
-      ))}
-    </text>
-  );
-};
+const CHECKINS_PAGE_SIZE = 5;
 
 const buildSankeyData = flows => {
   const nodes = [];
@@ -252,6 +227,7 @@ function LguAnalytics({ embedded = false }) {
   const [flows, setFlows] = useState([]);
 
   const [checkins, setCheckins] = useState([]);
+  const [checkinsPage, setCheckinsPage] = useState(1);
 
   const [nationalities, setNationalities] = useState([]);
 
@@ -387,6 +363,25 @@ function LguAnalytics({ embedded = false }) {
   }, [heatmapPoints, municipalityFilter]);
 
   const sankeyData = useMemo(() => buildSankeyData(flows), [flows]);
+  const checkinsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil((checkins?.length || 0) / CHECKINS_PAGE_SIZE)),
+    [checkins],
+  );
+  const safeCheckinsPage = Math.min(checkinsPage, checkinsTotalPages);
+  const pagedCheckins = useMemo(() => {
+    const start = (safeCheckinsPage - 1) * CHECKINS_PAGE_SIZE;
+    return (checkins || []).slice(start, start + CHECKINS_PAGE_SIZE);
+  }, [checkins, safeCheckinsPage]);
+  const checkinsRangeStart = checkins.length ? (safeCheckinsPage - 1) * CHECKINS_PAGE_SIZE + 1 : 0;
+  const checkinsRangeEnd = checkins.length
+    ? Math.min(safeCheckinsPage * CHECKINS_PAGE_SIZE, checkins.length)
+    : 0;
+
+  useEffect(() => {
+    if (checkinsPage > checkinsTotalPages) {
+      setCheckinsPage(checkinsTotalPages);
+    }
+  }, [checkinsPage, checkinsTotalPages]);
 
   const tourists30Days = useMemo(() => {
     if (!trend.length) return 0;
@@ -401,13 +396,13 @@ function LguAnalytics({ embedded = false }) {
     () => [
       {
         label: 'Tourists (30 days)',
-        value: tourists30Days ? tourists30Days.toLocaleString() : '—',
-        helper: trend.length ? `Latest month: ${trend.at(-1)?.month ?? '—'}` : 'No arrivals yet',
+        value: tourists30Days ? tourists30Days.toLocaleString() : 'â€”',
+        helper: trend.length ? `Latest month: ${trend.at(-1)?.month ?? 'â€”'}` : 'No arrivals yet',
         icon: <IoTrailSignOutline />,
       },
       {
         label: 'Top destination',
-        value: topDestination?.name ?? '—',
+        value: topDestination?.name ?? 'â€”',
         helper: topDestination
           ? `${topDestination.checkIns ?? topDestination.rating_count ?? 0} visits`
           : 'No data yet',
@@ -418,7 +413,7 @@ function LguAnalytics({ embedded = false }) {
         value:
           topMovement?.from || topMovement?.to
             ? `${formatStop(topMovement?.from)} -> ${formatStop(topMovement?.to)}`
-            : '—',
+            : 'â€”',
         helper: topMovement ? `${topMovement.visits ?? 0} itineraries` : 'No sequences yet',
         icon: <IoGitCompare />,
       },
@@ -668,20 +663,59 @@ function LguAnalytics({ embedded = false }) {
             <p>Manual vs QR scans for establishments in {municipalityLabel} (last 30 days).</p>
           </header>
           {checkins.length ? (
-            <ResponsiveContainer width="100%" height={290}>
-              <BarChart data={checkins}>
+            <ResponsiveContainer width="100%" height={380}>
+              <BarChart
+                data={pagedCheckins}
+                margin={{ top: 8, right: 18, left: 10, bottom: 38 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={<EstablishmentTick />} interval={0} />
+                <XAxis
+                  dataKey="name"
+                  interval={0}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: '#556868', fontSize: 12 }}
+                  tickFormatter={truncateAxisLabel}
+                  height={44}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="qr" stackId="a" fill="#4b7be5" name="QR scanned" />
-                <Bar dataKey="manual" stackId="a" fill="#f2994a" name="Manual" />
+                <Bar dataKey="qr" stackId="a" fill="#4b7be5" name="QR scanned" barSize={34} />
+                <Bar dataKey="manual" stackId="a" fill="#f2994a" name="Manual" barSize={34} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <p className="muted">No establishment check-ins in the past 30 days.</p>
           )}
+          {checkins.length > CHECKINS_PAGE_SIZE ? (
+            <div className="pagination-bar">
+              <span className="pagination-info">
+                Showing {checkinsRangeStart}-{checkinsRangeEnd} of {checkins.length}
+              </span>
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onClick={() => setCheckinsPage(prev => Math.max(prev - 1, 1))}
+                  disabled={safeCheckinsPage <= 1}
+                >
+                  Prev
+                </button>
+                <span className="pagination-page">
+                  Page {safeCheckinsPage} of {checkinsTotalPages}
+                </span>
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onClick={() => setCheckinsPage(prev => Math.min(prev + 1, checkinsTotalPages))}
+                  disabled={safeCheckinsPage >= checkinsTotalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
         </article>
       </section>
     </section>
@@ -702,4 +736,6 @@ function LguAnalytics({ embedded = false }) {
 }
 
 export default LguAnalytics;
+
+
 

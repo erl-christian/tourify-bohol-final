@@ -109,6 +109,10 @@ function OwnerEstablishments() {
   const [editForm, setEditForm] = useState(initialForm);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editFeedback, setEditFeedback] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   const [geoStatus, setGeoStatus] = useState({ loading: false, message: '' });
 
@@ -444,6 +448,12 @@ const handleEditRequirementDocsSelection = (event) => {
     setActiveMediaEst(null);
   };
 
+  const handleOpenEstablishmentPage = (estId) => {
+    if (!estId) return;
+    sessionStorage.setItem('mockAccountScope', 'owner');
+    navigate(`/establishment/${estId}/dashboard`);
+  };
+
 
   const sortedListings = useMemo(() => {
     return [...listings].sort((a, b) => {
@@ -453,11 +463,89 @@ const handleEditRequirementDocsSelection = (event) => {
     });
   }, [listings]);
 
+  const categoryOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        listings
+          .map((listing) => (listing.type || listing.category || '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [listings]);
+
+  const statusOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        listings
+          .map((listing) => (listing.status || '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [listings]);
+
+  const filteredListings = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return sortedListings.filter((listing) => {
+      const category = (listing.type || listing.category || '').trim();
+      const status = (listing.status || '').trim();
+      const municipalityName =
+        municipalityLookup[listing.municipality_id] || listing.municipality || '';
+
+      if (categoryFilter !== 'all' && category !== categoryFilter) return false;
+      if (statusFilter !== 'all' && status.toLowerCase() !== statusFilter.toLowerCase()) return false;
+
+      if (!query) return true;
+
+      const searchable = [
+        listing.name,
+        listing.businessEstablishment_id,
+        listing.id,
+        municipalityName,
+        category,
+        status,
+        listing.establishment_account?.username,
+        listing.establishment_account?.email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [sortedListings, searchTerm, categoryFilter, statusFilter, municipalityLookup]);
+
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredListings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+
+  const paginatedListings = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredListings.slice(start, start + PAGE_SIZE);
+  }, [filteredListings, safePage]);
+
+  const visibleStart = filteredListings.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const visibleEnd = filteredListings.length === 0 ? 0 : Math.min(safePage * PAGE_SIZE, filteredListings.length);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('all');
+    setStatusFilter('all');
+  };
+
   return (
     <OwnerLayout
       title="My Establishments"
       subtitle="LGU registers official establishment records; owners complete operational details."
-      searchPlaceholder="Search your establishments..."
       headerActions={<></>}
     >
       {isModalOpen && (
@@ -760,6 +848,53 @@ const handleEditRequirementDocsSelection = (event) => {
           <p>QR remains available. Open each establishment page to manage details, analytics, and feedback.</p>
         </div>
 
+        <div className="est-filter-bar">
+          <label className="est-filter-item est-filter-item--search">
+            <span>Search</span>
+            <input
+              type="search"
+              placeholder="Search by establishment, municipality, status, or account..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </label>
+
+          <label className="est-filter-item">
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">All categories</option>
+              {categoryOptions.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="est-filter-item">
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">All statuses</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="est-filter-actions">
+            <button
+              type="button"
+              className="ghost-cta"
+              onClick={clearFilters}
+              disabled={!searchTerm && categoryFilter === 'all' && statusFilter === 'all'}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
         <div className="table-shell">
           <div className="table-head table-grid">
             <span>Establishment</span>
@@ -781,12 +916,12 @@ const handleEditRequirementDocsSelection = (event) => {
               <li className="table-row table-grid">
                 <div className="muted">{error}</div>
               </li>
-            ) : sortedListings.length === 0 ? (
+            ) : filteredListings.length === 0 ? (
               <li className="table-row table-grid">
-                <div className="muted">You haven't submitted any establishments yet.</div>
+                <div className="muted">No establishments match your current filters.</div>
               </li>
             ) : (
-              sortedListings.map((listing) => {
+              paginatedListings.map((listing) => {
                 const estId = listing.businessEstablishment_id || listing.id;
                 const municipalityName =
                   municipalityLookup[listing.municipality_id] ||
@@ -829,13 +964,6 @@ const handleEditRequirementDocsSelection = (event) => {
                       ) : (
                         <span className="muted">Not generated</span>
                       )}
-                      <button
-                        type="button"
-                        className="ghost-cta"
-                        onClick={() => handleRegenerateQr(estId)}
-                      >
-                        Refresh QR
-                      </button>
                     </div>
                     <div className="muted">
                       <div>{listing.establishment_account?.username || '-'}</div>
@@ -843,18 +971,22 @@ const handleEditRequirementDocsSelection = (event) => {
                       <div>ID: {listing.establishment_account?.account_id || '-'}</div>
                     </div>
                     <div className="table-actions">
-                      <button type="button" className="ghost-cta" onClick={() => openMediaModal(listing)}>
-                        View details
-                      </button>
                       <button
                         type="button"
                         className="primary-cta"
-                        onClick={() => navigate(`/owner/establishments/${estId}`)}
+                        onClick={() => handleOpenEstablishmentPage(estId)}
                       >
                         Open Page
                       </button>
+                      <button
+                        type="button"
+                        className="ghost-cta"
+                        onClick={() => openMediaModal(listing)}
+                      >
+                        View Establishment
+                      </button>
                       <a className="ghost-cta" href={listing.account_login_url || '/login'} target="_blank" rel="noreferrer">
-                        Login Link
+                        Staff Login
                       </a>
                     </div>
                   </li>
@@ -862,6 +994,35 @@ const handleEditRequirementDocsSelection = (event) => {
               })
             )}
           </ul>
+
+          {!loading && !error && filteredListings.length > 0 && (
+            <div className="pagination-bar">
+              <div className="pagination-info">
+                Showing {visibleStart}-{visibleEnd} of {filteredListings.length} establishments
+              </div>
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage <= 1}
+                >
+                  Previous
+                </button>
+                <span className="pagination-page">
+                  Page {safePage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

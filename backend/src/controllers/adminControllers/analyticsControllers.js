@@ -5,6 +5,7 @@ import Itinerary from '../../models/tourist/Itinerary.js';
 import TravelHistory from '../../models/tourist/TravelHistory.js';
 import TouristArrival from '../../models/tourist/TouristArrival.js';
 import BusinessEstablishment from '../../models/businessEstablishmentModels/BusinessEstablishment.js';
+import BusinessEstablishmentProfile from '../../models/businessEstablishmentModels/BusinessEstablishmentProfile.js';
 import Municipality from '../../models/Municipality.js';
 import FrequentSequence from '../../models/recommendations/FrequentSequence.js';
 import AdminStaffProfile from '../../models/adminModels/AdminStaffProfile.js';
@@ -19,6 +20,36 @@ export async function resolveMunicipalityForLgu(accountId, role, fallbackId) {
     .lean();
   return profile?.municipality_id ?? null;
 }
+
+const assertBusinessEstablishmentScope = async ({ accountId, role, estId }) => {
+  if (role !== 'business_establishment') return;
+  if (!accountId) {
+    const error = new Error('Unauthorized');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const ownerProfile = await BusinessEstablishmentProfile.findOne({ account_id: accountId })
+    .select('business_establishment_profile_id')
+    .lean();
+
+  const filter = ownerProfile?.business_establishment_profile_id
+    ? {
+        businessEstablishment_id: estId,
+        business_establishment_profile_id: ownerProfile.business_establishment_profile_id,
+      }
+    : {
+        businessEstablishment_id: estId,
+        establishment_account_id: accountId,
+      };
+
+  const hasAccess = await BusinessEstablishment.exists(filter);
+  if (!hasAccess) {
+    const error = new Error('Establishment not found');
+    error.statusCode = 404;
+    throw error;
+  }
+};
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -195,7 +226,18 @@ export const getLguVisitorNationalities = async (req, res, next) => {
 export const getEstablishmentFeedbackStats = async (req, res, next) => {
   try {
     const { estId } = req.params;
-    const [agg, buckets, recent] = await Promise.all([
+    try {
+      await assertBusinessEstablishmentScope({
+        accountId: req.user?.account_id,
+        role: req.user?.role,
+        estId,
+      });
+    } catch (scopeErr) {
+      if (scopeErr?.statusCode) res.status(scopeErr.statusCode);
+      throw scopeErr;
+    }
+
+    const [agg, buckets, recent, dateBoundsAgg] = await Promise.all([
       Feedback.aggregate([
         { $match: { business_establishment_id: estId } },
         { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
@@ -210,6 +252,16 @@ export const getEstablishmentFeedbackStats = async (req, res, next) => {
         { $limit: 20 },
         { $project: { rating: 1, createdAt: 1 } },
       ]),
+      Feedback.aggregate([
+        { $match: { business_establishment_id: estId } },
+        {
+          $group: {
+            _id: null,
+            oldest_feedback_at: { $min: '$createdAt' },
+            latest_feedback_at: { $max: '$createdAt' },
+          },
+        },
+      ]),
     ]);
 
     const summary = agg.length
@@ -219,7 +271,17 @@ export const getEstablishmentFeedbackStats = async (req, res, next) => {
     const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const b of buckets) dist[b._id] = b.count;
 
-    res.json({ summary, distribution: dist, recent });
+    const dateBounds = dateBoundsAgg?.[0]
+      ? {
+          oldest_feedback_at: dateBoundsAgg[0].oldest_feedback_at ?? null,
+          latest_feedback_at: dateBoundsAgg[0].latest_feedback_at ?? null,
+        }
+      : {
+          oldest_feedback_at: null,
+          latest_feedback_at: null,
+        };
+
+    res.json({ summary, distribution: dist, recent, date_bounds: dateBounds });
   } catch (e) {
     next(e);
   }
@@ -228,6 +290,17 @@ export const getEstablishmentFeedbackStats = async (req, res, next) => {
 export const generateFeedbackSummary = async (req, res, next) => {
   try {
     const { estId } = req.params;
+    try {
+      await assertBusinessEstablishmentScope({
+        accountId: req.user?.account_id,
+        role: req.user?.role,
+        estId,
+      });
+    } catch (scopeErr) {
+      if (scopeErr?.statusCode) res.status(scopeErr.statusCode);
+      throw scopeErr;
+    }
+
     const from = new Date(req.query.from);
     const to = new Date(req.query.to);
     if (isNaN(from) || isNaN(to) || from > to) {
@@ -333,6 +406,17 @@ Summary:
 export const getLatestFeedbackSummary = async (req, res, next) => {
   try {
     const { estId } = req.params;
+    try {
+      await assertBusinessEstablishmentScope({
+        accountId: req.user?.account_id,
+        role: req.user?.role,
+        estId,
+      });
+    } catch (scopeErr) {
+      if (scopeErr?.statusCode) res.status(scopeErr.statusCode);
+      throw scopeErr;
+    }
+
     const doc = await FeedbackSummary.findOne({
       business_establishment_id: estId,
       $or: [{ audience: 'admin' }, { audience: { $exists: false } }, { audience: null }],

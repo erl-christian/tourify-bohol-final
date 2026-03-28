@@ -3,6 +3,7 @@ import AdminLayout from '../../components/AdminLayout';
 import '../../styles/AdminDashboard.css';
 import {
   fetchAdminStaffProfiles,
+  fetchAllEstablishments,
   createLguAdmin,
   fetchMunicipalities,
   updateLguAdminStatus,
@@ -15,6 +16,7 @@ const accountTabs = [
   { id: 'lgu_admin', label: 'LGU Admins' },
   { id: 'bto_staff', label: 'BTO Staff' },
   { id: 'lgu_staff', label: 'LGU Staff' },
+  { id: 'business_establishment', label: 'Establishment Owners' },
 ];
 
 const initialAdminForm = {
@@ -43,6 +45,7 @@ function Accounts() {
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [staffError, setStaffError] = useState('');
+  const [establishments, setEstablishments] = useState([]);
 
   const [municipalities, setMunicipalities] = useState([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(true);
@@ -54,6 +57,8 @@ function Accounts() {
 
   const pageSize = 10;
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [ownerRegistrationFilter, setOwnerRegistrationFilter] = useState('all');
 
 
   const [submittingAdmin, setSubmittingAdmin] = useState(false);
@@ -90,12 +95,39 @@ function Accounts() {
       setLoadingStaff(true);
       setLoadingMunicipalities(true);
 
-      const [staffRes, municipalitiesRes] = await Promise.all([
+      const loadAllEstablishments = async () => {
+        const limit = 100;
+        let pageNum = 1;
+        let total = 0;
+        const allItems = [];
+
+        while (pageNum <= 200) {
+          const { data } = await fetchAllEstablishments({ page: pageNum, limit });
+          const items = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data)
+            ? data
+            : [];
+
+          allItems.push(...items);
+          if (!Array.isArray(data?.items)) break;
+
+          total = Number(data?.total) || allItems.length;
+          if (!items.length || allItems.length >= total) break;
+          pageNum += 1;
+        }
+
+        return allItems;
+      };
+
+      const [staffRes, municipalitiesRes, establishmentsRes] = await Promise.all([
         fetchAdminStaffProfiles(),
         fetchMunicipalities(),
+        loadAllEstablishments(),
       ]);
 
       setStaff(staffRes.data?.staff || []);
+      setEstablishments(establishmentsRes || []);
       setMunicipalities(normalizeMunicipalities(municipalitiesRes?.data));
       setStaffError('');
     } catch (error) {
@@ -119,8 +151,10 @@ function Accounts() {
           id: account.account_id,
           name: profile?.full_name ?? account.email,
           email: account.email,
+          username: account.username || '',
           municipalityId: profile?.municipality_id ?? '',
           municipality: profile?.municipality_id ?? 'Not assigned',
+          profileId: profile?.business_establishment_profile_id ?? null,
           roleId: account.role,
           role:
             account.role === 'lgu_admin'
@@ -129,17 +163,29 @@ function Accounts() {
               ? 'LGU Staff'
               : account.role === 'bto_staff'
               ? 'BTO Staff'
+              : account.role === 'business_establishment'
+              ? 'Establishment Owner'
               : account.role,
           status: isActive ? 'Active' : 'Deactivated',
           isActive,
           lastSeen: account.updatedAt
             ? new Date(account.updatedAt).toLocaleString()
-            : '�?"',
+            : '-',
           createdAt: account.createdAt,
           updatedAt: account.updatedAt,
         };
       }),
     [staff],
+  );
+
+  const registeredOwnerProfileIds = useMemo(
+    () =>
+      new Set(
+        establishments
+          .map((item) => item?.business_establishment_profile_id)
+          .filter(Boolean),
+      ),
+    [establishments],
   );
 
   const roleCounts = useMemo(
@@ -156,15 +202,52 @@ function Accounts() {
     [accounts],
   );
 
-  const filteredAccounts = useMemo(
-    () =>
+  const ownerRegistrationCounts = useMemo(() => {
+    const owners = accounts.filter((account) => account.roleId === 'business_establishment');
+    const registered = owners.filter(
+      (account) => account.profileId && registeredOwnerProfileIds.has(account.profileId),
+    ).length;
+    return {
+      all: owners.length,
+      registered,
+      unregistered: Math.max(0, owners.length - registered),
+    };
+  }, [accounts, registeredOwnerProfileIds]);
+
+  const filteredAccounts = useMemo(() => {
+    const roleFiltered =
       activeTab === 'all'
         ? accounts
-        : accounts.filter((account) => account.roleId === activeTab),
-    [accounts, activeTab],
-  );
+        : accounts.filter((account) => account.roleId === activeTab);
 
-  useEffect(() => setPage(1), [activeTab]);
+    const ownerFiltered =
+      activeTab === 'business_establishment' && ownerRegistrationFilter !== 'all'
+        ? roleFiltered.filter((account) => {
+            const isRegistered = Boolean(
+              account.profileId && registeredOwnerProfileIds.has(account.profileId),
+            );
+            return ownerRegistrationFilter === 'registered' ? isRegistered : !isRegistered;
+          })
+        : roleFiltered;
+
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return ownerFiltered;
+
+    return ownerFiltered.filter((account) =>
+      [
+        account.name,
+        account.email,
+        account.username,
+        account.municipality,
+        account.role,
+        account.id,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [accounts, activeTab, ownerRegistrationFilter, registeredOwnerProfileIds, searchQuery]);
+
+  useEffect(() => setPage(1), [activeTab, searchQuery, ownerRegistrationFilter]);
 
   useEffect(() => {
     const max = Math.max(1, Math.ceil(filteredAccounts.length / pageSize) || 1);
@@ -352,8 +435,8 @@ const handleCreateBtoStaff = async (event) => {
 
   return (
     <AdminLayout
-      title="LGU Accounts"
-      subtitle="Manage LGU admins and staff across the province."
+      title="Accounts"
+      subtitle="Manage LGU, BTO, and establishment owner accounts province-wide."
         headerActions={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="primary-cta" onClick={openModal}>
@@ -369,7 +452,7 @@ const handleCreateBtoStaff = async (event) => {
         <div className="section-heading">
           <h2>Accounts</h2>
           <p>
-            Showing {currentCount}{' '}
+            Showing {filteredAccounts.length} of {currentCount}{' '}
             {activeTabMeta ? activeTabMeta.label.toLowerCase() : 'accounts'}.
           </p>
         </div>
@@ -392,13 +475,57 @@ const handleCreateBtoStaff = async (event) => {
           </div>
         </div>
 
+        <div className="est-filter-bar">
+          <label className="est-filter-item est-filter-item--search">
+            <span>Search account</span>
+            <input
+              type="search"
+              placeholder="Search by name, username, email, municipality or ID"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+
+          {activeTab === 'business_establishment' && (
+            <label className="est-filter-item">
+              <span>Owner registration</span>
+              <select
+                value={ownerRegistrationFilter}
+                onChange={(event) => setOwnerRegistrationFilter(event.target.value)}
+              >
+                <option value="all">All owners ({ownerRegistrationCounts.all})</option>
+                <option value="registered">
+                  Registered owners ({ownerRegistrationCounts.registered})
+                </option>
+                <option value="unregistered">
+                  Unregistered owners ({ownerRegistrationCounts.unregistered})
+                </option>
+              </select>
+            </label>
+          )}
+
+          <div className="est-filter-actions">
+            <button
+              type="button"
+              className="ghost-cta"
+              onClick={() => {
+                setSearchQuery('');
+                setOwnerRegistrationFilter('all');
+              }}
+              disabled={!searchQuery && ownerRegistrationFilter === 'all'}
+            >
+              Clear filters
+            </button>
+          </div>
+        </div>
+
         <div className="table-shell">
           <div className="table-head table-grid accounts-grid">
             <span>Name</span>
             <span>Municipality</span>
             <span>Role</span>
             <span>Status</span>
-            <span>Last Activity</span>
+            <span>Activity</span>
             <span>Actions</span>
           </div>
 
@@ -435,11 +562,10 @@ const handleCreateBtoStaff = async (event) => {
                       {account.status}
                     </span>
                   </div>
-                  <div className="muted">{account.lastSeen}</div>
                   <div className="muted">
-                  <div>Created: {formatDateTime(account.createdAt)}</div>
-                  <div>Updated: {formatDateTime(account.updatedAt)}</div>
-                </div>
+                    <div>Last seen: {account.lastSeen}</div>
+                    <div>Updated: {formatDateTime(account.updatedAt)}</div>
+                  </div>
                   <div className="table-actions">
                     {account.roleId === 'lgu_admin' ? (
                         <button
@@ -458,7 +584,7 @@ const handleCreateBtoStaff = async (event) => {
                           {account.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                     ) : (
-                      <span className="muted">�?"</span>
+                      <span className="muted">-</span>
                     )}
                   </div>
                 </li>
@@ -741,6 +867,8 @@ const handleCreateBtoStaff = async (event) => {
 }
 
 export default Accounts;
+
+
 
 
 

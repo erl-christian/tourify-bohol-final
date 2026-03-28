@@ -109,11 +109,13 @@ router.post("/lgu/feedback/:feedbackId/reply", auth, requireRoles("lgu_admin", "
 
 router.post("/lgu/establishments/:estId/feedback-summary", auth, requireRoles("lgu_admin", "bto_admin", "bto_staff", "lgu_staff"), generateFeedbackSummary);
 router.get("/lgu/establishments/:estId/feedback-summary/latest", auth, requireRoles("lgu_admin", "bto_admin", "bto_staff", "lgu_staff"), getLatestFeedbackSummary);
+router.post("/establishments/:estId/feedback-summary", auth, requireRoles("business_establishment"), generateFeedbackSummary);
+router.get("/establishments/:estId/feedback-summary/latest", auth, requireRoles("business_establishment"), getLatestFeedbackSummary);
 
 router.get(
   '/analytics/establishments/:estId/feedback-stats',
   auth,
-  requireRoles('lgu_admin', 'bto_admin', 'bto_staff', 'lgu_staff'),
+  requireRoles('lgu_admin', 'bto_admin', 'bto_staff', 'lgu_staff', 'business_establishment'),
   getEstablishmentFeedbackStats
 );
 

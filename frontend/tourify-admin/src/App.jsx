@@ -20,7 +20,6 @@ import OwnerAnalytics from './pages/owner/Analytics.jsx';
 import AccountSettings from './pages/AccountSettings.jsx';
 import {
   EstablishmentDashboard,
-  EstablishmentAnalytics,
   EstablishmentFeedback,
   EstablishmentAccount,
 } from './pages/establishment';
@@ -128,11 +127,11 @@ function App() {
       <Route path="/owner/establishments" element={<OwnerEstablishments />} />
       <Route path="/owner/establishments/:estId" element={<OwnerEstablishmentLegacyRedirect />} />
       <Route path="/owner/feedback" element={<OwnerFeedback />} />
-      <Route path="/owner/analytics" element={<OwnerAnalytics />} />
+      <Route path="/owner/analytics" element={<Navigate to="/owner/dashboard" replace />} />
 
       <Route path="/establishment/:estId" element={<OwnerEstablishmentLegacyRedirect />} />
       <Route path="/establishment/:estId/dashboard" element={<EstablishmentDashboard />} />
-      <Route path="/establishment/:estId/analytics" element={<EstablishmentAnalytics />} />
+      <Route path="/establishment/:estId/analytics" element={<OwnerEstablishmentLegacyRedirect />} />
       <Route path="/establishment/:estId/feedback" element={<EstablishmentFeedback />} />
       <Route path="/establishment/:estId/account" element={<EstablishmentAccount />} />
     </Routes>

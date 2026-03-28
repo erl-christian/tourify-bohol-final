@@ -180,6 +180,36 @@ function LguStaffDashboard() {
     ],
   );
 
+  const dashboardHighlights = useMemo(
+    () => [
+      {
+        id: 'municipality',
+        label: 'Municipality',
+        value: municipalityName,
+        hint: 'Assigned LGU area',
+      },
+      {
+        id: 'total-establishments',
+        label: 'Total Establishments',
+        value: totalEstablishments,
+        hint: 'Registered in municipality',
+      },
+      {
+        id: 'approved',
+        label: 'Approved / Verified',
+        value: approvedCount,
+        hint: 'Ready for tourist visibility',
+      },
+      {
+        id: 'rejected',
+        label: 'Rejected',
+        value: rejectedCount,
+        hint: 'Needs correction and follow-up',
+      },
+    ],
+    [municipalityName, totalEstablishments, approvedCount, rejectedCount],
+  );
+
   const approvedItems = useMemo(
     () =>
       establishments
@@ -211,18 +241,36 @@ function LguStaffDashboard() {
     <LguStaffLayout
       title={`${municipalityName} Dashboard & Analytics`}
       subtitle={`Logged in as LGU staff. Review analytics and establishment updates for ${municipalityName} in one page.`}
-      searchPlaceholder="Search submissions or establishments..."
     >
-      <div className="lgu-merged-content">
-        <section className="merged-analytics-block merged-analytics-block--clean">
-          <header className="merged-section-head">
-            <h2>Municipal Insights</h2>
-            <p>Live tourism trends and movement analytics for {municipalityName}.</p>
+      <div className="bto-merged-content bto-merged-content--clean">
+        <section className="bto-overview-strip">
+          <header className="merged-section-head bto-overview-head">
+            <h2>Dashboard Overview</h2>
+            <p>Quick municipal snapshot with direct access to operations and analytics.</p>
           </header>
-          <LguStaffAnalytics embedded />
+          <div className="bto-overview-actions">
+            <a href="#lgu-staff-operations-accounts-section" className="ghost-cta bto-link-cta">
+              Go to Operations
+            </a>
+            <a href="#lgu-staff-analytics-insights-section" className="ghost-cta bto-link-cta">
+              Go to Analytics
+            </a>
+          </div>
+          <div className="bto-overview-grid">
+            {dashboardHighlights.map((item) => (
+              <article key={item.id} className="bto-overview-card">
+                <p className="bto-overview-label">{item.label}</p>
+                <h3>{item.value}</h3>
+                <p className="bto-overview-hint">{item.hint}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
-        <section className="merged-management-block lgu-management-block">
+        <section
+          id="lgu-staff-operations-accounts-section"
+          className="merged-management-block merged-management-block--clean lgu-management-block"
+        >
           <header className="merged-section-head">
             <h2>Operations Overview</h2>
             <p>Monitor municipal metrics and recent establishment updates.</p>
@@ -396,6 +444,17 @@ function LguStaffDashboard() {
               </div>
             </section>
           </div>
+        </section>
+
+        <section
+          id="lgu-staff-analytics-insights-section"
+          className="merged-analytics-block merged-analytics-block--clean"
+        >
+          <header className="merged-section-head">
+            <h2>Analytics Insights</h2>
+            <p>Live tourism trends and movement analytics for {municipalityName}.</p>
+          </header>
+          <LguStaffAnalytics embedded />
         </section>
       </div>
 

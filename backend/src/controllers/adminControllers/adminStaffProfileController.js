@@ -884,6 +884,7 @@ export const lguCreateEstablishmentForOwner = async (req, res, next) => {
       official_name,
       type,
       ownership_type = "private",
+      credential_email,
       address,
       contact_info,
       accreditation_no,
@@ -892,9 +893,16 @@ export const lguCreateEstablishmentForOwner = async (req, res, next) => {
       description,
     } = req.body;
 
-    if (!owner_account_id || !official_name || !type) {
+    if (!owner_account_id || !official_name || !type || !credential_email) {
       res.status(400);
-      throw new Error("owner_account_id, official_name, and type are required");
+      throw new Error("owner_account_id, official_name, type, and credential_email are required");
+    }
+
+    const normalizedCredentialEmail = String(credential_email).trim().toLowerCase();
+    const isValidCredentialEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedCredentialEmail);
+    if (!isValidCredentialEmail) {
+      res.status(400);
+      throw new Error("Invalid credential_email format");
     }
 
     const ownerProfile = await BusinessEstablishmentProfile.findOne({
@@ -930,7 +938,7 @@ export const lguCreateEstablishmentForOwner = async (req, res, next) => {
     const tempPassword = generateTempPassword();
 
     const establishmentAccount = await Account.create({
-      email: `${generatedUsername}@est.local`,
+      email: normalizedCredentialEmail,
       username: generatedUsername,
       password: tempPassword,
       role: "business_establishment",
@@ -960,8 +968,31 @@ export const lguCreateEstablishmentForOwner = async (req, res, next) => {
     est.qr_code = publicUrl;
     await est.save();
 
+    const loginUrl = getAdminLoginUrl();
+    let inviteEmailSent = false;
+    try {
+      const mailResult = await sendMail({
+        to: normalizedCredentialEmail,
+        subject: "Your Tourify Bohol Establishment account",
+        html: buildLguManagedInviteHtml({
+          heading: "Establishment Account Invitation",
+          fullName: ownerProfile.full_name || ownerAccount.username || "Owner",
+          email: establishmentAccount.username,
+          password: tempPassword,
+          municipalityName: String(official_name).trim(),
+          loginUrl,
+          createdByName: actor.full_name || actor.position || "LGU Admin/Staff",
+        }),
+      });
+      inviteEmailSent = Boolean(mailResult);
+    } catch (mailErr) {
+      console.warn("[lguCreateEstablishmentForOwner] invite email send failed:", mailErr.message);
+    }
+
     res.status(201).json({
-      message: "Establishment created, auto-approved, and linked to owner account",
+      message: inviteEmailSent
+        ? "Establishment created, auto-approved, and credentials email sent"
+        : "Establishment created, auto-approved (credentials email not sent)",
       establishment: est,
       owner: {
         account_id: ownerAccount.account_id,
@@ -973,8 +1004,10 @@ export const lguCreateEstablishmentForOwner = async (req, res, next) => {
         username: establishmentAccount.username,
         temp_password: tempPassword,
         must_change_password: establishmentAccount.must_change_password,
-        account_login_url: getAdminLoginUrl(),
+        account_login_url: loginUrl,
+        credential_email: normalizedCredentialEmail,
       },
+      inviteEmailSent,
     });
   } catch (err) {
     next(err);

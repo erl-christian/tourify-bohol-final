@@ -37,6 +37,7 @@ const ownershipTypeOptions = [
 
 const initialCreateEstForm = {
   ownerAccountId: '',
+  credentialEmail: '',
   officialName: '',
   type: '',
   ownershipType: 'private',
@@ -318,6 +319,7 @@ function Establishments() {
     try {
       const { data } = await createLguEstablishment({
         owner_account_id: createEstForm.ownerAccountId,
+        credential_email: createEstForm.credentialEmail,
         official_name: createEstForm.officialName,
         type: createEstForm.type,
         ownership_type: createEstForm.ownershipType,
@@ -334,6 +336,9 @@ function Establishments() {
         username: data?.establishment_account?.username || '',
         tempPassword: data?.establishment_account?.temp_password || '',
         loginUrl: data?.establishment_account?.account_login_url || '/login',
+        credentialEmail:
+          data?.establishment_account?.credential_email || createEstForm.credentialEmail || '',
+        inviteEmailSent: Boolean(data?.inviteEmailSent),
       });
       await Promise.all([loadEstablishments(), loadOwners()]);
     } catch (err) {
@@ -581,6 +586,21 @@ function Establishments() {
                   >
                     Create Owner Account
                   </button>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label" htmlFor="create-credential-email">
+                    Credentials email
+                  </label>
+                  <input
+                    id="create-credential-email"
+                    name="credentialEmail"
+                    type="email"
+                    required
+                    value={createEstForm.credentialEmail}
+                    onChange={handleCreateEstablishmentFormChange}
+                    placeholder="owner@example.com"
+                  />
                 </div>
 
                 <div className="form-row">
@@ -966,7 +986,11 @@ function Establishments() {
             <header className="modal-header">
               <div>
                 <h3>Establishment Account Generated</h3>
-                <p>Share these login credentials directly with the owner. No email is sent for this account.</p>
+                <p>
+                  {createdEstAccount.inviteEmailSent
+                    ? 'Credentials were sent to the provided email.'
+                    : 'Credentials email was not sent. You can still share the generated credentials manually.'}
+                </p>
               </div>
               <button
                 type="button"
@@ -991,6 +1015,12 @@ function Establishments() {
                 <p className="detail-value">Account ID: {createdEstAccount.accountId || '-'}</p>
                 <p className="detail-value">Username: {createdEstAccount.username || '-'}</p>
                 <p className="detail-value">Temporary Password: {createdEstAccount.tempPassword || '-'}</p>
+                <p className="detail-value">
+                  Credentials Email: {createdEstAccount.credentialEmail || '-'}
+                </p>
+                <p className="detail-value">
+                  Email Status: {createdEstAccount.inviteEmailSent ? 'Sent' : 'Not sent'}
+                </p>
                 <p className="detail-value">
                   Login URL:{' '}
                   <a href={createdEstAccount.loginUrl || '/login'} target="_blank" rel="noreferrer">

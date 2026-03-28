@@ -25,6 +25,13 @@ export const fetchLatestFeedbackSummary = estId =>
 export const generateFeedbackSummary = (estId, params) =>
   http.post(`/admin/lgu/establishments/${estId}/feedback-summary`, null, { params });
 
+// Feedback summaries (Owner / Establishment account)
+export const fetchLatestOwnerFeedbackSummary = estId =>
+  http.get(`/admin/establishments/${estId}/feedback-summary/latest`);
+
+export const generateOwnerFeedbackSummary = (estId, params) =>
+  http.post(`/admin/establishments/${estId}/feedback-summary`, null, { params });
+
 export const fetchFeedbackStats = estId =>
   http.get(`/admin/analytics/establishments/${estId}/feedback-stats`);
 

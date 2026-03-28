@@ -57,6 +57,18 @@ const parseAiSummary = text => {
   return { summary, actions, structured };
 };
 
+const toDateInputValue = date => {
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 10);
+};
+
+const clampDateValue = (value, min, max) => {
+  if (!value) return '';
+  if (min && value < min) return min;
+  if (max && value > max) return max;
+  return value;
+};
+
 const sortOptions = [
   { value: 'newest', label: 'Most recent' },
   { value: 'oldest', label: 'Oldest first' },
@@ -72,10 +84,19 @@ const ratingLabels = {
   5: '5 stars',
 };
 
+const getEstablishmentId = est =>
+  est?.businessEstablishment_id ??
+  est?.business_establishment_id ??
+  est?.business_establishmentId ??
+  est?.id ??
+  '';
+
 function LguFeedback() {
   const { showLoading, showSuccess, showError } = useActionStatus();
+  const todayInputDate = useMemo(() => toDateInputValue(new Date()), []);
   const [establishments, setEstablishments] = useState([]);
   const [selectedEst, setSelectedEst] = useState('');
+  const [establishmentSearch, setEstablishmentSearch] = useState('');
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
   const [error, setError] = useState('');
 
@@ -89,6 +110,14 @@ function LguFeedback() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [summaryFrom, setSummaryFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return toDateInputValue(d);
+  });
+  const [summaryTo, setSummaryTo] = useState(() => toDateInputValue(new Date()));
+  const [summaryRangeError, setSummaryRangeError] = useState('');
+  const [summaryDateBounds, setSummaryDateBounds] = useState({ min: '', max: '' });
 
   const [feedbackState, setFeedbackState] = useState({
     loading: false,
@@ -146,7 +175,7 @@ function LguFeedback() {
         if (!items.length) {
           setError('No establishments are assigned to your municipality yet.');
         } else {
-          setSelectedEst(items[0].businessEstablishment_id ?? items[0].business_establishment_id ?? '');
+          setSelectedEst(getEstablishmentId(items[0]));
           setError('');
         }
       } catch (err) {
@@ -198,6 +227,23 @@ function LguFeedback() {
         fetchLatestFeedbackSummary(selectedEst).catch(() => null),
         fetchFeedbackStats(selectedEst).catch(() => null),
       ]);
+      const minDate = statsRes?.data?.date_bounds?.oldest_feedback_at
+        ? toDateInputValue(new Date(statsRes.data.date_bounds.oldest_feedback_at))
+        : '';
+      const maxDate = statsRes?.data?.date_bounds?.latest_feedback_at
+        ? toDateInputValue(new Date(statsRes.data.date_bounds.latest_feedback_at))
+        : '';
+      setSummaryDateBounds({ min: minDate, max: maxDate });
+      setSummaryFrom(prev => {
+        if (!minDate || !maxDate) return prev;
+        const initial = prev || minDate;
+        return clampDateValue(initial, minDate, maxDate);
+      });
+      setSummaryTo(prev => {
+        if (!minDate || !maxDate) return prev;
+        const initial = prev || maxDate;
+        return clampDateValue(initial, minDate, maxDate);
+      });
       setSummaryState({
         loading: false,
         latest: latestRes?.data ?? null,
@@ -281,11 +327,35 @@ function LguFeedback() {
 
   const handleGenerateSummary = async () => {
     if (!selectedEst) return;
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - 30);
+    if (!summaryFrom || !summaryTo) {
+      const message = 'Select both summary range dates.';
+      setSummaryRangeError(message);
+      showError(message);
+      return;
+    }
+    const from = new Date(`${summaryFrom}T00:00:00`);
+    const to = new Date(`${summaryTo}T23:59:59.999`);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      const message = 'Summary date range is invalid.';
+      setSummaryRangeError(message);
+      showError(message);
+      return;
+    }
+    if (summaryDateBounds.min && summaryFrom < summaryDateBounds.min) {
+      const message = `Earliest allowed date is ${summaryDateBounds.min}.`;
+      setSummaryRangeError(message);
+      showError(message);
+      return;
+    }
+    if (summaryDateBounds.max && summaryTo > summaryDateBounds.max) {
+      const message = `Latest allowed date is ${summaryDateBounds.max}.`;
+      setSummaryRangeError(message);
+      showError(message);
+      return;
+    }
 
     try {
+      setSummaryRangeError('');
       setSummaryState(prev => ({ ...prev, loading: true }));
       showLoading('Generating AI summary...');
       await generateFeedbackSummary(selectedEst, {
@@ -371,6 +441,37 @@ function LguFeedback() {
     setPage(1);
   };
 
+  const filteredEstablishments = useMemo(() => {
+    const query = establishmentSearch.trim().toLowerCase();
+    if (!query) return establishments;
+    return establishments.filter(est => {
+      const id = getEstablishmentId(est);
+      const name = est?.name ?? est?.establishment_name ?? id;
+      return `${name} ${id}`.toLowerCase().includes(query);
+    });
+  }, [establishments, establishmentSearch]);
+
+  const establishmentOptions = useMemo(() => {
+    if (!selectedEst) return filteredEstablishments;
+    const hasSelected = filteredEstablishments.some(est => getEstablishmentId(est) === selectedEst);
+    if (hasSelected) return filteredEstablishments;
+    const selectedEntry = establishments.find(est => getEstablishmentId(est) === selectedEst);
+    return selectedEntry ? [selectedEntry, ...filteredEstablishments] : filteredEstablishments;
+  }, [filteredEstablishments, establishments, selectedEst]);
+
+  useEffect(() => {
+    const query = establishmentSearch.trim();
+    if (!query || !filteredEstablishments.length) return;
+    const timer = setTimeout(() => {
+      const firstId = getEstablishmentId(filteredEstablishments[0]);
+      if (firstId && firstId !== selectedEst) {
+        setSelectedEst(firstId);
+        setPage(1);
+      }
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [establishmentSearch, filteredEstablishments, selectedEst]);
+
 
   return (
     <LguLayout title="Municipal Feedback">
@@ -384,6 +485,15 @@ function LguFeedback() {
             </p>
           </div>
           <div className="owner-hero-filters">
+            <label className="owner-hero-filters__search">
+              Search establishment
+              <input
+                type="search"
+                placeholder="Search by name or ID"
+                value={establishmentSearch}
+                onChange={event => setEstablishmentSearch(event.target.value)}
+              />
+            </label>
             <label>
               Establishment
               <select
@@ -392,10 +502,13 @@ function LguFeedback() {
                   setSelectedEst(event.target.value);
                   setPage(1);
                 }}
-                disabled={loadingEstablishments}
+                disabled={loadingEstablishments || !establishmentOptions.length}
               >
-                {establishments.map(est => {
-                  const id = est.businessEstablishment_id ?? est.business_establishment_id;
+                {!establishmentOptions.length ? (
+                  <option value="">No matching establishments</option>
+                ) : null}
+                {establishmentOptions.map(est => {
+                  const id = getEstablishmentId(est);
                   return (
                     <option key={id} value={id}>
                       {est.name ?? est.establishment_name ?? id}
@@ -491,13 +604,45 @@ function LguFeedback() {
                       ) : (
                         <p className="summary-helper">No generated summary yet.</p>
                       )}
+                  <div className="summary-range-fields">
+                    <label className="summary-range-field">
+                      <span>From</span>
+                      <input
+                        type="date"
+                        value={summaryFrom}
+                        min={summaryDateBounds.min || undefined}
+                        max={summaryTo || summaryDateBounds.max || todayInputDate}
+                        onChange={event => setSummaryFrom(event.target.value)}
+                        disabled={summaryState.loading}
+                      />
+                    </label>
+                    <label className="summary-range-field">
+                      <span>To</span>
+                      <input
+                        type="date"
+                        value={summaryTo}
+                        min={summaryFrom || summaryDateBounds.min || undefined}
+                        max={summaryDateBounds.max || todayInputDate}
+                        onChange={event => setSummaryTo(event.target.value)}
+                        disabled={summaryState.loading}
+                      />
+                    </label>
+                  </div>
+                  {summaryDateBounds.min && summaryDateBounds.max ? (
+                    <p className="summary-helper">
+                      Available feedback range: {summaryDateBounds.min} to {summaryDateBounds.max}
+                    </p>
+                  ) : (
+                    <p className="summary-helper">No feedback yet. Generate summary is disabled.</p>
+                  )}
+                  {summaryRangeError ? <p className="summary-range-error">{summaryRangeError}</p> : null}
                   <button
                     type="button"
                     className="primary-btn"
                     onClick={handleGenerateSummary}
-                    disabled={summaryState.loading}
+                    disabled={summaryState.loading || !summaryDateBounds.min || !summaryDateBounds.max}
                   >
-                    {summaryState.loading ? 'Generating…' : 'Generate last 30 days'}
+                    {summaryState.loading ? 'Generating…' : 'Generate summary for range'}
                   </button>
                 </article>
             </section>
