@@ -1,6 +1,6 @@
-# Tourify Bohol Final
+# Tourify Bohol
 
-Tourify Bohol Final is our capstone project: a smart tourism platform that helps tourists discover verified destinations in Bohol, build optimized itineraries, and interact with local tourism services through one connected system.
+Tourify Bohol is our capstone project: a smart tourism platform that helps tourists discover verified destinations in Bohol, build optimized itineraries, and interact with local tourism services through one connected system.
 
 The project combines a tourist mobile application, an admin web dashboard, and a backend API. Its strongest point is that it does not only show destinations. It supports smarter travel decisions through personalized recommendations, route optimization, weather-aware planning, QR-based check-ins, shared itineraries, and feedback insights for both tourists and tourism stakeholders.
 
